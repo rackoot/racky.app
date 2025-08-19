@@ -117,19 +117,19 @@ export function ConnectedMarketplaceDetail({
         <CardContent>
           <div className="grid grid-cols-4 gap-6">
             <div className="text-center">
-              <div className="text-2xl font-bold">{connectionInfo.productsCount || 17}</div>
+              <div className="text-2xl font-bold">{connectionInfo.productsCount || 0}</div>
               <div className="text-sm text-muted-foreground">Total Products</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{connectionInfo.activeProductsCount || 17}</div>
+              <div className="text-2xl font-bold text-green-600">{connectionInfo.activeProductsCount || 0}</div>
               <div className="text-sm text-muted-foreground">Active Products</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{connectionInfo.totalInventory || 680}</div>
+              <div className="text-2xl font-bold text-blue-600">{connectionInfo.totalInventory || 0}</div>
               <div className="text-sm text-muted-foreground">Total Inventory</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{connectionInfo.inventoryValue || '$561131'}</div>
+              <div className="text-2xl font-bold text-purple-600">{connectionInfo.inventoryValue || '$0'}</div>
               <div className="text-sm text-muted-foreground">Inventory Value</div>
             </div>
           </div>
