@@ -14,7 +14,7 @@ Racky is a marketplace management platform that allows users to connect and mana
 ### Frontend (Client)
 ```bash
 cd client
-npm run dev          # Start development server (usually http://localhost:5174)
+npm run dev          # Start development server (usually http://localhost:5173)
 npm run build        # Build for production
 npm run lint         # Run ESLint
 npm run preview      # Preview production build locally

@@ -119,5 +119,20 @@ export const marketplaceService = {
     }
     
     return response.json();
+  },
+
+  // Disconnect marketplace from store
+  async disconnectMarketplace(connectionId: string, marketplaceId: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/connections/${connectionId}/marketplace/${marketplaceId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to disconnect marketplace');
+    }
+    
+    return response.json();
   }
 };

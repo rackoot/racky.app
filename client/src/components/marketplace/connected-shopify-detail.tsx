@@ -2,8 +2,10 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, RotateCcw, Package, TrendingUp, DollarSign, Archive, Trash2 } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ArrowLeft, RotateCcw, Package, TrendingUp, DollarSign, Archive, Trash2, AlertTriangle } from "lucide-react"
 import { productsService, type Product } from "@/services/products"
+import { marketplaceService } from "@/services/marketplace"
 import type { Marketplace } from "@/types/marketplace"
 
 interface ConnectedShopifyDetailProps {
@@ -16,6 +18,8 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
   const [stats, setStats] = useState({
     totalProducts: 0,
     activeProducts: 0,
@@ -65,6 +69,24 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     }
   }
 
+  const handleDisconnect = async () => {
+    if (!marketplace.connectionInfo) return
+    
+    setDisconnecting(true)
+    try {
+      await marketplaceService.disconnectMarketplace(
+        marketplace.connectionInfo.connectionId,
+        marketplace.connectionInfo.marketplaceId
+      )
+      setShowDisconnectConfirm(false)
+      onBack() // Navigate back to stores after disconnect
+    } catch (error) {
+      console.error('Error disconnecting marketplace:', error)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
   useEffect(() => {
     loadProducts()
     if (marketplace.connectionInfo?.lastSync) {
@@ -94,11 +116,19 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
           </div>
         </div>
         <Button
+          type="button"
           variant="destructive"
           size="sm"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            console.log('Disconnect button clicked, showing confirmation')
+            setShowDisconnectConfirm(true)
+          }}
+          disabled={disconnecting}
         >
           <Trash2 className="w-4 h-4 mr-2" />
-          Disconnect Store
+          {disconnecting ? 'Disconnecting...' : 'Disconnect Store'}
         </Button>
       </div>
 
@@ -229,6 +259,60 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
               <RotateCcw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Syncing...' : 'Sync Products Now'}
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Disconnect Confirmation Dialog */}
+      {showDisconnectConfirm && (
+        <Card className="border-destructive">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <CardTitle className="text-destructive">Disconnect Shopify Store</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Warning:</strong> Disconnecting this store will:
+                  <ul className="list-disc list-inside mt-2 ml-4">
+                    <li>Remove the connection to your Shopify store</li>
+                    <li>Stop product synchronization</li>
+                    <li>Keep existing product data but mark it as disconnected</li>
+                  </ul>
+                  <p className="mt-2">You can reconnect later if needed.</p>
+                </AlertDescription>
+              </Alert>
+              
+              <div className="flex gap-2 justify-end">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setShowDisconnectConfirm(false)
+                  }}
+                  disabled={disconnecting}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="button"
+                  variant="destructive" 
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleDisconnect()
+                  }}
+                  disabled={disconnecting}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {disconnecting ? 'Disconnecting...' : 'Yes, Disconnect Store'}
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
