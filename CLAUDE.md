@@ -189,6 +189,7 @@ PORT=5000
 - Connection testing provides detailed success/failure information with marketplace-specific data
 
 ## Development Guidelines
+- **Full-Stack Implementation Required**: When implementing new features, ALWAYS work on both backend (`/server`) and frontend (`/client`) components. Features must be complete end-to-end implementations.
 - **Documentation Updates Required**: When adding new features or making changes to frontend/backend, update relevant documentation including `/RACKY_BACKEND_API.md`
 - **Postman Collection Maintenance**: Always update `/server/postman_collection.json` when new API endpoints are added to the server
 - **Breaking Changes**: Document any API changes or breaking changes that affect client-server communication
