@@ -1,0 +1,532 @@
+# Racky Backend API Documentation
+
+**Last Updated:** 2025-08-19
+
+## Overview
+Racky is a marketplace management platform that allows users to connect and manage multiple e-commerce marketplaces from a single backend. This document provides the API specification for the frontend development team.
+
+## Base URL
+```
+http://localhost:5000/api
+```
+
+## Authentication
+The API uses JWT (JSON Web Tokens) for authentication. Include the token in the Authorization header:
+```
+Authorization: Bearer <your_jwt_token>
+```
+
+## Endpoints
+
+### Authentication Endpoints
+
+#### POST /auth/register
+Register a new user account.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password123",
+  "firstName": "John",
+  "lastName": "Doe"
+}
+```
+
+**Response (201):**
+```json
+{
+  "_id": "user_id",
+  "email": "user@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "token": "jwt_token_here"
+}
+```
+
+#### POST /auth/login
+Authenticate an existing user.
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "password123"
+}
+```
+
+**Response (200):**
+```json
+{
+  "_id": "user_id",
+  "email": "user@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "token": "jwt_token_here"
+}
+```
+
+### Marketplace Management Endpoints
+
+#### GET /marketplaces
+Get all available marketplaces with their requirements.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "shopify",
+      "name": "Shopify",
+      "description": "Connect to your Shopify store",
+      "requiredCredentials": ["shop_url", "access_token"],
+      "documentationUrl": "https://help.shopify.com/en/manual/apps/private-apps"
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon",
+      "description": "Connect to Amazon marketplace",
+      "requiredCredentials": ["seller_id", "marketplace_id", "access_key", "secret_key", "region"],
+      "documentationUrl": "https://developer-docs.amazon.com/sp-api/docs/sp-api-endpoints"
+    }
+  ]
+}
+```
+
+#### GET /marketplaces/status
+Get user's marketplace connection status.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "shopify",
+      "name": "Shopify",
+      "description": "Connect to your Shopify store",
+      "requiredCredentials": ["shop_url", "access_token"],
+      "documentationUrl": "https://help.shopify.com/en/manual/apps/private-apps",
+      "connected": true,
+      "connectionInfo": {
+        "connectionId": "connection_id",
+        "marketplaceId": "marketplace_id",
+        "storeName": "My Store",
+        "lastSync": "2025-08-19T10:00:00.000Z",
+        "syncStatus": "completed"
+      }
+    }
+  ]
+}
+```
+
+#### POST /marketplaces/test
+Test marketplace connection without saving.
+
+**Request Body:**
+```json
+{
+  "type": "shopify",
+  "credentials": {
+    "shop_url": "mystore.myshopify.com",
+    "access_token": "shpat_xxxxx"
+  }
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Shopify connection successful",
+  "data": {
+    "shop_name": "My Store",
+    "domain": "mystore.myshopify.com",
+    "plan": "Basic Shopify"
+  }
+}
+```
+
+#### POST /marketplaces/connect
+Connect marketplace to existing store connection.
+
+**Request Body:**
+```json
+{
+  "storeConnectionId": "connection_id",
+  "type": "amazon",
+  "credentials": {
+    "seller_id": "A1234567890",
+    "marketplace_id": "ATVPDKIKX0DER",
+    "access_key": "access_key_here",
+    "secret_key": "secret_key_here",
+    "region": "us-east-1"
+  }
+}
+```
+
+**Response (201):** Returns the updated connection object with test results.
+
+#### POST /marketplaces/create-store
+Create new store connection with marketplace.
+
+**Request Body:**
+```json
+{
+  "storeName": "New Store",
+  "type": "woocommerce",
+  "credentials": {
+    "site_url": "https://mystore.com",
+    "consumer_key": "ck_xxxxx",
+    "consumer_secret": "cs_xxxxx"
+  }
+}
+```
+
+**Response (201):** Returns the created connection object with test results.
+
+#### PUT /marketplaces/:connectionId/:marketplaceId/test
+Test existing marketplace connection.
+
+**Response (200):** Returns test results and updates sync status.
+
+#### PUT /marketplaces/:connectionId/:marketplaceId/toggle
+Toggle marketplace active status.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Marketplace activated successfully",
+  "data": {
+    "isActive": true,
+    "syncStatus": "pending"
+  }
+}
+```
+
+### Store Connection Endpoints
+
+#### GET /connections
+Get all store connections for the authenticated user.
+
+**Response (200):**
+```json
+[
+  {
+    "_id": "connection_id",
+    "userId": "user_id",
+    "storeName": "My Store",
+    "marketplaces": [
+      {
+        "_id": "marketplace_id",
+        "type": "shopify",
+        "credentials": { /* marketplace specific credentials */ },
+        "isActive": true,
+        "lastSync": "2025-08-19T10:00:00.000Z",
+        "syncStatus": "completed"
+      }
+    ],
+    "isActive": true,
+    "createdAt": "2025-08-19T09:00:00.000Z",
+    "updatedAt": "2025-08-19T10:00:00.000Z"
+  }
+]
+```
+
+#### GET /connections/:id
+Get a specific store connection by ID.
+
+**Response (200):** Same structure as individual connection above.
+
+#### POST /connections
+Create a new store connection.
+
+**Request Body:**
+```json
+{
+  "storeName": "My New Store",
+  "marketplaces": [
+    {
+      "type": "shopify",
+      "credentials": {
+        "shop_url": "mystore.myshopify.com",
+        "access_token": "shpat_xxxxx"
+      }
+    }
+  ]
+}
+```
+
+**Response (201):** Returns the created connection object.
+
+#### PUT /connections/:id
+Update an existing store connection.
+
+**Request Body:**
+```json
+{
+  "storeName": "Updated Store Name",
+  "isActive": false
+}
+```
+
+**Response (200):** Returns the updated connection object.
+
+#### DELETE /connections/:id
+Delete a store connection.
+
+**Response (200):**
+```json
+{
+  "message": "Connection deleted successfully"
+}
+```
+
+#### POST /connections/:id/marketplace
+Add a new marketplace to an existing connection.
+
+**Request Body:**
+```json
+{
+  "type": "amazon",
+  "credentials": {
+    "seller_id": "A1234567890",
+    "marketplace_id": "ATVPDKIKX0DER",
+    "access_key": "access_key_here",
+    "secret_key": "secret_key_here"
+  }
+}
+```
+
+**Response (201):** Returns the updated connection object.
+
+#### DELETE /connections/:id/marketplace/:marketplaceId
+Remove a marketplace from a connection.
+
+**Response (200):** Returns the updated connection object.
+
+## Supported Marketplaces
+
+The system supports the following marketplace types with their required credentials:
+
+### Shopify
+- **Type:** `shopify`
+- **Documentation:** https://help.shopify.com/en/manual/apps/private-apps
+- **Required Credentials:**
+  - `shop_url` - Your shop URL (e.g., "mystore.myshopify.com")
+  - `access_token` - Private app access token
+
+### VTEX  
+- **Type:** `vtex`
+- **Documentation:** https://developers.vtex.com/vtex-rest-api/docs/getting-started-authentication
+- **Required Credentials:**
+  - `account_name` - VTEX account name
+  - `app_key` - Application key
+  - `app_token` - Application token
+
+### MercadoLibre
+- **Type:** `mercadolibre`
+- **Documentation:** https://developers.mercadolibre.com/en/authentication-and-authorization
+- **Required Credentials:**
+  - `client_id` - Application client ID
+  - `client_secret` - Application client secret
+  - `access_token` - User access token
+  - `user_id` - User ID
+
+### Amazon
+- **Type:** `amazon`
+- **Documentation:** https://developer-docs.amazon.com/sp-api/docs/sp-api-endpoints
+- **Required Credentials:**
+  - `seller_id` - Amazon seller ID
+  - `marketplace_id` - Marketplace ID (e.g., "ATVPDKIKX0DER" for US)
+  - `access_key` - AWS access key
+  - `secret_key` - AWS secret key
+  - `region` - AWS region (e.g., "us-east-1")
+
+### Facebook Shop
+- **Type:** `facebook_shop`
+- **Documentation:** https://developers.facebook.com/docs/commerce-platform
+- **Required Credentials:**
+  - `page_id` - Facebook page ID
+  - `access_token` - Page access token
+
+### Google Shopping
+- **Type:** `google_shopping`
+- **Documentation:** https://developers.google.com/shopping-content/guides/quickstart
+- **Required Credentials:**
+  - `merchant_id` - Google Merchant Center ID
+  - `client_email` - Service account email
+  - `private_key` - Service account private key
+
+### WooCommerce
+- **Type:** `woocommerce`
+- **Documentation:** https://woocommerce.github.io/woocommerce-rest-api-docs/
+- **Required Credentials:**
+  - `site_url` - WooCommerce site URL
+  - `consumer_key` - REST API consumer key
+  - `consumer_secret` - REST API consumer secret
+
+## Data Models
+
+### User
+```json
+{
+  "_id": "ObjectId",
+  "email": "string",
+  "firstName": "string",
+  "lastName": "string",
+  "isActive": "boolean",
+  "createdAt": "Date",
+  "updatedAt": "Date"
+}
+```
+
+### Store Connection
+```json
+{
+  "_id": "ObjectId",
+  "userId": "ObjectId",
+  "storeName": "string",
+  "marketplaces": [
+    {
+      "_id": "ObjectId",
+      "type": "enum: [shopify, vtex, mercadolibre, amazon, facebook_shop, google_shopping, woocommerce]",
+      "credentials": "Object",
+      "isActive": "boolean",
+      "lastSync": "Date",
+      "syncStatus": "enum: [pending, syncing, completed, failed]"
+    }
+  ],
+  "isActive": "boolean",
+  "createdAt": "Date",
+  "updatedAt": "Date"
+}
+```
+
+### Product
+```json
+{
+  "_id": "ObjectId",
+  "userId": "ObjectId",
+  "storeConnectionId": "ObjectId",
+  "marketplace": "string",
+  "externalId": "string",
+  "title": "string",
+  "description": "string",
+  "price": "number",
+  "currency": "string",
+  "sku": "string",
+  "stock": "number",
+  "images": ["string"],
+  "category": "string",
+  "status": "enum: [active, inactive, draft]",
+  "lastSyncedAt": "Date",
+  "createdAt": "Date",
+  "updatedAt": "Date"
+}
+```
+
+### Opportunity
+```json
+{
+  "_id": "ObjectId",
+  "userId": "ObjectId",
+  "productId": "ObjectId",
+  "type": "enum: [price_optimization, inventory_alert, competitor_analysis, market_expansion]",
+  "title": "string",
+  "description": "string",
+  "priority": "enum: [low, medium, high, critical]",
+  "status": "enum: [open, in_progress, completed, dismissed]",
+  "potentialImpact": {
+    "revenue": "number",
+    "percentage": "number"
+  },
+  "actionRequired": "string",
+  "dueDate": "Date",
+  "createdAt": "Date",
+  "updatedAt": "Date"
+}
+```
+
+### Suggestion
+```json
+{
+  "_id": "ObjectId",
+  "userId": "ObjectId",
+  "productId": "ObjectId",
+  "type": "enum: [pricing, inventory, description, images, keywords, cross_selling]",
+  "title": "string",
+  "description": "string",
+  "currentValue": "mixed",
+  "suggestedValue": "mixed",
+  "confidence": "number (0-100)",
+  "status": "enum: [pending, accepted, rejected, applied]",
+  "estimatedImpact": "enum: [low, medium, high]",
+  "createdAt": "Date",
+  "updatedAt": "Date"
+}
+```
+
+## Error Responses
+
+All error responses follow this format:
+```json
+{
+  "message": "Error description"
+}
+```
+
+Common HTTP status codes:
+- `400` - Bad Request (validation errors)
+- `401` - Unauthorized (authentication required)
+- `404` - Not Found
+- `500` - Internal Server Error
+
+## Health Check
+
+#### GET /health
+Check if the API is running.
+
+**Response (200):**
+```json
+{
+  "status": "OK",
+  "message": "Racky API is running"
+}
+```
+
+## Environment Setup
+
+The backend requires the following environment variables:
+- `PORT` - Server port (default: 5000)
+- `MONGODB_URI` - MongoDB connection string
+- `JWT_SECRET` - Secret key for JWT tokens
+- `JWT_EXPIRES_IN` - Token expiration time
+
+## Rate Limiting
+
+The API implements rate limiting:
+- 100 requests per 15 minutes per IP address
+
+## Notes for Frontend Development
+
+1. **Authentication**: Store the JWT token in localStorage or secure httpOnly cookies
+2. **Error Handling**: Always check for error responses and handle them appropriately
+3. **Loading States**: Implement loading indicators for API calls
+4. **Real-time Updates**: Consider implementing WebSocket connections for real-time sync status updates
+5. **Marketplace Credentials**: Handle sensitive marketplace credentials securely
+6. **Pagination**: Future versions may implement pagination for large datasets
+
+## Security Considerations
+
+- All passwords are hashed using bcrypt
+- JWT tokens expire after 7 days by default
+- Rate limiting is implemented to prevent abuse
+- Input validation is enforced on all endpoints
+- CORS is configured for frontend domains
+
+---
+
+**Important:** This documentation will be updated as new features are added to the backend. Always refer to this file for the latest API specifications.
