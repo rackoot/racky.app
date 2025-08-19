@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { ConnectionForm } from "@/components/marketplace/connection-form"
 import { ConnectedMarketplaceDetail } from "@/components/marketplace/connected-marketplace-detail"
+import { ConnectedShopifyDetail } from "@/components/marketplace/connected-shopify-detail"
 import { marketplaceService } from "@/services/marketplace"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -106,6 +107,17 @@ export function MarketplacePage() {
 
   // If marketplace is connected, show detail view
   if (marketplace.isConnected) {
+    // Show Shopify-specific UI for Shopify
+    if (marketplace.id === 'shopify') {
+      return (
+        <ConnectedShopifyDetail
+          marketplace={marketplace}
+          onBack={() => navigate('/stores')}
+        />
+      )
+    }
+    
+    // Default connected marketplace view for other marketplaces
     return (
       <ConnectedMarketplaceDetail
         marketplace={marketplace}

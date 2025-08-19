@@ -9,6 +9,7 @@ const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const connectionRoutes = require('./routes/connections');
 const marketplaceRoutes = require('./routes/marketplaces');
+const productRoutes = require('./routes/products');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/marketplaces', marketplaceRoutes);
+app.use('/api/products', productRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Racky API is running' });
