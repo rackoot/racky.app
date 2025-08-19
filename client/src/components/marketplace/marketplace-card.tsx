@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -7,9 +8,6 @@ import type { Marketplace } from "@/types/marketplace"
 
 interface MarketplaceCardProps {
   marketplace: Marketplace
-  onConnect: (marketplace: Marketplace) => void
-  onManage?: (marketplace: Marketplace) => void
-  onDisconnect?: (marketplace: Marketplace) => void
 }
 
 const marketplaceIcons: Record<string, string> = {
@@ -23,22 +21,11 @@ const marketplaceIcons: Record<string, string> = {
 }
 
 
-export function MarketplaceCard({ marketplace, onConnect, onManage }: MarketplaceCardProps) {
-  const [isLoading, setIsLoading] = useState(false)
+export function MarketplaceCard({ marketplace }: MarketplaceCardProps) {
+  const navigate = useNavigate()
 
-  const handleConnect = async () => {
-    setIsLoading(true)
-    try {
-      await onConnect(marketplace)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleManage = () => {
-    if (onManage) {
-      onManage(marketplace)
-    }
+  const handleNavigate = () => {
+    navigate(`/stores/${marketplace.id}`)
   }
 
   return (
@@ -85,43 +72,27 @@ export function MarketplaceCard({ marketplace, onConnect, onManage }: Marketplac
         )}
 
         <div className="flex gap-2 mt-4">
-          {marketplace.connected ? (
-            <>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="flex-1"
-                onClick={handleManage}
-              >
+          <Button 
+            className="flex-1" 
+            onClick={handleNavigate}
+            variant={marketplace.connected ? "outline" : "default"}
+          >
+            {marketplace.connected ? (
+              <>
                 <Settings className="w-4 h-4 mr-2" />
                 Manage
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => window.open(marketplace.documentationUrl, '_blank')}
-              >
-                <ExternalLink className="w-4 h-4" />
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button 
-                className="flex-1" 
-                onClick={handleConnect}
-                disabled={isLoading}
-              >
-                {isLoading ? "Connecting..." : "Connect Store"}
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => window.open(marketplace.documentationUrl, '_blank')}
-              >
-                <ExternalLink className="w-4 h-4" />
-              </Button>
-            </>
-          )}
+              </>
+            ) : (
+              "Connect Store"
+            )}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => window.open(marketplace.documentationUrl, '_blank')}
+          >
+            <ExternalLink className="w-4 h-4" />
+          </Button>
         </div>
       </CardContent>
     </Card>

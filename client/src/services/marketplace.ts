@@ -38,15 +38,22 @@ export const marketplaceService = {
 
   // Test marketplace connection
   async testConnection(type: string, credentials: MarketplaceCredentials): Promise<TestConnectionResponse> {
+    const headers = getAuthHeaders();
+    console.log('Testing connection with headers:', headers);
+    console.log('Request URL:', `${API_BASE}/marketplaces/test`);
+    
     const response = await fetch(`${API_BASE}/marketplaces/test`, {
       method: 'POST',
-      headers: getAuthHeaders(),
+      headers,
       body: JSON.stringify({ type, credentials }),
     });
     
+    console.log('Response status:', response.status, response.statusText);
+    
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Connection test failed');
+      const error = await response.json().catch(() => ({ message: `HTTP ${response.status}: ${response.statusText}` }));
+      console.error('API Error:', error);
+      throw new Error(error.message || `Connection test failed (HTTP ${response.status})`);
     }
     
     return response.json();

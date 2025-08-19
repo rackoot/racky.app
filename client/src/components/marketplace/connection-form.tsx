@@ -176,7 +176,7 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
 
         <div className="space-y-4">
           <div>
-            <Label htmlFor="storeName">Store Name *</Label>
+            <Label htmlFor="storeName">Store Name {testResult?.success ? '*' : '(optional for testing)'}</Label>
             <Input
               id="storeName"
               placeholder="My Store Name"
@@ -184,6 +184,12 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
               onChange={(e) => setStoreName(e.target.value)}
               className="mt-1"
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              {testResult?.success 
+                ? "Store name is required to save the connection" 
+                : "You can test the connection first, then enter a store name to save"
+              }
+            </p>
           </div>
 
           <div className="space-y-4">
@@ -250,7 +256,7 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
           </Button>
           <Button 
             onClick={handleSave}
-            disabled={!testResult?.success || isSaving || !storeName.trim()}
+            disabled={!testResult?.success || isSaving}
           >
             <Save className="w-4 h-4 mr-2" />
             {isSaving ? "Saving..." : "Save Connection"}
