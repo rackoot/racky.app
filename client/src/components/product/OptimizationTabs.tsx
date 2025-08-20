@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -70,13 +70,18 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
   const [suggestions, setSuggestions] = useState<Record<string, OptimizationSuggestion | null>>({})
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const hasLoadedCachedDescriptions = useRef(false)
   
-  // Get platforms available for this specific product
-  const availablePlatforms = getAvailablePlatforms(product)
+  // Get platforms available for this specific product (memoized to prevent infinite loops)
+  const availablePlatforms = useMemo(() => getAvailablePlatforms(product), [product.marketplace, product.platforms])
 
-  // Load existing cached descriptions on mount
+  // Load existing cached descriptions on mount (only once per product)
   useEffect(() => {
     const loadCachedDescriptions = async () => {
+      if (hasLoadedCachedDescriptions.current) return
+      
+      hasLoadedCachedDescriptions.current = true
+      
       for (const platform of availablePlatforms) {
         try {
           const result = await optimizationsService.getDescriptionOptimization(product._id, platform)
@@ -90,10 +95,16 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
       }
     }
 
-    if (availablePlatforms.length > 0) {
+    if (availablePlatforms.length > 0 && !hasLoadedCachedDescriptions.current) {
       loadCachedDescriptions()
     }
   }, [product._id, availablePlatforms])
+
+  // Reset the flag when product changes
+  useEffect(() => {
+    hasLoadedCachedDescriptions.current = false
+    setSuggestions({})
+  }, [product._id])
 
   const loadSuggestion = async (platform: string, forceRegenerate = false) => {
     setLoadingStates(prev => ({ ...prev, [platform]: true }))
