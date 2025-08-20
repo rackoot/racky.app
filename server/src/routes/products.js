@@ -130,7 +130,18 @@ async function syncShopifyProducts(credentials, userId, connectionId) {
   }
 
   // Extract store name from shop_url
-  const storeName = shop_url.replace('.myshopify.com', '').replace('https://', '').replace('http://', '');
+  let storeName = shop_url;
+  
+  // Remove protocol if present
+  storeName = storeName.replace(/^https?:\/\//, '');
+  
+  // Remove trailing slash if present
+  storeName = storeName.replace(/\/$/, '');
+  
+  // Remove .myshopify.com if present
+  storeName = storeName.replace(/\.myshopify\.com$/, '');
+  
+  console.log('Processed shop_url:', shop_url, '-> storeName:', storeName);
 
   try {
     let hasNextPage = true;
