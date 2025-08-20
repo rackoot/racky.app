@@ -3,6 +3,7 @@ const { protect } = require('../middleware/auth');
 const StoreConnection = require('../models/StoreConnection');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const GeneralSuggestion = require('../models/GeneralSuggestion');
 const OpenAI = require('openai');
 
 const router = express.Router();
@@ -139,34 +140,59 @@ router.get('/analytics', protect, async (req, res) => {
 router.get('/suggestions', protect, async (req, res) => {
   try {
     const userId = req.user._id;
+    const forceRefresh = req.query.refresh === 'true';
+
+    // Clean up expired suggestions first
+    await GeneralSuggestion.deactivateExpired();
+
+    // Check if we have valid cached suggestions
+    if (!forceRefresh) {
+      const cachedSuggestions = await GeneralSuggestion.findValidSuggestions(userId);
+      
+      if (cachedSuggestions.length > 0) {
+        console.log(`Returning ${cachedSuggestions.length} cached suggestions for user ${userId}`);
+        return res.json({
+          success: true,
+          data: {
+            suggestions: cachedSuggestions.map(s => ({
+              title: s.title,
+              description: s.description,
+              priority: s.priority,
+              category: s.category,
+              impact: s.impact
+            })),
+            generatedAt: cachedSuggestions[0].createdAt.toISOString(),
+            cached: true,
+            expiresAt: cachedSuggestions[0].expiresAt.toISOString()
+          }
+        });
+      }
+    }
+
+    console.log(`Generating new suggestions for user ${userId}`);
 
     // Get user's store connections and products for context
-    const connections = await StoreConnection.find({ userId }).populate('marketplaces');
-    const products = await Product.find({ userId }).limit(10); // Sample of products
+    const connections = await StoreConnection.find({ userId });
+    const products = await Product.find({ userId }).limit(10);
     const totalProducts = await Product.countDocuments({ userId });
 
     // Build context for AI
-    const marketplaces = connections.flatMap(conn => 
-      conn.marketplaces.map(mp => mp.type)
-    ).filter(Boolean);
-
+    const marketplaces = connections.map(conn => conn.marketplaceType).filter(Boolean);
     const uniqueMarketplaces = [...new Set(marketplaces)];
-    
     const productCategories = [...new Set(products.map(p => p.productType).filter(Boolean))];
     
     const context = {
       connectedMarketplaces: uniqueMarketplaces,
       totalProducts,
-      productSample: products.slice(0, 3).map(p => ({
-        title: p.title,
-        marketplace: p.marketplace,
-        price: p.price,
-        inventory: p.inventory
-      })),
       productCategories: productCategories.slice(0, 5)
     };
 
-    const prompt = `As an e-commerce consultant, analyze this store data and provide 3-4 specific, actionable suggestions for improvement:
+    let suggestions = [];
+
+    // Try to generate AI suggestions if OpenAI key is available
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const prompt = `As an e-commerce consultant, analyze this store data and provide 3-4 specific, actionable suggestions for improvement:
 
 Store Context:
 - Connected Marketplaces: ${uniqueMarketplaces.join(', ') || 'None yet'}
@@ -189,59 +215,59 @@ Please provide suggestions in this exact JSON format:
 
 Focus on practical improvements like marketplace expansion, pricing optimization, inventory management, or marketing strategies.`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert e-commerce consultant. Provide practical, actionable advice for online store improvement. Always respond with valid JSON only."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      max_tokens: 1000,
-      temperature: 0.7
-    });
+        const completion = await openai.chat.completions.create({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert e-commerce consultant. Provide practical, actionable advice for online store improvement. Always respond with valid JSON only."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          max_tokens: 1000,
+          temperature: 0.7
+        });
 
-    let suggestions = [];
-    try {
-      const response = JSON.parse(completion.choices[0].message.content);
-      suggestions = response.suggestions || [];
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      // Fallback suggestions
-      suggestions = [
-        {
-          title: "Expand to New Marketplaces",
-          description: "Consider adding more marketplace connections to reach a wider audience and increase sales potential.",
-          priority: "high",
-          category: "expansion",
-          impact: "Could increase reach by 30-50%"
-        },
-        {
-          title: "Optimize Product Pricing",
-          description: "Review your product pricing strategy across marketplaces to ensure competitiveness while maintaining margins.",
-          priority: "medium",
-          category: "pricing",
-          impact: "May improve conversion rates"
-        },
-        {
-          title: "Improve Inventory Management",
-          description: "Implement better inventory tracking to avoid stockouts and ensure consistent availability across platforms.",
-          priority: "medium",
-          category: "inventory",
-          impact: "Reduces lost sales opportunities"
-        }
-      ];
+        const response = JSON.parse(completion.choices[0].message.content);
+        suggestions = response.suggestions || [];
+      } catch (aiError) {
+        console.error('AI generation failed:', aiError);
+        suggestions = []; // Will fall back to default suggestions
+      }
     }
+
+    // If AI failed or no API key, use contextual fallback suggestions
+    if (suggestions.length === 0) {
+      suggestions = generateFallbackSuggestions(context);
+    }
+
+    // Save suggestions to database
+    const savedSuggestions = await Promise.all(
+      suggestions.map(suggestion => 
+        new GeneralSuggestion({
+          userId,
+          title: suggestion.title,
+          description: suggestion.description,
+          priority: suggestion.priority,
+          category: suggestion.category,
+          impact: suggestion.impact,
+          context
+        }).save()
+      )
+    );
+
+    console.log(`Saved ${savedSuggestions.length} new suggestions for user ${userId}`);
 
     res.json({
       success: true,
       data: {
         suggestions,
-        generatedAt: new Date().toISOString()
+        generatedAt: new Date().toISOString(),
+        cached: false,
+        expiresAt: savedSuggestions[0]?.expiresAt?.toISOString()
       }
     });
 
@@ -253,5 +279,76 @@ Focus on practical improvements like marketplace expansion, pricing optimization
     });
   }
 });
+
+// Helper function to generate contextual fallback suggestions
+function generateFallbackSuggestions(context) {
+  const { connectedMarketplaces, totalProducts, productCategories } = context;
+  const suggestions = [];
+
+  // Marketplace expansion suggestions
+  if (connectedMarketplaces.length === 0) {
+    suggestions.push({
+      title: "Connect Your First Marketplace",
+      description: "Start by connecting to a popular marketplace like Shopify or Amazon to begin selling your products online.",
+      priority: "high",
+      category: "expansion",
+      impact: "Essential first step to start generating revenue"
+    });
+  } else if (connectedMarketplaces.length < 3) {
+    const availableMarketplaces = ['shopify', 'amazon', 'vtex', 'mercadolibre', 'woocommerce']
+      .filter(mp => !connectedMarketplaces.includes(mp));
+    
+    suggestions.push({
+      title: "Expand to Additional Marketplaces",
+      description: `Consider expanding to ${availableMarketplaces.slice(0, 2).join(' or ')} to reach more customers and diversify your sales channels.`,
+      priority: "high",
+      category: "expansion",
+      impact: "Could increase reach by 30-50%"
+    });
+  }
+
+  // Product-related suggestions
+  if (totalProducts === 0) {
+    suggestions.push({
+      title: "Add Your First Products",
+      description: "Import or create product listings to start showcasing your inventory across connected marketplaces.",
+      priority: "high",
+      category: "inventory",
+      impact: "Required to start making sales"
+    });
+  } else if (totalProducts < 10) {
+    suggestions.push({
+      title: "Expand Product Catalog",
+      description: "Consider adding more products to your catalog to give customers more variety and increase sales opportunities.",
+      priority: "medium",
+      category: "inventory",
+      impact: "More products typically lead to higher sales"
+    });
+  }
+
+  // Pricing suggestions
+  if (totalProducts > 0) {
+    suggestions.push({
+      title: "Optimize Product Pricing",
+      description: "Review your product pricing strategy across marketplaces to ensure competitiveness while maintaining healthy margins.",
+      priority: "medium",
+      category: "pricing",
+      impact: "May improve conversion rates and profitability"
+    });
+  }
+
+  // Marketing suggestions
+  if (connectedMarketplaces.length > 0 && totalProducts > 0) {
+    suggestions.push({
+      title: "Implement Cross-Platform Marketing",
+      description: "Develop a unified marketing strategy across your connected marketplaces to build brand consistency and customer recognition.",
+      priority: "medium",
+      category: "marketing",
+      impact: "Builds brand awareness and customer loyalty"
+    });
+  }
+
+  return suggestions.slice(0, 4); // Return max 4 suggestions
+}
 
 module.exports = router;
