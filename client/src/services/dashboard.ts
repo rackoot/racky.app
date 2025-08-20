@@ -47,6 +47,8 @@ export interface AISuggestion {
 export interface AISuggestionsResponse {
   suggestions: AISuggestion[];
   generatedAt: string;
+  cached?: boolean;
+  expiresAt?: string;
 }
 
 export const dashboardService = {
@@ -68,8 +70,13 @@ export const dashboardService = {
     return data.data;
   },
 
-  async getAISuggestions(): Promise<AISuggestionsResponse> {
-    const response = await fetch(`${API_BASE_URL}/dashboard/suggestions`, {
+  async getAISuggestions(forceRefresh = false): Promise<AISuggestionsResponse> {
+    const url = new URL(`${API_BASE_URL}/dashboard/suggestions`);
+    if (forceRefresh) {
+      url.searchParams.set('refresh', 'true');
+    }
+
+    const response = await fetch(url.toString(), {
       method: 'GET',
       headers: getAuthHeaders(),
     });

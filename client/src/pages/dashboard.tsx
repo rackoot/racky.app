@@ -42,11 +42,11 @@ export function Dashboard() {
     }
   }
 
-  const loadSuggestions = async () => {
+  const loadSuggestions = async (forceRefresh = false) => {
     setSuggestionsLoading(true)
     
     try {
-      const data = await dashboardService.getAISuggestions()
+      const data = await dashboardService.getAISuggestions(forceRefresh)
       setSuggestions(data)
     } catch (err) {
       console.error('Failed to load AI suggestions:', err)
@@ -215,14 +215,28 @@ export function Dashboard() {
               <Lightbulb className="h-4 w-4" />
               AI Suggestions
             </CardTitle>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={loadSuggestions}
-              disabled={suggestionsLoading}
-            >
-              <RefreshCw className={`w-4 h-4 ${suggestionsLoading ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex gap-1">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => loadSuggestions(false)}
+                disabled={suggestionsLoading}
+                title="Refresh suggestions"
+              >
+                <RefreshCw className={`w-4 h-4 ${suggestionsLoading ? 'animate-spin' : ''}`} />
+              </Button>
+              {suggestions?.cached && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => loadSuggestions(true)}
+                  disabled={suggestionsLoading}
+                  title="Generate new suggestions"
+                >
+                  <Lightbulb className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             {suggestionsLoading ? (
@@ -250,9 +264,16 @@ export function Dashboard() {
                   </div>
                 ))}
                 {suggestions.generatedAt && (
-                  <p className="text-xs text-muted-foreground text-center pt-2">
-                    Generated {new Date(suggestions.generatedAt).toLocaleString()}
-                  </p>
+                  <div className="pt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground text-center">
+                      {suggestions.cached ? 'Cached' : 'Generated'} {new Date(suggestions.generatedAt).toLocaleString()}
+                    </p>
+                    {suggestions.cached && suggestions.expiresAt && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        Expires {new Date(suggestions.expiresAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             ) : (
