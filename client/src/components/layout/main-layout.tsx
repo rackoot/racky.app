@@ -29,7 +29,8 @@ export function MainLayout({ children }: MainLayoutProps) {
         ${!sidebarOpen ? 'md:w-16' : 'md:w-64'}
       `}>
         <div className="flex flex-col h-full">
-          <div className="p-4 border-b border-sidebar-border">
+          <div className="p-4 border-b border-sidebar-border flex justify-start">
+            <img src="/img/icon.svg" className="w-9 mr-3" />
             <h1 className={`font-bold text-xl text-sidebar-foreground ${!sidebarOpen ? 'md:hidden' : ''}`}>
               Racky
             </h1>
@@ -61,7 +62,6 @@ export function MainLayout({ children }: MainLayoutProps) {
             <Menu className="h-4 w-4" />
           </Button>
           <div className="flex items-center gap-2">
-            <h1 className="font-semibold">Racky</h1>
             <span className="text-sm text-muted-foreground">
               Overview of your ecommerce ecosystem
             </span>

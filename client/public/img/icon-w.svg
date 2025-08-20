@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg width="69.640976mm" height="68.384209mm" viewBox="0 0 69.640976 68.384209" version="1.1" id="svg1" inkscape:version="1.3.2 (1:1.3.2+202311252150+091e20ef0f)" sodipodi:docname="icon-w.svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview id="namedview1" pagecolor="#ffffff" bordercolor="#666666" borderopacity="1.0" inkscape:showpageshadow="2" inkscape:pageopacity="0.0" inkscape:pagecheckerboard="0" inkscape:deskcolor="#d1d1d1" inkscape:document-units="mm" inkscape:zoom="0.72337262" inkscape:cx="359.42749" inkscape:cy="475.55021" inkscape:current-layer="layer1" />
+  <defs id="defs1" />
+  <g inkscape:label="Layer 1" inkscape:groupmode="layer" id="layer1" transform="translate(-10.054196,-22.754195)">
+    <g id="g16" transform="matrix(0.26458333,0,0,0.26458333,-1943.9863,-1047.9775)">
+      <path class="cls-2" d="m 7442.81,4156.87 h -57.46 v 69.28 c 0,19.11 15.49,34.6 34.6,34.6 h 94 V 4228 c 0,-39.29 -31.85,-71.13 -71.13,-71.13 z" id="path13" style="fill:#ffffff" />
+      <path class="cls-2" d="m 7591.1,4156.87 h 57.46 v 69.28 c 0,19.11 -15.49,34.6 -34.6,34.6 h -94 V 4228 c 0,-39.29 31.85,-71.13 71.13,-71.13 z" id="path14" style="fill:#ffffff" />
+      <path class="cls-2" d="m 7591.1,4150.74 h 57.46 v -69.28 c 0,-19.11 -15.49,-34.6 -34.6,-34.6 h -94 v 32.75 c 0,39.29 31.85,71.13 71.13,71.13 z" id="path15" style="fill:#ffffff" />
+      <path class="cls-2" d="m 7442.81,4150.74 h -57.46 v -69.28 c 0,-19.11 15.49,-34.6 34.6,-34.6 h 94 v 32.75 c 0,39.29 -31.85,71.13 -71.13,71.13 z" id="path16" style="fill:#ffffff" />
+      <polygon class="cls-2" points="7569.97,4266.94 7569.97,4305.32 7520,4266.94 " id="polygon16" style="fill:#ffffff" />
+    </g>
+  </g>
+</svg>
