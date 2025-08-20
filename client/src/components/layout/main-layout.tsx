@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Menu } from "lucide-react"
 import { AppSidebar } from "./app-sidebar"
+import { UserProfile } from "./user-profile"
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -39,6 +40,9 @@ export function MainLayout({ children }: MainLayoutProps) {
           <nav className="flex-1 p-4">
             <AppSidebar collapsed={!sidebarOpen} />
           </nav>
+          <div className="p-4 border-t border-sidebar-border">
+            <UserProfile collapsed={!sidebarOpen} />
+          </div>
         </div>
       </aside>
 

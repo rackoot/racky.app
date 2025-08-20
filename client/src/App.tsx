@@ -8,6 +8,7 @@ import { ProductDetail } from '@/pages/product-detail'
 import { MarketplacePage } from '@/pages/stores/[marketplace]'
 import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
+import { Account } from '@/pages/account'
 
 function App() {
   return (
@@ -126,6 +127,16 @@ function App() {
                   <h1 className="text-3xl font-bold mb-4">Settings</h1>
                   <p>Settings page coming soon...</p>
                 </div>
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Account />
               </MainLayout>
             </ProtectedRoute>
           }
