@@ -1,7 +1,17 @@
 const mongoose = require('mongoose');
 
-const marketplaceSchema = new mongoose.Schema({
-  type: {
+const storeConnectionSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  storeName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  marketplaceType: {
     type: String,
     required: true,
     enum: ['shopify', 'vtex', 'mercadolibre', 'amazon', 'facebook_shop', 'google_shopping', 'woocommerce']
@@ -23,26 +33,11 @@ const marketplaceSchema = new mongoose.Schema({
     enum: ['pending', 'syncing', 'completed', 'failed'],
     default: 'pending'
   }
-});
-
-const storeConnectionSchema = new mongoose.Schema({
-  userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  storeName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  marketplaces: [marketplaceSchema],
-  isActive: {
-    type: Boolean,
-    default: true
-  }
 }, {
   timestamps: true
 });
+
+// Compound index to ensure one connection per marketplace type per user
+storeConnectionSchema.index({ userId: 1, marketplaceType: 1 }, { unique: true });
 
 module.exports = mongoose.model('StoreConnection', storeConnectionSchema);

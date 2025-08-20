@@ -92,8 +92,8 @@ export const marketplaceService = {
   },
 
   // Test existing marketplace connection
-  async testExistingConnection(connectionId: string, marketplaceId: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/marketplaces/${connectionId}/${marketplaceId}/test`, {
+  async testExistingConnection(connectionId: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/marketplaces/${connectionId}/test`, {
       method: 'PUT',
       headers: getAuthHeaders(),
     });
@@ -107,8 +107,8 @@ export const marketplaceService = {
   },
 
   // Toggle marketplace status
-  async toggleMarketplaceStatus(connectionId: string, marketplaceId: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/marketplaces/${connectionId}/${marketplaceId}/toggle`, {
+  async toggleMarketplaceStatus(connectionId: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/marketplaces/${connectionId}/toggle`, {
       method: 'PUT',
       headers: getAuthHeaders(),
     });
@@ -122,8 +122,8 @@ export const marketplaceService = {
   },
 
   // Disconnect marketplace from store
-  async disconnectMarketplace(connectionId: string, marketplaceId: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/connections/${connectionId}/marketplace/${marketplaceId}`, {
+  async disconnectMarketplace(connectionId: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/connections/${connectionId}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });

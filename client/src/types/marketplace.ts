@@ -9,7 +9,6 @@ export interface Marketplace {
 
 export interface ConnectionInfo {
   connectionId: string;
-  marketplaceId: string;
   storeName: string;
   lastSync: string;
   syncStatus: 'pending' | 'syncing' | 'completed' | 'failed';

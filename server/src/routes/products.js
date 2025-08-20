@@ -63,9 +63,9 @@ router.get('/store/:connectionId', protect, async (req, res) => {
 });
 
 // Sync products from a marketplace
-router.post('/sync/:connectionId/:marketplaceId', protect, async (req, res) => {
+router.post('/sync/:connectionId', protect, async (req, res) => {
   try {
-    const { connectionId, marketplaceId } = req.params;
+    const { connectionId } = req.params;
     
     // Verify user owns the store connection
     const connection = await StoreConnection.findOne({
@@ -80,38 +80,22 @@ router.post('/sync/:connectionId/:marketplaceId', protect, async (req, res) => {
       });
     }
 
-    // Find the specific marketplace configuration
-    const marketplace = connection.marketplaces.id(marketplaceId);
-    if (!marketplace) {
-      return res.status(404).json({
-        success: false,
-        message: 'Marketplace configuration not found'
-      });
-    }
-
-    if (!marketplace.isConnected) {
-      return res.status(400).json({
-        success: false,
-        message: 'Marketplace is not connected'
-      });
-    }
-
     // Sync products based on marketplace type
     const result = await syncProductsFromMarketplace(
-      marketplace.type,
-      marketplace.credentials,
+      connection.marketplaceType,
+      connection.credentials,
       req.user._id,
       connectionId
     );
 
-    // Update marketplace metadata
-    marketplace.lastSyncAt = new Date();
-    marketplace.productsCount = result.totalProducts;
+    // Update connection metadata
+    connection.lastSync = new Date();
+    connection.syncStatus = 'completed';
     await connection.save();
 
     res.json({
       success: true,
-      message: `Successfully synced ${result.totalProducts} products from ${marketplace.type}`,
+      message: `Successfully synced ${result.totalProducts} products from ${connection.marketplaceType}`,
       data: {
         totalProducts: result.totalProducts,
         newProducts: result.newProducts,

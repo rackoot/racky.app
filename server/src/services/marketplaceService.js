@@ -304,21 +304,16 @@ const getUserMarketplaceStatus = async (userId) => {
   const Product = require('../models/Product');
   
   try {
-    const connections = await StoreConnection.find({ userId, isActive: true });
+    const connections = await StoreConnection.find({ userId });
     const connectedMarketplaces = {};
     
     connections.forEach(connection => {
-      connection.marketplaces.forEach(marketplace => {
-        if (marketplace.isActive) {
-          connectedMarketplaces[marketplace.type] = {
-            connectionId: connection._id,
-            marketplaceId: marketplace._id,
-            storeName: connection.storeName,
-            lastSync: marketplace.lastSync,
-            syncStatus: marketplace.syncStatus
-          };
-        }
-      });
+      connectedMarketplaces[connection.marketplaceType] = {
+        connectionId: connection._id,
+        storeName: connection.storeName,
+        lastSync: connection.lastSync,
+        syncStatus: connection.syncStatus
+      };
     });
     
     // Get product counts for connected marketplaces
@@ -331,13 +326,7 @@ const getUserMarketplaceStatus = async (userId) => {
           // Count products for this marketplace and user
           productsCount = await Product.countDocuments({
             userId,
-            $or: [
-              { marketplace: marketplace.id }, // Legacy field
-              { 
-                storeConnectionId: connectionInfo.connectionId,
-                'platforms.platform': marketplace.id 
-              } // New structure
-            ]
+            storeConnectionId: connectionInfo.connectionId
           });
           
           // Add product count to connection info

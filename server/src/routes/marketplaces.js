@@ -91,75 +91,12 @@ router.post('/test', async (req, res) => {
   }
 });
 
-// POST /api/marketplaces/connect - Connect marketplace to existing store
+// POST /api/marketplaces/connect - Connect marketplace (deprecated - use create-store instead)
 router.post('/connect', async (req, res) => {
-  try {
-    const { error } = connectMarketplaceSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ 
-        success: false,
-        message: error.details[0].message 
-      });
-    }
-
-    const { storeConnectionId, type, credentials } = req.body;
-
-    // First test the connection
-    const testResult = await testMarketplaceConnection(type, credentials);
-    if (!testResult.success) {
-      return res.status(400).json({
-        success: false,
-        message: 'Connection test failed: ' + testResult.message
-      });
-    }
-
-    // Find the store connection
-    const storeConnection = await StoreConnection.findOne({
-      _id: storeConnectionId,
-      userId: req.user._id
-    });
-
-    if (!storeConnection) {
-      return res.status(404).json({
-        success: false,
-        message: 'Store connection not found'
-      });
-    }
-
-    // Check if marketplace is already connected
-    const existingMarketplace = storeConnection.marketplaces.find(m => m.type === type);
-    if (existingMarketplace) {
-      return res.status(400).json({
-        success: false,
-        message: 'Marketplace already connected to this store'
-      });
-    }
-
-    // Add marketplace to store connection
-    storeConnection.marketplaces.push({
-      type,
-      credentials,
-      isActive: true,
-      syncStatus: 'pending'
-    });
-
-    await storeConnection.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Marketplace connected successfully',
-      data: {
-        storeConnection,
-        testResult: testResult.data
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false,
-      message: 'Error connecting marketplace', 
-      error: error.message 
-    });
-  }
+  return res.status(400).json({
+    success: false,
+    message: 'This endpoint is deprecated. Use /create-store to create a new marketplace connection.'
+  });
 });
 
 // POST /api/marketplaces/create-store - Create new store with marketplace connection
@@ -175,6 +112,19 @@ router.post('/create-store', async (req, res) => {
 
     const { storeName, type, credentials } = req.body;
 
+    // Check if user already has this marketplace type connected
+    const existingConnection = await StoreConnection.findOne({
+      userId: req.user._id,
+      marketplaceType: type
+    });
+
+    if (existingConnection) {
+      return res.status(400).json({
+        success: false,
+        message: `You already have a ${type} marketplace connected. Only one connection per marketplace type is allowed.`
+      });
+    }
+
     // First test the connection
     const testResult = await testMarketplaceConnection(type, credentials);
     if (!testResult.success) {
@@ -184,16 +134,14 @@ router.post('/create-store', async (req, res) => {
       });
     }
 
-    // Create new store connection with marketplace
+    // Create new store connection
     const storeConnection = await StoreConnection.create({
       userId: req.user._id,
       storeName,
-      marketplaces: [{
-        type,
-        credentials,
-        isActive: true,
-        syncStatus: 'pending'
-      }]
+      marketplaceType: type,
+      credentials,
+      isActive: true,
+      syncStatus: 'pending'
     });
 
     res.status(201).json({
@@ -213,10 +161,10 @@ router.post('/create-store', async (req, res) => {
   }
 });
 
-// PUT /api/marketplaces/:connectionId/:marketplaceId/test - Test existing marketplace connection
-router.put('/:connectionId/:marketplaceId/test', async (req, res) => {
+// PUT /api/marketplaces/:connectionId/test - Test existing marketplace connection
+router.put('/:connectionId/test', async (req, res) => {
   try {
-    const { connectionId, marketplaceId } = req.params;
+    const { connectionId } = req.params;
 
     const storeConnection = await StoreConnection.findOne({
       _id: connectionId,
@@ -230,19 +178,11 @@ router.put('/:connectionId/:marketplaceId/test', async (req, res) => {
       });
     }
 
-    const marketplace = storeConnection.marketplaces.id(marketplaceId);
-    if (!marketplace) {
-      return res.status(404).json({
-        success: false,
-        message: 'Marketplace not found in this connection'
-      });
-    }
-
-    const testResult = await testMarketplaceConnection(marketplace.type, marketplace.credentials);
+    const testResult = await testMarketplaceConnection(storeConnection.marketplaceType, storeConnection.credentials);
     
     // Update sync status based on test result
-    marketplace.syncStatus = testResult.success ? 'completed' : 'failed';
-    marketplace.lastSync = new Date();
+    storeConnection.syncStatus = testResult.success ? 'completed' : 'failed';
+    storeConnection.lastSync = new Date();
     await storeConnection.save();
 
     res.json({
@@ -250,8 +190,8 @@ router.put('/:connectionId/:marketplaceId/test', async (req, res) => {
       message: testResult.message,
       data: {
         ...testResult.data,
-        syncStatus: marketplace.syncStatus,
-        lastSync: marketplace.lastSync
+        syncStatus: storeConnection.syncStatus,
+        lastSync: storeConnection.lastSync
       }
     });
   } catch (error) {
@@ -263,10 +203,10 @@ router.put('/:connectionId/:marketplaceId/test', async (req, res) => {
   }
 });
 
-// PUT /api/marketplaces/:connectionId/:marketplaceId/toggle - Toggle marketplace active status
-router.put('/:connectionId/:marketplaceId/toggle', async (req, res) => {
+// PUT /api/marketplaces/:connectionId/toggle - Toggle marketplace active status
+router.put('/:connectionId/toggle', async (req, res) => {
   try {
-    const { connectionId, marketplaceId } = req.params;
+    const { connectionId } = req.params;
 
     const storeConnection = await StoreConnection.findOne({
       _id: connectionId,
@@ -280,24 +220,16 @@ router.put('/:connectionId/:marketplaceId/toggle', async (req, res) => {
       });
     }
 
-    const marketplace = storeConnection.marketplaces.id(marketplaceId);
-    if (!marketplace) {
-      return res.status(404).json({
-        success: false,
-        message: 'Marketplace not found in this connection'
-      });
-    }
-
-    marketplace.isActive = !marketplace.isActive;
-    marketplace.syncStatus = marketplace.isActive ? 'pending' : 'completed';
+    storeConnection.isActive = !storeConnection.isActive;
+    storeConnection.syncStatus = storeConnection.isActive ? 'pending' : 'completed';
     await storeConnection.save();
 
     res.json({
       success: true,
-      message: `Marketplace ${marketplace.isActive ? 'activated' : 'deactivated'} successfully`,
+      message: `Marketplace ${storeConnection.isActive ? 'activated' : 'deactivated'} successfully`,
       data: {
-        isActive: marketplace.isActive,
-        syncStatus: marketplace.syncStatus
+        isActive: storeConnection.isActive,
+        syncStatus: storeConnection.syncStatus
       }
     });
   } catch (error) {

@@ -56,8 +56,8 @@ export const productsService = {
   },
 
   // Sync products from a marketplace
-  async syncProducts(connectionId: string, marketplaceId: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/products/sync/${connectionId}/${marketplaceId}`, {
+  async syncProducts(connectionId: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/products/sync/${connectionId}`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });

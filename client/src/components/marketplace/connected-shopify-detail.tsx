@@ -57,8 +57,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     setSyncing(true)
     try {
       const result = await productsService.syncProducts(
-        marketplace.connectionInfo.connectionId,
-        marketplace.connectionInfo.marketplaceId
+        marketplace.connectionInfo.connectionId
       )
       setLastSync(new Date().toLocaleString())
       await loadProducts()
@@ -76,8 +75,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     setDisconnecting(true)
     try {
       await marketplaceService.disconnectMarketplace(
-        marketplace.connectionInfo.connectionId,
-        marketplace.connectionInfo.marketplaceId
+        marketplace.connectionInfo.connectionId
       )
       setShowDisconnectConfirm(false)
       onBack() // Navigate back to stores after disconnect

@@ -97,23 +97,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
-  try {
-    const connection = await StoreConnection.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.user._id
-    });
-
-    if (!connection) {
-      return res.status(404).json({ message: 'Connection not found' });
-    }
-
-    res.json({ message: 'Connection deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
 router.post('/:id/marketplace', async (req, res) => {
   try {
     const marketplaceSchema = Joi.object({
@@ -149,9 +132,10 @@ router.post('/:id/marketplace', async (req, res) => {
   }
 });
 
-router.delete('/:id/marketplace/:marketplaceId', async (req, res) => {
+// DELETE /api/connections/:id - Delete entire marketplace connection
+router.delete('/:id', async (req, res) => {
   try {
-    const connection = await StoreConnection.findOne({
+    const connection = await StoreConnection.findOneAndDelete({
       _id: req.params.id,
       userId: req.user._id
     });
@@ -163,21 +147,9 @@ router.delete('/:id/marketplace/:marketplaceId', async (req, res) => {
       });
     }
 
-    const marketplace = connection.marketplaces.id(req.params.marketplaceId);
-    if (!marketplace) {
-      return res.status(404).json({ 
-        success: false,
-        message: 'Marketplace not found in this connection' 
-      });
-    }
-
-    // Use pull method instead of deprecated remove()
-    connection.marketplaces.pull({ _id: req.params.marketplaceId });
-    await connection.save();
-
     res.json({ 
       success: true,
-      message: 'Marketplace disconnected successfully',
+      message: 'Marketplace connection deleted successfully',
       data: connection 
     });
   } catch (error) {
