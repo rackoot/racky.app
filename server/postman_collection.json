@@ -55,6 +55,11 @@
       "key": "suggestion_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "opportunity_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -888,6 +893,219 @@
               ]
             },
             "description": "Get suggestion history for a product"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Opportunities",
+      "item": [
+        {
+          "name": "Get Opportunity Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/categories",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "categories"]
+            },
+            "description": "Get all available opportunity categories"
+          }
+        },
+        {
+          "name": "Get Product Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}"]
+            },
+            "description": "Get cached opportunities for a specific product"
+          }
+        },
+        {
+          "name": "Get Product Opportunities by Category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}?category=pricing",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "pricing"
+                }
+              ]
+            },
+            "description": "Get opportunities for a specific product filtered by category"
+          }
+        },
+        {
+          "name": "Generate Product Opportunities",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"forceRefresh\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}/generate",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}", "generate"]
+            },
+            "description": "Generate new AI-powered opportunities for a product"
+          }
+        },
+        {
+          "name": "Generate Product Opportunities (Force Refresh)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"forceRefresh\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}/generate",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}", "generate"]
+            },
+            "description": "Force regenerate AI opportunities for a product (clears cache)"
+          }
+        },
+        {
+          "name": "Update Opportunity Status - Start",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/{{opportunity_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "{{opportunity_id}}", "status"]
+            },
+            "description": "Mark opportunity as in progress"
+          }
+        },
+        {
+          "name": "Update Opportunity Status - Complete",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/{{opportunity_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "{{opportunity_id}}", "status"]
+            },
+            "description": "Mark opportunity as completed"
+          }
+        },
+        {
+          "name": "Update Opportunity Status - Dismiss",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"dismissed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/{{opportunity_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "{{opportunity_id}}", "status"]
+            },
+            "description": "Dismiss an opportunity"
+          }
+        },
+        {
+          "name": "Get Opportunity Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}/summary",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}", "summary"]
+            },
+            "description": "Get opportunity statistics and summary for a product"
           }
         }
       ]

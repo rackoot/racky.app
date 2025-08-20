@@ -23,6 +23,7 @@ import { ProductImageGallery } from "@/components/product/ProductImageGallery"
 import { OptimizationTabs } from "@/components/product/OptimizationTabs"
 import { ProductHistory } from "@/components/product/ProductHistory"
 import { EditableDescription } from "@/components/product/EditableDescription"
+import { OpportunitiesTab } from "@/components/product/OpportunitiesTab"
 import type { ProductDetail } from "@/types/product"
 
 const platformColors = {
@@ -227,9 +228,10 @@ export function ProductDetail() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="optimizations">Optimizations</TabsTrigger>
+          <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
@@ -439,6 +441,10 @@ export function ProductDetail() {
 
         <TabsContent value="optimizations" className="space-y-6">
           <OptimizationTabs product={product} />
+        </TabsContent>
+
+        <TabsContent value="opportunities" className="space-y-6">
+          <OpportunitiesTab product={product} />
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">

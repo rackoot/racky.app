@@ -642,6 +642,197 @@ Get suggestion history for a product.
 }
 ```
 
+### Product Opportunities Endpoints
+
+These endpoints provide AI-powered product improvement opportunities with caching and category-based organization.
+
+#### GET /opportunities/categories
+Get all available opportunity categories.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "category_id",
+      "id": "pricing",
+      "name": "Pricing",
+      "description": "Price optimization and competitive analysis",
+      "icon": "DollarSign",
+      "color": "text-green-600 bg-green-100",
+      "isMarketplace": false,
+      "isActive": true,
+      "createdAt": "2025-08-20T05:00:00Z",
+      "updatedAt": "2025-08-20T05:00:00Z"
+    }
+  ]
+}
+```
+
+#### GET /opportunities/products/:id
+Get cached opportunities for a specific product.
+
+**Parameters:**
+- `id` - Product ID
+
+**Query Parameters:**
+- `category` (optional) - Filter by specific category
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "opportunities": {
+      "pricing": [
+        {
+          "_id": "opportunity_id",
+          "userId": "user_id",
+          "productId": "product_id",
+          "category": "pricing",
+          "marketplace": "shopify",
+          "title": "Optimize Product Pricing Strategy",
+          "description": "Your current pricing is below market average. Consider increasing by 15-20% to improve margins.",
+          "priority": "high",
+          "status": "open",
+          "potentialImpact": {
+            "revenue": 0,
+            "percentage": 25
+          },
+          "actionRequired": "Research competitor pricing and adjust your product price",
+          "cachedAt": "2025-08-20T05:00:00Z",
+          "expiresAt": "2025-08-21T05:00:00Z",
+          "aiMetadata": {
+            "model": "gpt-3.5-turbo",
+            "prompt": "Analyze this product...",
+            "tokens": 150,
+            "confidence": 0.85
+          },
+          "createdAt": "2025-08-20T05:00:00Z",
+          "updatedAt": "2025-08-20T05:00:00Z"
+        }
+      ]
+    },
+    "categoryCounts": {
+      "pricing": 2,
+      "description": 1,
+      "marketing": 3
+    },
+    "availableMarketplaceTabs": ["shopify", "amazon"],
+    "totalCount": 6,
+    "productMarketplace": "shopify",
+    "cached": true,
+    "lastGenerated": "2025-08-20T05:00:00Z"
+  }
+}
+```
+
+#### POST /opportunities/products/:id/generate
+Generate new AI-powered opportunities for a product.
+
+**Parameters:**
+- `id` - Product ID
+
+**Request Body:**
+```json
+{
+  "forceRefresh": false
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "opportunities": {
+      "pricing": [...],
+      "description": [...],
+      "seo": [...]
+    },
+    "categoryCounts": {
+      "pricing": 2,
+      "description": 1,
+      "seo": 1
+    },
+    "totalCount": 4,
+    "cached": false,
+    "generatedAt": "2025-08-20T05:00:00Z",
+    "message": "Generated 4 new opportunities"
+  }
+}
+```
+
+#### PATCH /opportunities/:id/status
+Update the status of a specific opportunity.
+
+**Parameters:**
+- `id` - Opportunity ID
+
+**Request Body:**
+```json
+{
+  "status": "in_progress"
+}
+```
+
+**Valid Status Values:**
+- `open` - Available to work on
+- `in_progress` - Currently being worked on
+- `completed` - Successfully implemented
+- `dismissed` - Not relevant or ignored
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "opportunity": {
+      "_id": "opportunity_id",
+      "status": "in_progress",
+      "updatedAt": "2025-08-20T05:05:00Z"
+    },
+    "message": "Opportunity marked as in_progress"
+  }
+}
+```
+
+#### GET /opportunities/products/:id/summary
+Get opportunity summary statistics for a product.
+
+**Parameters:**
+- `id` - Product ID
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "total": 8,
+    "byPriority": {
+      "critical": 1,
+      "high": 3,
+      "medium": 3,
+      "low": 1
+    },
+    "byStatus": {
+      "open": 5,
+      "in_progress": 2,
+      "completed": 1
+    },
+    "totalPotentialImpact": 120
+  }
+}
+```
+
+**Important Notes:**
+- Opportunities are cached for 24 hours to improve performance
+- AI generation requires OpenAI API key configuration
+- Fallback suggestions are provided when AI is unavailable
+- Categories include both general improvements and marketplace-specific suggestions
+- Expired opportunities are automatically cleaned up
+
 ## Supported Marketplaces
 
 The system supports the following marketplace types with their required credentials:
