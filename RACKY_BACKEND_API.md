@@ -307,6 +307,151 @@ Remove a marketplace from a connection.
 
 **Response (200):** Returns the updated connection object.
 
+### Product Management Endpoints
+
+These endpoints handle product data synchronization and management from connected marketplaces.
+
+#### GET /products
+Get all products for a user with pagination, filtering, and sorting.
+
+**Query Parameters:**
+- `page` (optional) - Page number (default: 1)
+- `limit` (optional) - Products per page (default: 20)
+- `search` (optional) - Search in title, SKU, or handle
+- `marketplace` (optional) - Filter by marketplace type
+- `store` (optional) - Filter by store connection ID
+- `sortBy` (optional) - Sort field (default: 'createdAt')
+- `sortOrder` (optional) - Sort direction 'asc' or 'desc' (default: 'desc')
+- `status` (optional) - Filter by product status
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "products": [...],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 5,
+      "totalCount": 100,
+      "limit": 20,
+      "hasNext": true,
+      "hasPrev": false
+    },
+    "filters": {
+      "marketplaces": [
+        { "marketplace": "shopify", "count": 50 },
+        { "marketplace": "amazon", "count": 30 }
+      ]
+    }
+  }
+}
+```
+
+#### GET /products/store/:connectionId
+Get products for a specific store connection.
+
+**Parameters:**
+- `connectionId` - Store connection ID
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [...]
+}
+```
+
+#### GET /products/store/:connectionId/count
+Check if products exist for a store connection and get count.
+
+**Parameters:**
+- `connectionId` - Store connection ID
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "hasProducts": true,
+    "count": 25
+  }
+}
+```
+
+#### POST /products/sync/:connectionId
+Sync products from a marketplace. Supports both regular sync and force replacement.
+
+**Parameters:**
+- `connectionId` - Store connection ID
+
+**Request Body:**
+```json
+{
+  "force": false
+}
+```
+
+**force: false (Regular Sync):**
+- Updates existing products with new data
+- Creates new products that don't exist locally
+- Preserves local products not found in marketplace
+
+**force: true (Force Replacement):**
+- **⚠️ Deletes ALL existing products for the connection**
+- Downloads fresh product data from marketplace
+- Completely replaces local product database
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Successfully replaced 25 products with 30 fresh products from shopify",
+  "data": {
+    "totalProducts": 30,
+    "newProducts": 30,
+    "updatedProducts": 0,
+    "deletedProducts": 25,
+    "isForceSync": true
+  }
+}
+```
+
+**Important:** Force sync permanently deletes existing product data. Use with caution and ensure users are properly warned.
+
+#### GET /products/:id
+Get single product details by ID.
+
+**Parameters:**
+- `id` - Product ID
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "product_id",
+    "title": "Product Title",
+    "description": "Product description...",
+    "price": 29.99,
+    "inventory": 100,
+    "marketplace": "shopify",
+    "platforms": {
+      "shopify": {
+        "platformId": "external_id",
+        "platformPrice": 29.99,
+        "platformInventory": 100,
+        "platformStatus": "active",
+        "lastSyncAt": "2025-08-20T05:00:00Z"
+      }
+    },
+    "variants": [...],
+    "images": [...],
+    "tags": [...]
+  }
+}
+```
+
 ### Product Optimization Endpoints
 
 These endpoints provide AI-powered content optimization for products across different marketplaces.
