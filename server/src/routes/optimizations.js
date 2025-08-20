@@ -468,11 +468,18 @@ async function updateShopifyProductDescription(product, newDescription, credenti
     const { shop_url, access_token } = credentials;
     const cleanShopUrl = shop_url.replace(/^https?:\/\//, '').replace(/\/$/, '');
     
+    // Extract numeric ID from GraphQL ID (gid://shopify/Product/123456 -> 123456)
+    let productId = product.externalId || product.shopifyId;
+    if (productId && productId.includes('gid://shopify/Product/')) {
+      productId = productId.replace('gid://shopify/Product/', '');
+    }
+    
+    console.log(`Updating Shopify product ${productId} with new description`);
+    
     const response = await axios.put(
-      `https://${cleanShopUrl}/admin/api/2023-10/products/${product.externalId}.json`,
+      `https://${cleanShopUrl}/admin/api/2023-10/products/${productId}.json`,
       {
         product: {
-          id: product.externalId,
           body_html: newDescription
         }
       },
@@ -494,9 +501,10 @@ async function updateShopifyProductDescription(product, newDescription, credenti
       }
     };
   } catch (error) {
+    console.error('Shopify update error:', error.response?.data || error.message);
     return {
       success: false,
-      message: `Shopify update failed: ${error.response?.data?.errors || error.message}`
+      message: `Shopify update failed: ${error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message}`
     };
   }
 }
