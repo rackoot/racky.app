@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route'
 import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
+import { ProductDetail } from '@/pages/product-detail'
 import { MarketplacePage } from '@/pages/stores/[marketplace]'
 import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
@@ -50,6 +51,16 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Products />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/:id"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <ProductDetail />
               </MainLayout>
             </ProtectedRoute>
           }

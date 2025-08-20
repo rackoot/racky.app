@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,6 +43,7 @@ const marketplaceIcons: Record<string, string> = {
 }
 
 export function Products() {
+  const navigate = useNavigate()
   const [products, setProducts] = useState<Product[]>([])
   const [pagination, setPagination] = useState<ProductsResponse['pagination'] | null>(null)
   const [filters, setFilters] = useState<ProductsResponse['filters'] | null>(null)
@@ -259,7 +261,7 @@ export function Products() {
                 </TableHeader>
                 <TableBody>
                   {products.map((product) => (
-                    <TableRow key={product.id}>
+                    <TableRow key={product._id || product.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           {product.images[0] && (
@@ -270,7 +272,12 @@ export function Products() {
                             />
                           )}
                           <div>
-                            <div className="font-medium">{product.title}</div>
+                            <button 
+                              onClick={() => navigate(`/products/${product._id || product.id}`)}
+                              className="font-medium hover:text-blue-600 text-left transition-colors"
+                            >
+                              {product.title}
+                            </button>
                             <div className="text-sm text-muted-foreground">
                               SKU: {product.handle || 'N/A'}
                             </div>
@@ -315,7 +322,7 @@ export function Products() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleProductAction('edit', product)}>
+                            <DropdownMenuItem onClick={() => navigate(`/products/${product._id || product.id}`)}>
                               <Edit className="w-4 h-4 mr-2" />
                               Edit
                             </DropdownMenuItem>

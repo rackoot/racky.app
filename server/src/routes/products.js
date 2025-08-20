@@ -66,10 +66,20 @@ router.get('/', protect, async (req, res) => {
 
     const totalPages = Math.ceil(totalCount / parseInt(limit));
 
+    // Ensure products have both _id and id fields for frontend compatibility
+    const formattedProducts = products.map(product => {
+      const productObj = product.toObject ? product.toObject() : product;
+      return {
+        ...productObj,
+        id: productObj._id.toString(),
+        _id: productObj._id.toString()
+      };
+    });
+
     res.json({
       success: true,
       data: {
-        products,
+        products: formattedProducts,
         pagination: {
           currentPage: parseInt(page),
           totalPages,
@@ -435,5 +445,57 @@ async function saveShopifyProduct(shopifyProduct, userId, connectionId) {
     throw error;
   }
 }
+
+// Get single product by ID
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const product = await Product.findOne({
+      _id: id,
+      userId: req.user._id
+    }).populate('storeConnectionId', 'storeName marketplaceType');
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Generate platform availability data based on marketplace
+    const platformData = {
+      [product.marketplace]: {
+        platformId: product.externalId,
+        platformSku: product.sku,
+        platformPrice: product.price,
+        platformInventory: product.inventory,
+        platformStatus: product.status,
+        lastSyncAt: product.lastSyncedAt || product.updatedAt
+      }
+    };
+
+    // Enhanced product object with additional fields for detail view
+    const enhancedProduct = {
+      ...product.toObject(),
+      platforms: platformData,
+      variants: product.variants || [],
+      tags: product.tags || [],
+      images: product.images || []
+    };
+
+    res.json({
+      success: true,
+      data: enhancedProduct
+    });
+  } catch (error) {
+    console.error('Error fetching product details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch product details',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;

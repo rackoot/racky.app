@@ -6,7 +6,8 @@ const getAuthHeaders = () => ({
 });
 
 export interface Product {
-  id: string
+  id?: string
+  _id?: string
   title: string
   description: string
   price: number
@@ -24,6 +25,7 @@ export interface Product {
   handle: string
   createdAt: string
   updatedAt: string
+  marketplace?: string
 }
 
 export interface ProductsResponse {
@@ -104,5 +106,24 @@ export const productsService = {
     }
     
     return response.json();
+  },
+
+  // Get single product by ID
+  async getProductById(id: string): Promise<any> {
+    const response = await fetch(`${API_BASE}/products/${id}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch product');
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to fetch product');
+    }
+
+    return data.data;
   }
 };

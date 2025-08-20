@@ -11,6 +11,7 @@ const connectionRoutes = require('./routes/connections');
 const marketplaceRoutes = require('./routes/marketplaces');
 const productRoutes = require('./routes/products');
 const dashboardRoutes = require('./routes/dashboard');
+const optimizationRoutes = require('./routes/optimizations');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/connections', connectionRoutes);
 app.use('/api/marketplaces', marketplaceRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/optimizations', optimizationRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Racky API is running' });
