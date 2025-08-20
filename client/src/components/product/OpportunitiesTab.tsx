@@ -85,17 +85,31 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
     try {
       const data = await opportunitiesService.generateOpportunities(product._id, forceRefresh);
       
+      // Calculate available marketplace tabs from the opportunities
+      const availableMarketplaceTabs = new Set<string>();
+      availableMarketplaceTabs.add(product.marketplace); // Always include current marketplace
+      
+      // Add marketplaces mentioned in opportunities
+      Object.values(data.opportunities).forEach(categoryOpps => {
+        categoryOpps.forEach(opp => {
+          if (opp.marketplace) {
+            availableMarketplaceTabs.add(opp.marketplace);
+          }
+        });
+      });
+      
       // Convert generated response to OpportunityResponse format
       const formattedData: OpportunityResponse = {
         opportunities: data.opportunities,
         categoryCounts: data.categoryCounts,
-        availableMarketplaceTabs: [], // Will be populated by the API
+        availableMarketplaceTabs: Array.from(availableMarketplaceTabs),
         totalCount: data.totalCount,
         productMarketplace: product.marketplace,
         cached: data.cached,
         lastGenerated: data.generatedAt
       };
       
+      console.log("Setting new opportunities data:", formattedData);
       setOpportunities(formattedData);
       
       // Reset selected category to 'all' to show new results
@@ -119,44 +133,59 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
   };
 
   const getFilteredOpportunities = () => {
-    if (!opportunities) return [];
+    if (!opportunities || !opportunities.opportunities) return [];
 
     let allOpportunities: Opportunity[] = [];
     
-    if (selectedCategory === "all") {
-      // Show all opportunities
-      Object.values(opportunities.opportunities).forEach(categoryOpps => {
-        allOpportunities.push(...categoryOpps);
-      });
-    } else {
-      // Show opportunities for selected category
-      allOpportunities = opportunities.opportunities[selectedCategory] || [];
-    }
+    try {
+      if (selectedCategory === "all") {
+        // Show all opportunities
+        Object.values(opportunities.opportunities).forEach(categoryOpps => {
+          if (Array.isArray(categoryOpps)) {
+            allOpportunities.push(...categoryOpps);
+          }
+        });
+      } else {
+        // Show opportunities for selected category
+        const categoryOpps = opportunities.opportunities[selectedCategory];
+        if (Array.isArray(categoryOpps)) {
+          allOpportunities = categoryOpps;
+        }
+      }
 
-    // Sort by priority
-    return allOpportunities.sort((a, b) => {
-      const aPriorityIndex = priorityOrder.indexOf(a.priority);
-      const bPriorityIndex = priorityOrder.indexOf(b.priority);
-      return aPriorityIndex - bPriorityIndex;
-    });
+      // Sort by priority
+      return allOpportunities.sort((a, b) => {
+        const aPriorityIndex = priorityOrder.indexOf(a.priority);
+        const bPriorityIndex = priorityOrder.indexOf(b.priority);
+        return aPriorityIndex - bPriorityIndex;
+      });
+    } catch (error) {
+      console.error("Error filtering opportunities:", error, opportunities);
+      return [];
+    }
   };
 
   const getAvailableCategories = () => {
-    if (!opportunities) return [];
+    if (!opportunities || !opportunities.categoryCounts) return [];
 
-    const categories = [
-      { id: "all", name: "All", count: opportunities.totalCount }
-    ];
+    try {
+      const categories = [
+        { id: "all", name: "All", count: opportunities.totalCount || 0 }
+      ];
 
-    Object.entries(opportunities.categoryCounts).forEach(([categoryId, count]) => {
-      categories.push({
-        id: categoryId,
-        name: opportunitiesService.formatCategoryName(categoryId),
-        count
+      Object.entries(opportunities.categoryCounts).forEach(([categoryId, count]) => {
+        categories.push({
+          id: categoryId,
+          name: opportunitiesService.formatCategoryName(categoryId),
+          count
+        });
       });
-    });
 
-    return categories;
+      return categories;
+    } catch (error) {
+      console.error("Error getting available categories:", error, opportunities);
+      return [{ id: "all", name: "All", count: 0 }];
+    }
   };
 
   const renderOpportunityCard = (opportunity: Opportunity) => {
