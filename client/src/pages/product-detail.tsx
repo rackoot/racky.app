@@ -22,6 +22,7 @@ import { productsService } from "@/services/products"
 import { ProductImageGallery } from "@/components/product/ProductImageGallery"
 import { OptimizationTabs } from "@/components/product/OptimizationTabs"
 import { ProductHistory } from "@/components/product/ProductHistory"
+import { EditableDescription } from "@/components/product/EditableDescription"
 import type { ProductDetail } from "@/types/product"
 
 const platformColors = {
@@ -136,6 +137,15 @@ export function ProductDetail() {
       setError(err instanceof Error ? err.message : "Failed to load product")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDescriptionUpdate = (newDescription: string) => {
+    if (product) {
+      setProduct({
+        ...product,
+        description: newDescription
+      })
     }
   }
 
@@ -279,17 +289,17 @@ export function ProductDetail() {
                       <p className="font-semibold">{product.externalId || 'N/A'}</p>
                     </div>
                   </div>
-                  
-                  {product.description && (
-                    <div className="mt-6">
-                      <p className="text-sm text-muted-foreground mb-2">Description</p>
-                      <div className="bg-slate-50 rounded-lg p-4">
-                        <p className="text-sm leading-relaxed">{product.description}</p>
-                      </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
+
+              {/* Editable Description */}
+              <EditableDescription
+                description={product.description || ""}
+                productId={product._id}
+                marketplace={product.marketplace}
+                storeConnectionId={product.storeConnectionId?._id}
+                onDescriptionUpdate={handleDescriptionUpdate}
+              />
 
               {/* Product Variants */}
               {product.variants && product.variants.length > 0 && (

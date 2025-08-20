@@ -452,6 +452,63 @@ Get single product details by ID.
 }
 ```
 
+#### PATCH /products/:id/description
+Update product description in local database.
+
+**Parameters:**
+- `id` - Product ID
+
+**Request Body:**
+```json
+{
+  "description": "Updated product description"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Product description updated successfully",
+  "data": {
+    "description": "Updated product description"
+  }
+}
+```
+
+#### POST /products/:id/description/apply-to-marketplace
+Apply product description to connected marketplace store.
+
+**Parameters:**
+- `id` - Product ID
+
+**Request Body:**
+```json
+{
+  "description": "Description to apply to marketplace",
+  "marketplace": "shopify"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "message": "Shopify product description updated successfully"
+  }
+}
+```
+
+**Error Response (400/404):**
+```json
+{
+  "success": false,
+  "message": "No store connection found for this product"
+}
+```
+
 ### Product Optimization Endpoints
 
 These endpoints provide AI-powered content optimization for products across different marketplaces.

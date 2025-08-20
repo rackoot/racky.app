@@ -563,4 +563,316 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
+// PATCH /products/:id/description - Update product description
+router.patch('/:id/description', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description } = req.body;
+    
+    const product = await Product.findOne({
+      _id: id,
+      userId: req.user._id
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Update the description
+    product.description = description;
+    await product.save();
+
+    res.json({
+      success: true,
+      message: 'Product description updated successfully',
+      data: {
+        description: product.description
+      }
+    });
+  } catch (error) {
+    console.error('Error updating product description:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update product description',
+      error: error.message
+    });
+  }
+});
+
+// POST /products/:id/description/apply-to-marketplace - Apply description to marketplace
+router.post('/:id/description/apply-to-marketplace', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description, marketplace } = req.body;
+    
+    const product = await Product.findOne({
+      _id: id,
+      userId: req.user._id
+    }).populate('storeConnectionId');
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    if (!product.storeConnectionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No store connection found for this product'
+      });
+    }
+
+    if (product.storeConnectionId.marketplaceType !== marketplace) {
+      return res.status(400).json({
+        success: false,
+        message: `Product is connected to ${product.storeConnectionId.marketplaceType}, not ${marketplace}`
+      });
+    }
+
+    // Apply description to marketplace
+    let updateResult;
+    try {
+      updateResult = await updateProductDescriptionInMarketplace(
+        marketplace,
+        product,
+        description,
+        product.storeConnectionId
+      );
+    } catch (error) {
+      console.error('Marketplace update failed:', error);
+      updateResult = {
+        success: false,
+        message: error.message || 'Failed to update marketplace'
+      };
+    }
+
+    res.json({
+      success: true,
+      data: updateResult
+    });
+
+  } catch (error) {
+    console.error('Error applying description to marketplace:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to apply description to marketplace',
+      error: error.message
+    });
+  }
+});
+
+// Helper function to update product description in marketplace
+async function updateProductDescriptionInMarketplace(marketplace, product, description, storeConnection) {
+  const { credentials } = storeConnection;
+  
+  switch (marketplace) {
+    case 'shopify':
+      return await updateShopifyProductDescriptionDirect(product, description, credentials);
+    case 'woocommerce':
+      return await updateWooCommerceProductDescriptionDirect(product, description, credentials);
+    case 'vtex':
+      return await updateVtexProductDescriptionDirect(product, description, credentials);
+    case 'mercadolibre':
+      return await updateMercadoLibreProductDescriptionDirect(product, description, credentials);
+    case 'facebook_shop':
+      return await updateFacebookShopProductDescriptionDirect(product, description, credentials);
+    default:
+      return {
+        success: false,
+        message: `Marketplace updates not yet implemented for ${marketplace}`
+      };
+  }
+}
+
+// Shopify direct description update
+async function updateShopifyProductDescriptionDirect(product, description, credentials) {
+  const axios = require('axios');
+  
+  try {
+    const { shop_url, access_token } = credentials;
+    const cleanShopUrl = shop_url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    
+    // Extract numeric ID from GraphQL ID
+    let productId = product.externalId || product.shopifyId;
+    if (productId && productId.includes('gid://shopify/Product/')) {
+      productId = productId.replace('gid://shopify/Product/', '');
+    }
+    
+    console.log(`Updating Shopify product ${productId} with manual description`);
+    
+    const response = await axios.put(
+      `https://${cleanShopUrl}/admin/api/2023-10/products/${productId}.json`,
+      {
+        product: {
+          body_html: description
+        }
+      },
+      {
+        headers: {
+          'X-Shopify-Access-Token': access_token,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Shopify product description updated successfully'
+    };
+  } catch (error) {
+    console.error('Shopify update error:', error.response?.data || error.message);
+    return {
+      success: false,
+      message: `Shopify update failed: ${error.response?.data?.errors ? JSON.stringify(error.response.data.errors) : error.message}`
+    };
+  }
+}
+
+// WooCommerce direct description update
+async function updateWooCommerceProductDescriptionDirect(product, description, credentials) {
+  const axios = require('axios');
+  
+  try {
+    const { site_url, consumer_key, consumer_secret } = credentials;
+    const cleanUrl = site_url.replace(/\/$/, '');
+    
+    let productId = product.externalId;
+    
+    const response = await axios.put(
+      `${cleanUrl}/wp-json/wc/v3/products/${productId}`,
+      {
+        description: description
+      },
+      {
+        auth: {
+          username: consumer_key,
+          password: consumer_secret
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'WooCommerce product description updated successfully'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `WooCommerce update failed: ${error.response?.data?.message || error.message}`
+    };
+  }
+}
+
+// VTEX direct description update
+async function updateVtexProductDescriptionDirect(product, description, credentials) {
+  const axios = require('axios');
+  
+  try {
+    const { account_name, app_key, app_token } = credentials;
+    
+    let productId = product.externalId;
+    
+    const response = await axios.put(
+      `https://${account_name}.vtexcommercestable.com.br/api/catalog/pvt/product/${productId}`,
+      {
+        Description: description
+      },
+      {
+        headers: {
+          'X-VTEX-API-AppKey': app_key,
+          'X-VTEX-API-AppToken': app_token,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'VTEX product description updated successfully'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `VTEX update failed: ${error.response?.data?.message || error.message}`
+    };
+  }
+}
+
+// MercadoLibre direct description update
+async function updateMercadoLibreProductDescriptionDirect(product, description, credentials) {
+  const axios = require('axios');
+  
+  try {
+    const { access_token } = credentials;
+    
+    let productId = product.externalId;
+    
+    const response = await axios.put(
+      `https://api.mercadolibre.com/items/${productId}`,
+      {
+        description: {
+          plain_text: description
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'MercadoLibre product description updated successfully'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `MercadoLibre update failed: ${error.response?.data?.message || error.message}`
+    };
+  }
+}
+
+// Facebook Shop direct description update
+async function updateFacebookShopProductDescriptionDirect(product, description, credentials) {
+  const axios = require('axios');
+  
+  try {
+    const { page_id, access_token } = credentials;
+    
+    let productId = product.externalId;
+    
+    const response = await axios.post(
+      `https://graph.facebook.com/v18.0/${productId}`,
+      {
+        description: description,
+        access_token: access_token
+      },
+      {
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Facebook Shop product description updated successfully'
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Facebook Shop update failed: ${error.response?.data?.error?.message || error.message}`
+    };
+  }
+}
+
 module.exports = router;

@@ -712,6 +712,58 @@
             },
             "description": "Get single product details by ID"
           }
+        },
+        {
+          "name": "Update Product Description",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated product description with manual changes\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/description",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", "description"]
+            },
+            "description": "Update product description in local database"
+          }
+        },
+        {
+          "name": "Apply Description to Marketplace",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description to apply to marketplace\",\n  \"marketplace\": \"shopify\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/description/apply-to-marketplace",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", "description", "apply-to-marketplace"]
+            },
+            "description": "Apply product description to connected marketplace"
+          }
         }
       ]
     },
