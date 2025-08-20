@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,22 +44,24 @@ const marketplaceIcons: Record<string, string> = {
 
 export function Products() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [products, setProducts] = useState<Product[]>([])
   const [pagination, setPagination] = useState<ProductsResponse['pagination'] | null>(null)
   const [filters, setFilters] = useState<ProductsResponse['filters'] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   
-  // Query state
-  const [query, setQuery] = useState<ProductsQuery>({
-    page: 1,
-    limit: 20,
-    search: '',
-    marketplace: '',
-    sortBy: 'createdAt',
-    sortOrder: 'desc',
-    status: ''
-  })
+  // Initialize query state from URL parameters
+  const [query, setQuery] = useState<ProductsQuery>(() => ({
+    page: parseInt(searchParams.get('page') || '1'),
+    limit: parseInt(searchParams.get('limit') || '20'),
+    search: searchParams.get('search') || '',
+    marketplace: searchParams.get('marketplace') || '',
+    store: searchParams.get('store') || '',
+    sortBy: searchParams.get('sortBy') || 'createdAt',
+    sortOrder: (searchParams.get('sortOrder') as 'asc' | 'desc') || 'desc',
+    status: searchParams.get('status') || ''
+  }))
 
   const loadProducts = async () => {
     setLoading(true)

@@ -12,6 +12,7 @@ router.get('/', protect, async (req, res) => {
       limit = 20,
       search = '',
       marketplace = '',
+      store = '',
       sortBy = 'createdAt',
       sortOrder = 'desc',
       status = ''
@@ -30,6 +31,10 @@ router.get('/', protect, async (req, res) => {
     
     if (marketplace) {
       filter.marketplace = marketplace;
+    }
+    
+    if (store) {
+      filter.storeConnectionId = store;
     }
     
     if (status) {

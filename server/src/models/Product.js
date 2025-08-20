@@ -83,7 +83,24 @@ const productSchema = new mongoose.Schema({
   },
   stock: { type: Number, default: 0 },
   category: { type: String },
-  lastSyncedAt: { type: Date, default: Date.now }
+  lastSyncedAt: { type: Date, default: Date.now },
+  cachedDescriptions: [{
+    platform: { 
+      type: String, 
+      enum: ['shopify', 'amazon', 'mercadolibre', 'woocommerce', 'vtex', 'facebook_shop', 'google_shopping'],
+      required: true 
+    },
+    content: { type: String, required: true },
+    confidence: { type: Number, min: 0, max: 1 },
+    keywords: [{ type: String }],
+    tokens: { type: Number },
+    createdAt: { type: Date, default: Date.now },
+    status: { 
+      type: String, 
+      enum: ['pending', 'accepted', 'rejected'],
+      default: 'pending'
+    }
+  }]
 }, {
   timestamps: true
 });

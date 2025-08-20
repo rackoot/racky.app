@@ -144,20 +144,28 @@ router.get('/products/:id/description/:platform', protect, async (req, res) => {
       });
     }
 
-    // Check for existing suggestion
-    const existingSuggestion = await Suggestion.findLatestSuggestion(userId, productId, platform, 'description');
+    // Check for existing cached description
+    const existingCachedDescription = product.cachedDescriptions?.find(
+      cached => cached.platform === platform
+    );
     
-    if (existingSuggestion) {
+    if (existingCachedDescription) {
       return res.json({
         success: true,
         data: {
           suggestion: {
-            id: existingSuggestion._id,
-            originalContent: existingSuggestion.originalContent,
-            suggestedContent: existingSuggestion.suggestedContent,
-            status: existingSuggestion.status,
-            metadata: existingSuggestion.metadata,
-            createdAt: existingSuggestion.createdAt
+            id: existingCachedDescription._id,
+            originalContent: product.description,
+            suggestedContent: existingCachedDescription.content,
+            status: existingCachedDescription.status,
+            metadata: {
+              model: 'gpt-3.5-turbo',
+              tokens: existingCachedDescription.tokens,
+              confidence: existingCachedDescription.confidence,
+              keywords: existingCachedDescription.keywords,
+              prompt: platformPrompts[platform]
+            },
+            createdAt: existingCachedDescription.createdAt
           },
           cached: true
         }
@@ -167,36 +175,37 @@ router.get('/products/:id/description/:platform', protect, async (req, res) => {
     // Generate new suggestion
     const aiResult = await generateOptimizedDescription(platform, product);
     
-    const newSuggestion = new Suggestion({
-      userId,
-      productId,
+    // Add to cached descriptions
+    const newCachedDescription = {
       platform,
-      type: 'description',
-      title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Description Optimization`,
-      description: `AI-optimized product description for ${platform}`,
-      originalContent: product.description,
-      suggestedContent: aiResult.content,
-      metadata: {
-        model: 'gpt-3.5-turbo',
-        tokens: aiResult.tokens,
-        confidence: aiResult.confidence,
-        keywords: aiResult.keywords,
-        prompt: platformPrompts[platform]
-      }
-    });
+      content: aiResult.content,
+      confidence: aiResult.confidence,
+      keywords: aiResult.keywords,
+      tokens: aiResult.tokens,
+      createdAt: new Date(),
+      status: 'pending'
+    };
 
-    await newSuggestion.save();
+    product.cachedDescriptions = product.cachedDescriptions || [];
+    product.cachedDescriptions.push(newCachedDescription);
+    await product.save();
 
     res.json({
       success: true,
       data: {
         suggestion: {
-          id: newSuggestion._id,
-          originalContent: newSuggestion.originalContent,
-          suggestedContent: newSuggestion.suggestedContent,
-          status: newSuggestion.status,
-          metadata: newSuggestion.metadata,
-          createdAt: newSuggestion.createdAt
+          id: newCachedDescription._id,
+          originalContent: product.description,
+          suggestedContent: newCachedDescription.content,
+          status: newCachedDescription.status,
+          metadata: {
+            model: 'gpt-3.5-turbo',
+            tokens: newCachedDescription.tokens,
+            confidence: newCachedDescription.confidence,
+            keywords: newCachedDescription.keywords,
+            prompt: platformPrompts[platform]
+          },
+          createdAt: newCachedDescription.createdAt
         },
         cached: false
       }
@@ -229,36 +238,42 @@ router.post('/products/:id/description/:platform', protect, async (req, res) => 
     // Generate new suggestion
     const aiResult = await generateOptimizedDescription(platform, product);
     
-    const newSuggestion = new Suggestion({
-      userId,
-      productId,
-      platform,
-      type: 'description',
-      title: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Description Optimization`,
-      description: `AI-optimized product description for ${platform} (regenerated)`,
-      originalContent: product.description,
-      suggestedContent: aiResult.content,
-      metadata: {
-        model: 'gpt-3.5-turbo',
-        tokens: aiResult.tokens,
-        confidence: aiResult.confidence,
-        keywords: aiResult.keywords,
-        prompt: platformPrompts[platform]
-      }
-    });
+    // Remove existing cached description for this platform
+    product.cachedDescriptions = product.cachedDescriptions || [];
+    product.cachedDescriptions = product.cachedDescriptions.filter(
+      cached => cached.platform !== platform
+    );
 
-    await newSuggestion.save();
+    // Add new cached description
+    const newCachedDescription = {
+      platform,
+      content: aiResult.content,
+      confidence: aiResult.confidence,
+      keywords: aiResult.keywords,
+      tokens: aiResult.tokens,
+      createdAt: new Date(),
+      status: 'pending'
+    };
+
+    product.cachedDescriptions.push(newCachedDescription);
+    await product.save();
 
     res.json({
       success: true,
       data: {
         suggestion: {
-          id: newSuggestion._id,
-          originalContent: newSuggestion.originalContent,
-          suggestedContent: newSuggestion.suggestedContent,
-          status: newSuggestion.status,
-          metadata: newSuggestion.metadata,
-          createdAt: newSuggestion.createdAt
+          id: newCachedDescription._id,
+          originalContent: product.description,
+          suggestedContent: newCachedDescription.content,
+          status: newCachedDescription.status,
+          metadata: {
+            model: 'gpt-3.5-turbo',
+            tokens: newCachedDescription.tokens,
+            confidence: newCachedDescription.confidence,
+            keywords: newCachedDescription.keywords,
+            prompt: platformPrompts[platform]
+          },
+          createdAt: newCachedDescription.createdAt
         },
         cached: false
       }
@@ -287,39 +302,44 @@ router.patch('/products/:id/description/:platform', protect, async (req, res) =>
       });
     }
 
-    const suggestion = await Suggestion.findOne({
-      _id: suggestionId,
-      userId,
-      productId,
-      platform,
-      type: 'description'
-    });
-
-    if (!suggestion) {
+    // Verify product ownership
+    const product = await Product.findOne({ _id: productId, userId });
+    if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Suggestion not found'
+        message: 'Product not found'
       });
     }
 
-    suggestion.status = status;
-    await suggestion.save();
+    // Find the cached description
+    const cachedDescription = product.cachedDescriptions?.find(
+      cached => cached._id.toString() === suggestionId && cached.platform === platform
+    );
+
+    if (!cachedDescription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cached description not found'
+      });
+    }
+
+    // Update status
+    cachedDescription.status = status;
 
     // If accepted, optionally update the product description
     if (status === 'accepted') {
-      await Product.findByIdAndUpdate(productId, {
-        description: suggestion.suggestedContent,
-        updatedAt: new Date()
-      });
+      product.description = cachedDescription.content;
     }
+
+    await product.save();
 
     res.json({
       success: true,
       data: {
         suggestion: {
-          id: suggestion._id,
-          status: suggestion.status,
-          updatedAt: suggestion.updatedAt
+          id: cachedDescription._id,
+          status: cachedDescription.status,
+          updatedAt: new Date()
         }
       }
     });

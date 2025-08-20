@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,6 +17,7 @@ interface ConnectedShopifyDetailProps {
 
 
 export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopifyDetailProps) {
+  const navigate = useNavigate()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -84,6 +86,11 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     } finally {
       setDisconnecting(false)
     }
+  }
+
+  const handleViewAllProducts = () => {
+    if (!marketplace.connectionInfo) return
+    navigate(`/products?store=${marketplace.connectionInfo.connectionId}`)
   }
 
   useEffect(() => {
@@ -183,7 +190,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
 
           {/* Action Buttons */}
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1">
+            <Button variant="outline" className="flex-1" onClick={handleViewAllProducts}>
               <Package className="w-4 h-4 mr-2" />
               View All Products
             </Button>
@@ -226,7 +233,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
             </div>
             {products.length > 5 && (
               <div className="mt-4 text-center">
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleViewAllProducts}>
                   View All {products.length} Products
                 </Button>
               </div>

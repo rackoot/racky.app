@@ -68,8 +68,12 @@ export function MarketplacePage() {
   }
 
   const handleViewProducts = (marketplace: Marketplace) => {
-    // TODO: Navigate to products page with marketplace filter
-    console.log('View products for:', marketplace.name)
+    // Navigate to products page with store filter
+    if (marketplace.connectionInfo) {
+      navigate(`/products?store=${marketplace.connectionInfo.connectionId}`)
+    } else {
+      navigate(`/products?marketplace=${marketplace.id}`)
+    }
   }
 
   const handleViewAnalytics = (marketplace: Marketplace) => {

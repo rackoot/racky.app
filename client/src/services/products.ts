@@ -51,6 +51,7 @@ export interface ProductsQuery {
   limit?: number;
   search?: string;
   marketplace?: string;
+  store?: string; // Store connection ID
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   status?: string;

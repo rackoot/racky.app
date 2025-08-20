@@ -38,7 +38,28 @@ const platformNames = {
   google_shopping: 'Google Shopping'
 }
 
-const supportedPlatforms = ['shopify', 'amazon', 'mercadolibre', 'woocommerce', 'vtex', 'facebook_shop']
+// Get platforms available for this product
+const getAvailablePlatforms = (product: ProductDetail) => {
+  const availablePlatforms = []
+  
+  // Add the primary marketplace
+  if (product.marketplace) {
+    availablePlatforms.push(product.marketplace)
+  }
+  
+  // Add any additional platforms from the platforms array
+  if (product.platforms) {
+    Object.keys(product.platforms).forEach(platform => {
+      if (!availablePlatforms.includes(platform)) {
+        availablePlatforms.push(platform)
+      }
+    })
+  }
+  
+  // Filter to only supported platforms for description generation
+  const supportedPlatforms = ['shopify', 'amazon', 'mercadolibre', 'woocommerce', 'vtex', 'facebook_shop', 'google_shopping']
+  return availablePlatforms.filter(platform => supportedPlatforms.includes(platform))
+}
 
 interface OptimizationTabsProps {
   product: ProductDetail;
@@ -49,6 +70,30 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
   const [suggestions, setSuggestions] = useState<Record<string, OptimizationSuggestion | null>>({})
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
+  
+  // Get platforms available for this specific product
+  const availablePlatforms = getAvailablePlatforms(product)
+
+  // Load existing cached descriptions on mount
+  useEffect(() => {
+    const loadCachedDescriptions = async () => {
+      for (const platform of availablePlatforms) {
+        try {
+          const result = await optimizationsService.getDescriptionOptimization(product._id, platform)
+          if (result.cached) {
+            setSuggestions(prev => ({ ...prev, [platform]: result.suggestion }))
+          }
+        } catch (error) {
+          // Silently fail for platforms without cached descriptions
+          console.debug(`No cached description for ${platform}:`, error)
+        }
+      }
+    }
+
+    if (availablePlatforms.length > 0) {
+      loadCachedDescriptions()
+    }
+  }, [product._id, availablePlatforms])
 
   const loadSuggestion = async (platform: string, forceRegenerate = false) => {
     setLoadingStates(prev => ({ ...prev, [platform]: true }))
@@ -108,8 +153,19 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
         </TabsList>
 
         <TabsContent value="seo" className="space-y-6">
-          <div className="space-y-6">
-            {supportedPlatforms.map((platform) => (
+          {availablePlatforms.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Sparkles className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-lg font-semibold mb-2">No Platforms Available</h3>
+                <p className="text-muted-foreground max-w-md mx-auto">
+                  This product is not available on any platforms that support description optimization.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {availablePlatforms.map((platform) => (
               <Card key={platform} className="overflow-hidden">
                 <CardHeader className="pb-4">
                   <div className="flex items-center justify-between">
@@ -267,7 +323,8 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                 </CardContent>
               </Card>
             ))}
-          </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="opportunities" className="space-y-6">
