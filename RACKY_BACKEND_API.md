@@ -307,6 +307,139 @@ Remove a marketplace from a connection.
 
 **Response (200):** Returns the updated connection object.
 
+### Product Optimization Endpoints
+
+These endpoints provide AI-powered content optimization for products across different marketplaces.
+
+#### GET /optimizations/products/:id/description/:platform
+Get or generate AI-optimized description for a product on a specific platform.
+
+**Parameters:**
+- `id` - Product ID
+- `platform` - Target marketplace (shopify, amazon, mercadolibre, woocommerce, vtex, facebook_shop, google_shopping)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "suggestion": {
+      "id": "suggestion_id",
+      "originalContent": "Original product description...",
+      "suggestedContent": "AI-optimized description...",
+      "status": "pending",
+      "metadata": {
+        "model": "gpt-3.5-turbo",
+        "tokens": 150,
+        "confidence": 0.85,
+        "keywords": ["keyword1", "keyword2"],
+        "prompt": "Platform-specific prompt used"
+      },
+      "createdAt": "2025-08-20T05:00:00Z"
+    },
+    "cached": true
+  }
+}
+```
+
+#### POST /optimizations/products/:id/description/:platform
+Force regenerate AI-optimized description for a product on a specific platform.
+
+**Parameters:**
+- `id` - Product ID  
+- `platform` - Target marketplace
+
+**Response (200):** Same as GET endpoint but with `cached: false`
+
+#### PATCH /optimizations/products/:id/description/:platform
+Update suggestion status (accept/reject).
+
+**Request Body:**
+```json
+{
+  "status": "accepted",
+  "suggestionId": "suggestion_id"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "suggestion": {
+      "id": "suggestion_id",
+      "status": "accepted",
+      "updatedAt": "2025-08-20T05:00:00Z"
+    }
+  }
+}
+```
+
+#### POST /optimizations/products/:id/description/:platform/apply
+Apply accepted description to the connected marketplace store.
+
+**Request Body:**
+```json
+{
+  "suggestionId": "suggestion_id"
+}
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "storeUpdateResult": {
+      "success": true,
+      "message": "Shopify product description updated successfully",
+      "data": {
+        "productId": "external_product_id",
+        "updatedAt": "2025-08-20T05:00:00Z"
+      }
+    },
+    "message": "Description successfully applied to store and updated locally"
+  }
+}
+```
+
+**Important:** The local product description is only updated if the marketplace update succeeds. This ensures data consistency.
+
+#### GET /optimizations/products/:id/suggestions
+Get suggestion history for a product.
+
+**Query Parameters:**
+- `platform` (optional) - Filter by marketplace platform
+- `type` (optional) - Filter by suggestion type (e.g., "description")
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "suggestion_id",
+      "platform": "shopify",
+      "type": "description",
+      "title": "Description Optimization",
+      "description": "AI-optimized product description",
+      "originalContent": "Original description...",
+      "suggestedContent": "Optimized description...",
+      "status": "accepted",
+      "metadata": {
+        "model": "gpt-3.5-turbo",
+        "tokens": 150,
+        "confidence": 0.85,
+        "keywords": ["keyword1", "keyword2"]
+      },
+      "createdAt": "2025-08-20T05:00:00Z",
+      "updatedAt": "2025-08-20T05:05:00Z"
+    }
+  ]
+}
+```
+
 ## Supported Marketplaces
 
 The system supports the following marketplace types with their required credentials:

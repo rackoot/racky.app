@@ -40,6 +40,21 @@
       "key": "marketplace_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "product_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "platform",
+      "value": "shopify",
+      "type": "string"
+    },
+    {
+      "key": "suggestion_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -545,6 +560,282 @@
               "path": ["connections", "{{connection_id}}"]
             },
             "description": "Delete a store connection"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products?page=1&limit=20&search=&marketplace=&store={{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit", 
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "marketplace",
+                  "value": ""
+                },
+                {
+                  "key": "store",
+                  "value": "{{connection_id}}"
+                }
+              ]
+            },
+            "description": "Get all products with pagination and filtering"
+          }
+        },
+        {
+          "name": "Get Store Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/store/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "store", "{{connection_id}}"]
+            },
+            "description": "Get products for a specific store connection"
+          }
+        },
+        {
+          "name": "Get Store Product Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/store/{{connection_id}}/count",
+              "host": ["{{base_url}}"],
+              "path": ["products", "store", "{{connection_id}}", "count"]
+            },
+            "description": "Check if products exist for a store connection and get count"
+          }
+        },
+        {
+          "name": "Sync Products (Regular)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"force\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "{{connection_id}}"]
+            },
+            "description": "Sync products from marketplace (regular update/create)"
+          }
+        },
+        {
+          "name": "Sync Products (Force Replace)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"force\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "{{connection_id}}"]
+            },
+            "description": "Force sync products (delete existing, then download fresh from marketplace)"
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}"]
+            },
+            "description": "Get single product details by ID"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Optimizations",
+      "item": [
+        {
+          "name": "Get Description Optimization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}"]
+            },
+            "description": "Get or generate AI-optimized description for a product on a specific platform"
+          }
+        },
+        {
+          "name": "Regenerate Description Optimization",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization", 
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}"]
+            },
+            "description": "Force regenerate AI-optimized description for a product on a specific platform"
+          }
+        },
+        {
+          "name": "Update Suggestion Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type", 
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\",\n  \"suggestionId\": \"{{suggestion_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}"]
+            },
+            "description": "Accept or reject an AI-generated description suggestion"
+          }
+        },
+        {
+          "name": "Apply Description to Store", 
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"suggestionId\": \"{{suggestion_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}/apply",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}", "apply"]
+            },
+            "description": "Apply accepted description to the connected marketplace store"
+          }
+        },
+        {
+          "name": "Get Suggestion History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/suggestions?platform={{platform}}&type=description",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "suggestions"],
+              "query": [
+                {
+                  "key": "platform",
+                  "value": "{{platform}}"
+                },
+                {
+                  "key": "type",
+                  "value": "description"
+                }
+              ]
+            },
+            "description": "Get suggestion history for a product"
           }
         }
       ]

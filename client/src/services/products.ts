@@ -95,10 +95,11 @@ export const productsService = {
   },
 
   // Sync products from a marketplace
-  async syncProducts(connectionId: string): Promise<any> {
+  async syncProducts(connectionId: string, force: boolean = false): Promise<any> {
     const response = await fetch(`${API_BASE}/products/sync/${connectionId}`, {
       method: 'POST',
       headers: getAuthHeaders(),
+      body: JSON.stringify({ force }),
     });
     
     if (!response.ok) {
@@ -107,6 +108,20 @@ export const productsService = {
     }
     
     return response.json();
+  },
+
+  // Check if products exist for a connection
+  async hasProducts(connectionId: string): Promise<{ hasProducts: boolean; count: number }> {
+    const response = await fetch(`${API_BASE}/products/store/${connectionId}/count`, {
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to check product count');
+    }
+    
+    const data = await response.json();
+    return data.data;
   },
 
   // Get single product by ID

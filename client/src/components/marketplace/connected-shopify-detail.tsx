@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { ArrowLeft, RotateCcw, Package, TrendingUp, DollarSign, Archive, Trash2, AlertTriangle } from "lucide-react"
 import { productsService, type Product } from "@/services/products"
 import { marketplaceService } from "@/services/marketplace"
+import { SyncConfirmationDialog } from "./sync-confirmation-dialog"
 import type { Marketplace } from "@/types/marketplace"
 
 interface ConnectedShopifyDetailProps {
@@ -23,6 +24,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
   const [syncing, setSyncing] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false)
   const [stats, setStats] = useState({
     totalProducts: 0,
     activeProducts: 0,
@@ -53,13 +55,40 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     }
   }
 
-  const handleSync = async () => {
+  const handleSyncClick = async () => {
+    if (!marketplace.connectionInfo) return
+    
+    // Check if products exist
+    try {
+      const productInfo = await productsService.hasProducts(marketplace.connectionInfo.connectionId)
+      
+      if (productInfo.hasProducts) {
+        // Show warning modal if products exist
+        setShowSyncConfirm(true)
+      } else {
+        // No products exist, sync directly
+        await performSync(false)
+      }
+    } catch (error) {
+      console.error('Error checking products:', error)
+      // If error checking, proceed with sync (fail safe)
+      await performSync(false)
+    }
+  }
+
+  const handleConfirmedSync = async () => {
+    setShowSyncConfirm(false)
+    await performSync(true) // Force sync
+  }
+
+  const performSync = async (force: boolean = false) => {
     if (!marketplace.connectionInfo) return
     
     setSyncing(true)
     try {
       const result = await productsService.syncProducts(
-        marketplace.connectionInfo.connectionId
+        marketplace.connectionInfo.connectionId,
+        force
       )
       setLastSync(new Date().toLocaleString())
       await loadProducts()
@@ -146,7 +175,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
               <Package className="w-5 h-5" />
               <CardTitle>Product Management</CardTitle>
             </div>
-            <Button onClick={handleSync} disabled={syncing}>
+            <Button onClick={handleSyncClick} disabled={syncing}>
               <RotateCcw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Syncing...' : 'Sync Products'}
             </Button>
@@ -261,13 +290,23 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
             <p className="text-muted-foreground mb-4">
               Start by syncing your products from Shopify to see them here.
             </p>
-            <Button onClick={handleSync} disabled={syncing}>
+            <Button onClick={handleSyncClick} disabled={syncing}>
               <RotateCcw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Syncing...' : 'Sync Products Now'}
             </Button>
           </CardContent>
         </Card>
       )}
+
+      {/* Sync Confirmation Dialog */}
+      <SyncConfirmationDialog
+        isOpen={showSyncConfirm}
+        onClose={() => setShowSyncConfirm(false)}
+        onConfirm={handleConfirmedSync}
+        marketplaceName={marketplace.name}
+        productCount={stats.totalProducts}
+        isLoading={syncing}
+      />
 
       {/* Disconnect Confirmation Dialog */}
       <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>

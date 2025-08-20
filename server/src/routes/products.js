@@ -148,8 +148,8 @@ router.get('/store/:connectionId', protect, async (req, res) => {
   }
 });
 
-// Sync products from a marketplace
-router.post('/sync/:connectionId', protect, async (req, res) => {
+// Get product count for a specific store connection
+router.get('/store/:connectionId/count', protect, async (req, res) => {
   try {
     const { connectionId } = req.params;
     
@@ -166,12 +166,66 @@ router.post('/sync/:connectionId', protect, async (req, res) => {
       });
     }
 
+    const count = await Product.countDocuments({ 
+      userId: req.user._id,
+      storeConnectionId: connectionId
+    });
+
+    res.json({
+      success: true,
+      data: {
+        hasProducts: count > 0,
+        count: count
+      }
+    });
+  } catch (error) {
+    console.error('Error getting store product count:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get store product count',
+      error: error.message
+    });
+  }
+});
+
+// Sync products from a marketplace
+router.post('/sync/:connectionId', protect, async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { force = false } = req.body;
+    
+    // Verify user owns the store connection
+    const connection = await StoreConnection.findOne({
+      _id: connectionId,
+      userId: req.user._id
+    });
+
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: 'Store connection not found'
+      });
+    }
+
+    let deletedProducts = 0;
+
+    // If force sync, delete all existing products for this connection first
+    if (force) {
+      const deleteResult = await Product.deleteMany({
+        userId: req.user._id,
+        storeConnectionId: connectionId
+      });
+      deletedProducts = deleteResult.deletedCount;
+      console.log(`Force sync: Deleted ${deletedProducts} existing products for connection ${connectionId}`);
+    }
+
     // Sync products based on marketplace type
     const result = await syncProductsFromMarketplace(
       connection.marketplaceType,
       connection.credentials,
       req.user._id,
-      connectionId
+      connectionId,
+      force
     );
 
     // Update connection metadata
@@ -179,13 +233,19 @@ router.post('/sync/:connectionId', protect, async (req, res) => {
     connection.syncStatus = 'completed';
     await connection.save();
 
+    const responseMessage = force 
+      ? `Successfully replaced ${deletedProducts} products with ${result.totalProducts} fresh products from ${connection.marketplaceType}`
+      : `Successfully synced ${result.totalProducts} products from ${connection.marketplaceType}`;
+
     res.json({
       success: true,
-      message: `Successfully synced ${result.totalProducts} products from ${connection.marketplaceType}`,
+      message: responseMessage,
       data: {
         totalProducts: result.totalProducts,
         newProducts: result.newProducts,
-        updatedProducts: result.updatedProducts
+        updatedProducts: result.updatedProducts,
+        deletedProducts: force ? deletedProducts : 0,
+        isForceSync: force
       }
     });
 
@@ -199,16 +259,16 @@ router.post('/sync/:connectionId', protect, async (req, res) => {
   }
 });
 
-async function syncProductsFromMarketplace(type, credentials, userId, connectionId) {
+async function syncProductsFromMarketplace(type, credentials, userId, connectionId, force = false) {
   switch (type) {
     case 'shopify':
-      return await syncShopifyProducts(credentials, userId, connectionId);
+      return await syncShopifyProducts(credentials, userId, connectionId, force);
     default:
       throw new Error(`Product sync not implemented for ${type}`);
   }
 }
 
-async function syncShopifyProducts(credentials, userId, connectionId) {
+async function syncShopifyProducts(credentials, userId, connectionId, force = false) {
   const { shop_url, access_token } = credentials;
   
   if (!shop_url || !access_token) {

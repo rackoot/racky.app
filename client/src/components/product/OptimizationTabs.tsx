@@ -128,13 +128,59 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
 
   const handleStatusUpdate = async (platform: string, suggestionId: string, status: 'accepted' | 'rejected') => {
     try {
-      await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
-      
-      // Update local state
-      setSuggestions(prev => ({
-        ...prev,
-        [platform]: prev[platform] ? { ...prev[platform], status } : null
-      }))
+      if (status === 'accepted') {
+        // First update the status
+        await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
+        
+        // Then apply the description to the connected store
+        setLoadingStates(prev => ({ ...prev, [`${platform}_apply`]: true }))
+        
+        try {
+          const result = await optimizationsService.applyDescriptionToStore(product._id, platform, suggestionId)
+          
+          // Update local state with success
+          setSuggestions(prev => ({
+            ...prev,
+            [platform]: prev[platform] ? { 
+              ...prev[platform], 
+              status,
+              storeUpdateResult: result 
+            } : null
+          }))
+          
+          // Clear any previous errors
+          setErrors(prev => ({ ...prev, [platform]: '' }))
+          
+        } catch (storeError) {
+          // Update status but show store update error
+          setSuggestions(prev => ({
+            ...prev,
+            [platform]: prev[platform] ? { 
+              ...prev[platform], 
+              status,
+              storeUpdateResult: { 
+                success: false, 
+                message: storeError instanceof Error ? storeError.message : 'Failed to update store'
+              }
+            } : null
+          }))
+          setErrors(prev => ({ 
+            ...prev, 
+            [platform]: `Description accepted but store update failed: ${storeError instanceof Error ? storeError.message : 'Unknown error'}`
+          }))
+        } finally {
+          setLoadingStates(prev => ({ ...prev, [`${platform}_apply`]: false }))
+        }
+      } else {
+        // For rejected status, just update the status
+        await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
+        
+        // Update local state
+        setSuggestions(prev => ({
+          ...prev,
+          [platform]: prev[platform] ? { ...prev[platform], status } : null
+        }))
+      }
     } catch (error) {
       setErrors(prev => ({ 
         ...prev, 
@@ -298,19 +344,38 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                                   size="sm" 
                                   className="w-full bg-green-600 hover:bg-green-700"
                                   onClick={() => handleStatusUpdate(platform, suggestions[platform]!.id, 'accepted')}
+                                  disabled={loadingStates[`${platform}_apply`]}
                                 >
-                                  <Check className="w-4 h-4 mr-2" />
-                                  Accept & Apply
+                                  {loadingStates[`${platform}_apply`] ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Check className="w-4 h-4 mr-2" />
+                                  )}
+                                  {loadingStates[`${platform}_apply`] ? 'Applying to Store...' : 'Accept & Apply'}
                                 </Button>
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
                                   className="w-full border-red-300 text-red-600 hover:bg-red-50"
                                   onClick={() => handleStatusUpdate(platform, suggestions[platform]!.id, 'rejected')}
+                                  disabled={loadingStates[`${platform}_apply`]}
                                 >
                                   <X className="w-4 h-4 mr-2" />
                                   Reject
                                 </Button>
+                              </div>
+                            )}
+
+                            {suggestions[platform]?.status === 'accepted' && (suggestions[platform] as any)?.storeUpdateResult && (
+                              <div className="pt-3 border-t">
+                                <p className="text-xs text-muted-foreground mb-2">Store Update:</p>
+                                <div className={`p-2 rounded text-xs ${
+                                  (suggestions[platform] as any).storeUpdateResult.success 
+                                    ? 'bg-green-50 text-green-700 border border-green-200' 
+                                    : 'bg-red-50 text-red-700 border border-red-200'
+                                }`}>
+                                  {(suggestions[platform] as any).storeUpdateResult.message}
+                                </div>
                               </div>
                             )}
 

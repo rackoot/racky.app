@@ -3,7 +3,9 @@ import { useParams, useNavigate } from "react-router-dom"
 import { ConnectionForm } from "@/components/marketplace/connection-form"
 import { ConnectedMarketplaceDetail } from "@/components/marketplace/connected-marketplace-detail"
 import { ConnectedShopifyDetail } from "@/components/marketplace/connected-shopify-detail"
+import { SyncConfirmationDialog } from "@/components/marketplace/sync-confirmation-dialog"
 import { marketplaceService } from "@/services/marketplace"
+import { productsService } from "@/services/products"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react"
@@ -15,6 +17,9 @@ export function MarketplacePage() {
   const [marketplace, setMarketplace] = useState<Marketplace | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [showSyncConfirm, setShowSyncConfirm] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [productCount, setProductCount] = useState(0)
 
   const loadMarketplace = async () => {
     if (!marketplaceId) return
@@ -50,14 +55,45 @@ export function MarketplacePage() {
   const handleSync = async (marketplace: Marketplace) => {
     if (!marketplace.connectionInfo) return
     
+    // Check if products exist
     try {
-      await marketplaceService.testExistingConnection(
+      const productInfo = await productsService.hasProducts(marketplace.connectionInfo.connectionId)
+      setProductCount(productInfo.count)
+      
+      if (productInfo.hasProducts) {
+        // Show warning modal if products exist
+        setShowSyncConfirm(true)
+      } else {
+        // No products exist, sync directly
+        await performSync(marketplace, false)
+      }
+    } catch (error) {
+      console.error('Error checking products:', error)
+      // If error checking, proceed with sync (fail safe)
+      await performSync(marketplace, false)
+    }
+  }
+
+  const handleConfirmedSync = async () => {
+    if (!marketplace) return
+    setShowSyncConfirm(false)
+    await performSync(marketplace, true) // Force sync
+  }
+
+  const performSync = async (marketplace: Marketplace, force: boolean = false) => {
+    if (!marketplace.connectionInfo) return
+    
+    setSyncing(true)
+    try {
+      await productsService.syncProducts(
         marketplace.connectionInfo.connectionId,
-        marketplace.connectionInfo.marketplaceId
+        force
       )
       await loadMarketplace()
     } catch (err) {
       console.error('Sync failed:', err)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -123,14 +159,26 @@ export function MarketplacePage() {
     
     // Default connected marketplace view for other marketplaces
     return (
-      <ConnectedMarketplaceDetail
-        marketplace={marketplace}
-        onBack={() => navigate('/stores')}
-        onSync={handleSync}
-        onDisconnect={handleDisconnect}
-        onViewProducts={handleViewProducts}
-        onViewAnalytics={handleViewAnalytics}
-      />
+      <>
+        <ConnectedMarketplaceDetail
+          marketplace={marketplace}
+          onBack={() => navigate('/stores')}
+          onSync={handleSync}
+          onDisconnect={handleDisconnect}
+          onViewProducts={handleViewProducts}
+          onViewAnalytics={handleViewAnalytics}
+        />
+        
+        {/* Sync Confirmation Dialog */}
+        <SyncConfirmationDialog
+          isOpen={showSyncConfirm}
+          onClose={() => setShowSyncConfirm(false)}
+          onConfirm={handleConfirmedSync}
+          marketplaceName={marketplace.name}
+          productCount={productCount}
+          isLoading={syncing}
+        />
+      </>
     )
   }
 

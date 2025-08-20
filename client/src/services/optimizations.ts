@@ -107,6 +107,30 @@ export const optimizationsService = {
     }
   },
 
+  // Apply accepted description to connected store
+  async applyDescriptionToStore(
+    productId: string, 
+    platform: string, 
+    suggestionId: string
+  ): Promise<{ success: boolean; message: string; storeUpdateResult?: any }> {
+    const response = await fetch(`${API_BASE}/optimizations/products/${productId}/description/${platform}/apply`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ suggestionId }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to apply description to store');
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to apply description to store');
+    }
+
+    return data.data;
+  },
+
   // Get suggestion history for a product
   async getSuggestionHistory(
     productId: string, 

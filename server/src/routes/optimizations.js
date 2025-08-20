@@ -4,6 +4,8 @@ const { protect } = require('../middleware/auth');
 const Product = require('../models/Product');
 const Suggestion = require('../models/Suggestion');
 const OpenAI = require('openai');
+const marketplaceService = require('../services/marketplaceService');
+const axios = require('axios');
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -326,11 +328,6 @@ router.patch('/products/:id/description/:platform', protect, async (req, res) =>
     // Update status
     cachedDescription.status = status;
 
-    // If accepted, optionally update the product description
-    if (status === 'accepted') {
-      product.description = cachedDescription.content;
-    }
-
     await product.save();
 
     res.json({
@@ -352,6 +349,296 @@ router.patch('/products/:id/description/:platform', protect, async (req, res) =>
     });
   }
 });
+
+// POST /api/products/:id/optimizations/description/:platform/apply - Apply accepted description to store
+router.post('/products/:id/description/:platform/apply', protect, async (req, res) => {
+  try {
+    const { id: productId, platform } = req.params;
+    const { suggestionId } = req.body;
+    const userId = req.user._id;
+
+    // Verify product ownership and populate store connection info
+    const product = await Product.findOne({ _id: productId, userId }).populate('storeConnectionId');
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Find the cached description
+    const cachedDescription = product.cachedDescriptions?.find(
+      cached => cached._id.toString() === suggestionId && cached.platform === platform
+    );
+
+    if (!cachedDescription) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cached description not found'
+      });
+    }
+
+    if (cachedDescription.status !== 'accepted') {
+      return res.status(400).json({
+        success: false,
+        message: 'Description must be accepted before applying to store'
+      });
+    }
+
+    let storeUpdateResult = { success: false, message: 'No store connection found' };
+
+    // Check if we have a store connection for this marketplace
+    if (product.storeConnectionId && product.storeConnectionId.marketplaceType === platform) {
+      try {
+        // First, try to apply the description to the connected store
+        storeUpdateResult = await updateProductDescriptionInStore(
+          platform,
+          product,
+          cachedDescription.content,
+          product.storeConnectionId
+        );
+
+        // Only update local description if marketplace update was successful
+        if (storeUpdateResult.success) {
+          product.description = cachedDescription.content;
+          await product.save();
+        }
+      } catch (error) {
+        console.error('Failed to update product in store:', error);
+        storeUpdateResult = {
+          success: false,
+          message: error.message || 'Failed to update product in connected store'
+        };
+      }
+    } else {
+      // If no store connection, just update locally
+      product.description = cachedDescription.content;
+      await product.save();
+      storeUpdateResult = {
+        success: true,
+        message: `Description updated locally (no ${platform} store connection found)`
+      };
+    }
+
+    res.json({
+      success: true,
+      data: {
+        storeUpdateResult,
+        message: storeUpdateResult.success 
+          ? 'Description successfully applied to store and updated locally'
+          : 'Failed to update marketplace - local description unchanged'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error applying description to store:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to apply description to store'
+    });
+  }
+});
+
+// Helper function to update product description in connected marketplace
+async function updateProductDescriptionInStore(platform, product, newDescription, storeConnection) {
+  const { credentials } = storeConnection;
+  
+  switch (platform) {
+    case 'shopify':
+      return await updateShopifyProductDescription(product, newDescription, credentials);
+    case 'woocommerce':
+      return await updateWooCommerceProductDescription(product, newDescription, credentials);
+    case 'vtex':
+      return await updateVtexProductDescription(product, newDescription, credentials);
+    case 'mercadolibre':
+      return await updateMercadoLibreProductDescription(product, newDescription, credentials);
+    case 'facebook_shop':
+      return await updateFacebookShopProductDescription(product, newDescription, credentials);
+    default:
+      return {
+        success: false,
+        message: `Store updates not yet implemented for ${platform}`
+      };
+  }
+}
+
+// Shopify product description update
+async function updateShopifyProductDescription(product, newDescription, credentials) {
+  try {
+    const { shop_url, access_token } = credentials;
+    const cleanShopUrl = shop_url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    
+    const response = await axios.put(
+      `https://${cleanShopUrl}/admin/api/2023-10/products/${product.externalId}.json`,
+      {
+        product: {
+          id: product.externalId,
+          body_html: newDescription
+        }
+      },
+      {
+        headers: {
+          'X-Shopify-Access-Token': access_token,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Shopify product description updated successfully',
+      data: {
+        productId: response.data.product.id,
+        updatedAt: response.data.product.updated_at
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Shopify update failed: ${error.response?.data?.errors || error.message}`
+    };
+  }
+}
+
+// WooCommerce product description update
+async function updateWooCommerceProductDescription(product, newDescription, credentials) {
+  try {
+    const { site_url, consumer_key, consumer_secret } = credentials;
+    const cleanUrl = site_url.replace(/\/$/, '');
+    
+    const response = await axios.put(
+      `${cleanUrl}/wp-json/wc/v3/products/${product.externalId}`,
+      {
+        description: newDescription
+      },
+      {
+        auth: {
+          username: consumer_key,
+          password: consumer_secret
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'WooCommerce product description updated successfully',
+      data: {
+        productId: response.data.id,
+        updatedAt: response.data.date_modified
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `WooCommerce update failed: ${error.response?.data?.message || error.message}`
+    };
+  }
+}
+
+// VTEX product description update
+async function updateVtexProductDescription(product, newDescription, credentials) {
+  try {
+    const { account_name, app_key, app_token } = credentials;
+    
+    const response = await axios.put(
+      `https://${account_name}.vtexcommercestable.com.br/api/catalog/pvt/product/${product.externalId}`,
+      {
+        Description: newDescription
+      },
+      {
+        headers: {
+          'X-VTEX-API-AppKey': app_key,
+          'X-VTEX-API-AppToken': app_token,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'VTEX product description updated successfully',
+      data: {
+        productId: product.externalId
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `VTEX update failed: ${error.response?.data?.message || error.message}`
+    };
+  }
+}
+
+// MercadoLibre product description update
+async function updateMercadoLibreProductDescription(product, newDescription, credentials) {
+  try {
+    const { access_token } = credentials;
+    
+    const response = await axios.put(
+      `https://api.mercadolibre.com/items/${product.externalId}`,
+      {
+        description: {
+          plain_text: newDescription
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${access_token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'MercadoLibre product description updated successfully',
+      data: {
+        productId: response.data.id,
+        updatedAt: response.data.last_updated
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `MercadoLibre update failed: ${error.response?.data?.message || error.message}`
+    };
+  }
+}
+
+// Facebook Shop product description update
+async function updateFacebookShopProductDescription(product, newDescription, credentials) {
+  try {
+    const { page_id, access_token } = credentials;
+    
+    const response = await axios.post(
+      `https://graph.facebook.com/v18.0/${product.externalId}`,
+      {
+        description: newDescription,
+        access_token: access_token
+      },
+      {
+        timeout: 10000
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Facebook Shop product description updated successfully',
+      data: {
+        productId: product.externalId
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: `Facebook Shop update failed: ${error.response?.data?.error?.message || error.message}`
+    };
+  }
+}
 
 // GET /api/products/:id/suggestions - Get suggestion history
 router.get('/products/:id/suggestions', protect, async (req, res) => {
