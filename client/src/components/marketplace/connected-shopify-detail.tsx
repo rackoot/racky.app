@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ArrowLeft, RotateCcw, Package, TrendingUp, DollarSign, Archive, Trash2, AlertTriangle } from "lucide-react"
 import { productsService, type Product } from "@/services/products"
 import { marketplaceService } from "@/services/marketplace"
@@ -264,58 +265,52 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
       )}
 
       {/* Disconnect Confirmation Dialog */}
-      {showDisconnectConfirm && (
-        <Card className="border-destructive">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              <CardTitle className="text-destructive">Disconnect Shopify Store</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Warning:</strong> Disconnecting this store will:
-                  <ul className="list-disc list-inside mt-2 ml-4">
-                    <li>Remove the connection to your Shopify store</li>
-                    <li>Stop product synchronization</li>
-                    <li>Keep existing product data but mark it as disconnected</li>
-                  </ul>
-                  <p className="mt-2">You can reconnect later if needed.</p>
-                </AlertDescription>
-              </Alert>
-              
-              <div className="flex gap-2 justify-end">
-                <Button 
-                  type="button"
-                  variant="outline" 
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setShowDisconnectConfirm(false)
-                  }}
-                  disabled={disconnecting}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="button"
-                  variant="destructive" 
-                  onClick={(e) => {
-                    e.preventDefault()
-                    handleDisconnect()
-                  }}
-                  disabled={disconnecting}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  {disconnecting ? 'Disconnecting...' : 'Yes, Disconnect Store'}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" />
+              Disconnect Shopify Store
+            </DialogTitle>
+            <DialogDescription>
+              This action will disconnect your Shopify store from Racky.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Warning:</strong> Disconnecting this store will:
+              <ul className="list-disc list-inside mt-2 ml-4">
+                <li>Remove the connection to your Shopify store</li>
+                <li>Stop product synchronization</li>
+                <li>Keep existing product data but mark it as disconnected</li>
+              </ul>
+              <p className="mt-2">You can reconnect later if needed.</p>
+            </AlertDescription>
+          </Alert>
+          
+          <DialogFooter>
+            <Button 
+              type="button"
+              variant="outline" 
+              onClick={() => setShowDisconnectConfirm(false)}
+              disabled={disconnecting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button"
+              variant="destructive" 
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {disconnecting ? 'Disconnecting...' : 'Yes, Disconnect Store'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

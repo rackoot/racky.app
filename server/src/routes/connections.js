@@ -157,15 +157,35 @@ router.delete('/:id/marketplace/:marketplaceId', async (req, res) => {
     });
 
     if (!connection) {
-      return res.status(404).json({ message: 'Connection not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Connection not found' 
+      });
     }
 
-    connection.marketplaces.id(req.params.marketplaceId).remove();
+    const marketplace = connection.marketplaces.id(req.params.marketplaceId);
+    if (!marketplace) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Marketplace not found in this connection' 
+      });
+    }
+
+    // Use pull method instead of deprecated remove()
+    connection.marketplaces.pull({ _id: req.params.marketplaceId });
     await connection.save();
 
-    res.json(connection);
+    res.json({ 
+      success: true,
+      message: 'Marketplace disconnected successfully',
+      data: connection 
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 
