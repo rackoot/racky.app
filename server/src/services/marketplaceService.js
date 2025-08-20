@@ -301,6 +301,7 @@ const testMarketplaceConnection = async (marketplaceType, credentials) => {
 
 const getUserMarketplaceStatus = async (userId) => {
   const StoreConnection = require('../models/StoreConnection');
+  const Product = require('../models/Product');
   
   try {
     const connections = await StoreConnection.find({ userId, isActive: true });
@@ -320,15 +321,41 @@ const getUserMarketplaceStatus = async (userId) => {
       });
     });
     
-    return SUPPORTED_MARKETPLACES.map(marketplace => ({
-      id: marketplace.id,
-      name: marketplace.name,
-      description: marketplace.description,
-      requiredCredentials: marketplace.requiredCredentials,
-      documentationUrl: marketplace.documentationUrl,
-      connected: !!connectedMarketplaces[marketplace.id],
-      connectionInfo: connectedMarketplaces[marketplace.id] || null
-    }));
+    // Get product counts for connected marketplaces
+    const marketplaceStatuses = await Promise.all(
+      SUPPORTED_MARKETPLACES.map(async marketplace => {
+        const connectionInfo = connectedMarketplaces[marketplace.id];
+        let productsCount = 0;
+        
+        if (connectionInfo) {
+          // Count products for this marketplace and user
+          productsCount = await Product.countDocuments({
+            userId,
+            $or: [
+              { marketplace: marketplace.id }, // Legacy field
+              { 
+                storeConnectionId: connectionInfo.connectionId,
+                'platforms.platform': marketplace.id 
+              } // New structure
+            ]
+          });
+          
+          // Add product count to connection info
+          connectionInfo.productsCount = productsCount;
+        }
+        
+        return {
+          id: marketplace.id,
+          name: marketplace.name,
+          description: marketplace.description,
+          requiredCredentials: marketplace.requiredCredentials,
+          documentationUrl: marketplace.documentationUrl,
+          connectionInfo: connectionInfo || null
+        };
+      })
+    );
+    
+    return marketplaceStatuses;
   } catch (error) {
     throw new Error('Failed to get marketplace status: ' + error.message);
   }

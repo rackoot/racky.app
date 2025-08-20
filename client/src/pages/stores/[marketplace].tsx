@@ -106,7 +106,7 @@ export function MarketplacePage() {
   }
 
   // If marketplace is connected, show detail view
-  if (marketplace.isConnected) {
+  if (marketplace.connectionInfo) {
     // Show Shopify-specific UI for Shopify
     if (marketplace.id === 'shopify') {
       return (

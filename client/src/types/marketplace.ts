@@ -4,7 +4,6 @@ export interface Marketplace {
   description: string;
   requiredCredentials: string[];
   documentationUrl: string;
-  connected?: boolean;
   connectionInfo?: ConnectionInfo;
 }
 
@@ -14,7 +13,7 @@ export interface ConnectionInfo {
   storeName: string;
   lastSync: string;
   syncStatus: 'pending' | 'syncing' | 'completed' | 'failed';
-  productsCount?: number;
+  productsCount: number;
   activeProductsCount?: number;
   totalInventory?: number;
   inventoryValue?: string;

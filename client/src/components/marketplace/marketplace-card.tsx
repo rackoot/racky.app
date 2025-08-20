@@ -39,10 +39,10 @@ export function MarketplaceCard({ marketplace }: MarketplaceCardProps) {
             <div>
               <h3 className="font-semibold text-lg">{marketplace.name}</h3>
               <Badge 
-                variant={marketplace.connected ? "default" : "secondary"}
-                className={marketplace.connected ? "bg-green-100 text-green-800" : ""}
+                variant={marketplace.connectionInfo ? "default" : "secondary"}
+                className={marketplace.connectionInfo ? "bg-green-100 text-green-800" : ""}
               >
-                {marketplace.connected ? "Connected" : "Disconnected"}
+                {marketplace.connectionInfo ? "Connected" : "Disconnected"}
               </Badge>
             </div>
           </div>
@@ -52,11 +52,11 @@ export function MarketplaceCard({ marketplace }: MarketplaceCardProps) {
           {marketplace.description}
         </p>
 
-        {marketplace.connected && marketplace.connectionInfo && (
+        {marketplace.connectionInfo && (
           <div className="space-y-2 mb-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Products:</span>
-              <span>{marketplace.connectionInfo.productsCount || 0}</span>
+              <span>{marketplace.connectionInfo.productsCount}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Orders:</span>
@@ -75,9 +75,9 @@ export function MarketplaceCard({ marketplace }: MarketplaceCardProps) {
           <Button 
             className="flex-1" 
             onClick={handleNavigate}
-            variant={marketplace.connected ? "outline" : "default"}
+            variant={marketplace.connectionInfo ? "outline" : "default"}
           >
-            {marketplace.connected ? (
+            {marketplace.connectionInfo ? (
               <>
                 <Settings className="w-4 h-4 mr-2" />
                 Manage
