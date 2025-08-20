@@ -3,6 +3,7 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
+import { Products } from '@/pages/products'
 import { MarketplacePage } from '@/pages/stores/[marketplace]'
 import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
@@ -48,10 +49,7 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
-                <div className="p-6">
-                  <h1 className="text-3xl font-bold mb-4">Products</h1>
-                  <p>Products page coming soon...</p>
-                </div>
+                <Products />
               </MainLayout>
             </ProtectedRoute>
           }

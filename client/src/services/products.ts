@@ -26,10 +26,46 @@ export interface Product {
   updatedAt: string
 }
 
+export interface ProductsResponse {
+  products: Product[];
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+    limit: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+  filters: {
+    marketplaces: Array<{
+      marketplace: string;
+      count: number;
+    }>;
+  };
+}
+
+export interface ProductsQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  marketplace?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  status?: string;
+}
+
 export const productsService = {
-  // Get all products for a user
-  async getAllProducts(): Promise<Product[]> {
-    const response = await fetch(`${API_BASE}/products`, {
+  // Get all products for a user with pagination and filtering
+  async getAllProducts(query: ProductsQuery = {}): Promise<ProductsResponse> {
+    const searchParams = new URLSearchParams();
+    
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== '') {
+        searchParams.append(key, value.toString());
+      }
+    });
+    
+    const response = await fetch(`${API_BASE}/products?${searchParams.toString()}`, {
       headers: getAuthHeaders(),
     });
     

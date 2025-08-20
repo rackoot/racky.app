@@ -4,16 +4,87 @@ const { protect } = require('../middleware/auth');
 const Product = require('../models/Product');
 const StoreConnection = require('../models/StoreConnection');
 
-// Get all products for a user
+// Get all products for a user with pagination, filtering, and sorting
 router.get('/', protect, async (req, res) => {
   try {
-    const products = await Product.find({ userId: req.user._id })
-      .populate('storeConnectionId', 'storeName marketplace')
-      .sort({ createdAt: -1 });
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      marketplace = '',
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      status = ''
+    } = req.query;
+
+    // Build query filter
+    const filter = { userId: req.user._id };
+    
+    if (search) {
+      filter.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { sku: { $regex: search, $options: 'i' } },
+        { handle: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (marketplace) {
+      filter.marketplace = marketplace;
+    }
+    
+    if (status) {
+      filter.status = { $regex: status, $options: 'i' };
+    }
+
+    // Build sort object
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Get products with pagination
+    const [products, totalCount] = await Promise.all([
+      Product.find(filter)
+        .populate('storeConnectionId', 'storeName marketplaceType')
+        .sort(sort)
+        .skip(skip)
+        .limit(parseInt(limit)),
+      Product.countDocuments(filter)
+    ]);
+
+    // Get marketplace statistics
+    const marketplaceStats = await Product.aggregate([
+      { $match: { userId: req.user._id } },
+      {
+        $group: {
+          _id: '$marketplace',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
 
     res.json({
       success: true,
-      data: products
+      data: {
+        products,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          totalCount,
+          limit: parseInt(limit),
+          hasNext: parseInt(page) < totalPages,
+          hasPrev: parseInt(page) > 1
+        },
+        filters: {
+          marketplaces: marketplaceStats.map(stat => ({
+            marketplace: stat._id,
+            count: stat.count
+          }))
+        }
+      }
     });
   } catch (error) {
     console.error('Error fetching products:', error);
