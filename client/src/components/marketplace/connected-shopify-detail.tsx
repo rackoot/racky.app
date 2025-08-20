@@ -40,7 +40,9 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     
     setLoading(true)
     try {
+      console.log('Loading products for connection:', marketplace.connectionInfo.connectionId)
       const products = await productsService.getStoreProducts(marketplace.connectionInfo.connectionId)
+      console.log('Loaded products:', products.length, 'products')
       setProducts(products)
       
       // Calculate stats
@@ -88,13 +90,16 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     
     setSyncing(true)
     try {
+      console.log('Starting sync for connection:', marketplace.connectionInfo.connectionId, 'force:', force)
       const result = await productsService.syncProducts(
         marketplace.connectionInfo.connectionId,
         force
       )
+      console.log('Sync API result:', result)
       setLastSync(new Date().toLocaleString())
+      console.log('Reloading products after sync...')
       await loadProducts()
-      console.log('Sync completed:', result)
+      console.log('Sync completed successfully')
     } catch (error) {
       console.error('Error syncing products:', error)
     } finally {

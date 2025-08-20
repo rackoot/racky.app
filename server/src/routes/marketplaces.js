@@ -112,18 +112,29 @@ router.post('/create-store', async (req, res) => {
 
     const { storeName, type, credentials } = req.body;
 
-    // Check if user already has this marketplace type connected
-    const existingConnection = await StoreConnection.findOne({
+    // Check if user already has an ACTIVE marketplace type connected
+    const existingActiveConnection = await StoreConnection.findOne({
       userId: req.user._id,
-      marketplaceType: type
+      marketplaceType: type,
+      isActive: true
     });
 
-    if (existingConnection) {
+    if (existingActiveConnection) {
       return res.status(400).json({
         success: false,
-        message: `You already have a ${type} marketplace connected. Only one connection per marketplace type is allowed.`
+        message: `You already have an active ${type} marketplace connected. Only one active connection per marketplace type is allowed.`
       });
     }
+
+    // Check for existing inactive connection with products
+    const existingInactiveConnection = await StoreConnection.findOne({
+      userId: req.user._id,
+      marketplaceType: type,
+      isActive: false
+    });
+
+    // Import Product model if needed
+    const Product = require('../models/Product');
 
     // First test the connection
     const testResult = await testMarketplaceConnection(type, credentials);
@@ -144,12 +155,53 @@ router.post('/create-store', async (req, res) => {
       syncStatus: 'pending'
     });
 
+    // If there was an existing inactive connection with products, update those products to reference the new connection
+    let updatedProductsCount = 0;
+    if (existingInactiveConnection) {
+      console.log(`Found existing inactive ${type} connection ${existingInactiveConnection._id}, checking for orphaned products...`);
+      
+      const orphanedProducts = await Product.find({
+        userId: req.user._id,
+        storeConnectionId: existingInactiveConnection._id,
+        marketplace: type
+      });
+
+      if (orphanedProducts.length > 0) {
+        console.log(`Found ${orphanedProducts.length} orphaned products, updating to new connection ${storeConnection._id}`);
+        
+        const updateResult = await Product.updateMany(
+          {
+            userId: req.user._id,
+            storeConnectionId: existingInactiveConnection._id,
+            marketplace: type
+          },
+          {
+            $set: {
+              storeConnectionId: storeConnection._id
+            }
+          }
+        );
+        
+        updatedProductsCount = updateResult.modifiedCount;
+        console.log(`Successfully updated ${updatedProductsCount} products to new connection`);
+      }
+
+      // Remove the old inactive connection to avoid confusion
+      await StoreConnection.deleteOne({ _id: existingInactiveConnection._id });
+      console.log(`Removed old inactive connection ${existingInactiveConnection._id}`);
+    }
+
+    const responseMessage = updatedProductsCount > 0 
+      ? `Store created and marketplace connected successfully. ${updatedProductsCount} existing products have been reconnected.`
+      : 'Store created and marketplace connected successfully';
+
     res.status(201).json({
       success: true,
-      message: 'Store created and marketplace connected successfully',
+      message: responseMessage,
       data: {
         storeConnection,
-        testResult: testResult.data
+        testResult: testResult.data,
+        reconnectedProducts: updatedProductsCount
       }
     });
   } catch (error) {

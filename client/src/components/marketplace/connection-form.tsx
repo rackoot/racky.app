@@ -62,7 +62,6 @@ const credentialPlaceholders: Record<string, string> = {
 
 export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionFormProps) {
   const [credentials, setCredentials] = useState<MarketplaceCredentials>({})
-  const [storeName, setStoreName] = useState("")
   const [isTestingConnection, setIsTestingConnection] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; data?: any } | null>(null)
@@ -101,14 +100,42 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
     }
   }
 
+  const generateStoreName = () => {
+    // Try to extract a meaningful name from test result or credentials
+    if (testResult?.data?.shop_name) {
+      return testResult.data.shop_name
+    }
+    if (testResult?.data?.domain) {
+      return testResult.data.domain
+    }
+    
+    // Fall back to credential-based naming
+    if (credentials.shop_url) {
+      // For Shopify, extract store name from URL
+      const shopUrl = credentials.shop_url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+      return shopUrl.replace('.myshopify.com', '')
+    }
+    if (credentials.site_url) {
+      // For WooCommerce, extract from site URL
+      try {
+        const url = new URL(credentials.site_url.startsWith('http') ? credentials.site_url : `https://${credentials.site_url}`)
+        return url.hostname.replace('www.', '')
+      } catch {
+        return credentials.site_url
+      }
+    }
+    if (credentials.account_name) {
+      // For VTEX
+      return credentials.account_name
+    }
+    
+    // Generic fallback
+    return `${marketplace.name} Store`
+  }
+
   const handleSave = async () => {
     if (!testResult?.success) {
       setError("Please test the connection successfully before saving")
-      return
-    }
-
-    if (!storeName.trim()) {
-      setError("Please enter a store name")
       return
     }
 
@@ -116,8 +143,9 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
     setError("")
 
     try {
+      const storeName = generateStoreName()
       await marketplaceService.createStoreWithMarketplace({
-        storeName: storeName.trim(),
+        storeName,
         type: marketplace.id,
         credentials
       })
@@ -175,23 +203,6 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
         </div>
 
         <div className="space-y-4">
-          <div>
-            <Label htmlFor="storeName">Store Name {testResult?.success ? '*' : '(optional for testing)'}</Label>
-            <Input
-              id="storeName"
-              placeholder="My Store Name"
-              value={storeName}
-              onChange={(e) => setStoreName(e.target.value)}
-              className="mt-1"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {testResult?.success 
-                ? "Store name is required to save the connection" 
-                : "You can test the connection first, then enter a store name to save"
-              }
-            </p>
-          </div>
-
           <div className="space-y-4">
             <h4 className="font-medium">Connection Settings</h4>
             {marketplace.requiredCredentials.map((credKey) => (
@@ -229,11 +240,12 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               {testResult.message}
-              {testResult.success && testResult.data && (
+              {testResult.success && (
                 <div className="mt-2 space-y-1">
-                  {testResult.data.shop_name && <div>Store: {testResult.data.shop_name}</div>}
-                  {testResult.data.domain && <div>Domain: {testResult.data.domain}</div>}
-                  {testResult.data.plan && <div>Plan: {testResult.data.plan}</div>}
+                  <div><strong>Store name:</strong> {generateStoreName()}</div>
+                  {testResult.data?.shop_name && <div>Connected to: {testResult.data.shop_name}</div>}
+                  {testResult.data?.domain && <div>Domain: {testResult.data.domain}</div>}
+                  {testResult.data?.plan && <div>Plan: {testResult.data.plan}</div>}
                 </div>
               )}
             </AlertDescription>
