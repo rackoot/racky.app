@@ -4,10 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Racky is a marketplace management platform that allows users to connect and manage multiple e-commerce marketplaces from a single interface. The application consists of:
+Racky is a **multi-tenant SaaS marketplace management platform** that allows users to connect and manage multiple e-commerce marketplaces from a single interface. The application consists of:
 
 - **Backend**: Node.js/Express API with MongoDB (`/server`)
 - **Frontend**: React + TypeScript + Vite application (`/client`)
+
+**SaaS Features:**
+- Multi-tenant architecture with complete user data isolation
+- Role-based access control (USER, SUPERADMIN)
+- Subscription management with three tiers (BASIC, PRO, ENTERPRISE)
+- Usage tracking and limits enforcement
+- 14-day free trial for new users
+- Admin panel for user and subscription management
 
 ## Development Commands
 
@@ -26,19 +34,50 @@ cd server
 npm run dev          # Start development server with nodemon (http://localhost:5000)
 npm start           # Start production server
 npm test            # Run tests with Jest
-node scripts/createAdmin.js  # Creates admin@example.com / admin123
+node scripts/createAdmin.js  # Creates admin@example.com / admin123 (legacy)
+node scripts/setup-saas.js   # Initialize SaaS platform with super admin and plans
 ```
 
 ## Architecture Overview
 
 ### Backend Structure (`/server/src/`)
-- **Models**: Mongoose schemas for User, StoreConnection, Product, Opportunity, Suggestion
-- **Routes**: API endpoints organized by feature (auth, connections, marketplaces)
+- **Models**: Mongoose schemas for User, StoreConnection, Product, Opportunity, Suggestion, Subscription, Plan, Usage
+- **Routes**: API endpoints organized by feature (auth, connections, marketplaces, admin, plans)
 - **Services**: Business logic for marketplace integrations (marketplaceService.js)
-- **Middleware**: Authentication (JWT), validation (Joi), error handling
+- **Middleware**: Authentication (JWT), role-based access control, subscription checks, usage tracking, validation (Joi), error handling
 
 **API Base URL**: `http://localhost:5000/api`
 **Authentication**: JWT tokens in Authorization header (`Bearer <token>`)
+
+### SaaS Architecture
+
+**Multi-Tenant Data Isolation:**
+- All data models include `userId` field for complete user isolation
+- Middleware automatically scopes all database queries to authenticated user
+- SUPERADMIN role can access cross-user data for administration
+- Zero data leakage between tenant users
+
+**Role-Based Access Control:**
+- `USER`: Standard subscription users with plan-based limits
+- `SUPERADMIN`: Platform administrators with unrestricted access
+- Middleware: `requireSuperAdmin`, `checkSubscriptionStatus`, `checkUsageLimits`
+
+**Subscription Management:**
+- Three subscription tiers: BASIC ($29/month), PRO ($79/month), ENTERPRISE ($199/month)
+- 14-day free trial for all new users (30 days for Enterprise)
+- Usage tracking: API calls, product syncs, store connections
+- Automatic limit enforcement based on subscription tier
+
+**Plan Limits by Tier:**
+- **BASIC**: 1 store, 100 products, 2 marketplaces, 1K API calls/month
+- **PRO**: 5 stores, 1K products, 5 marketplaces, 10K API calls/month  
+- **ENTERPRISE**: 50 stores, 10K products, 10 marketplaces, 100K API calls/month
+
+**Admin Management:**
+- Complete user management via `/api/admin/*` endpoints
+- User activation/deactivation, subscription modifications, role changes
+- Platform analytics and usage monitoring
+- User data deletion with cascading cleanup
 
 ### Core Architecture Patterns
 
@@ -177,17 +216,44 @@ PORT=5000
 - Input validation via Joi schemas on all endpoints
 - Sensitive marketplace credentials stored in Mixed schema type
 
+## SaaS API Endpoints
+
+### Admin Management (SUPERADMIN only)
+- `GET /api/admin/users` - List all users with pagination and filtering
+- `GET /api/admin/users/:id` - Get specific user details with usage data
+- `PUT /api/admin/users/:id/status` - Activate/deactivate user accounts
+- `PUT /api/admin/users/:id/role` - Update user role (USER/SUPERADMIN)
+- `PUT /api/admin/users/:id/subscription` - Update user subscription status/plan
+- `DELETE /api/admin/users/:id?force=true` - Delete user with all data
+- `GET /api/admin/analytics?period=30d` - Platform usage analytics
+
+### Subscription Plans
+- `GET /api/plans` - Get all public subscription plans
+- `GET /api/plans/:name` - Get specific plan details
+- `GET /api/plans/user/current` - Get current user's plan info (requires auth)
+
+### Authentication (Enhanced)
+- `POST /api/auth/register` - Register new user (starts 14-day trial)
+- `POST /api/auth/login` - Login with enhanced response including subscription info
+
+### Setup & Initialization
+- `node scripts/setup-saas.js` - Initialize SaaS platform with super admin and plans
+- Super admin credentials: `admin@racky.app` / `admin123!`
+
 ## Important Notes
 - Backend API documented in `/RACKY_BACKEND_API.md` 
 - Postman collection available at `/server/postman_collection.json`
 - Frontend uses custom sidebar implementation due to shadcn sidebar overlay issues
 - All API responses follow consistent format with error handling
 - Marketplace credentials are securely validated before storage
-- Development database `racky` with collections: users, storeconnections, products, opportunities, suggestions
-- Admin user available: admin@example.com / admin123
+- Development database `racky` with collections: users, storeconnections, products, opportunities, suggestions, subscriptions, plans, usages
+- Legacy admin user: admin@example.com / admin123 (now has SUPERADMIN role)
+- New super admin: admin@racky.app / admin123!
 - API responses use standardized `{ success, message, data }` format
 - Marketplace credentials are returned with `documentationUrl` for setup guidance
 - Connection testing provides detailed success/failure information with marketplace-specific data
+- All routes except `/api/auth`, `/api/plans`, and `/api/health` require authentication
+- Store creation and product sync endpoints enforce subscription and usage limits
 
 ## Development Guidelines
 - **Full-Stack Implementation Required**: When implementing new features, ALWAYS work on both backend (`/server`) and frontend (`/client`) components. Features must be complete end-to-end implementations.

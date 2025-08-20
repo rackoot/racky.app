@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const { protect, checkSubscriptionStatus, trackUsage } = require('../middleware/auth');
 const Product = require('../models/Product');
 const StoreConnection = require('../models/StoreConnection');
 
@@ -233,7 +233,7 @@ router.get('/store/:connectionId/count', protect, async (req, res) => {
 });
 
 // Sync products from a marketplace
-router.post('/sync/:connectionId', protect, async (req, res) => {
+router.post('/sync/:connectionId', protect, checkSubscriptionStatus, trackUsage('productsSync'), async (req, res) => {
   try {
     const { connectionId } = req.params;
     const { force = false } = req.body;

@@ -1,6 +1,6 @@
 const express = require('express');
 const Joi = require('joi');
-const { protect } = require('../middleware/auth');
+const { protect, checkSubscriptionStatus, checkUsageLimits, trackUsage } = require('../middleware/auth');
 const { 
   getAvailableMarketplaces, 
   testMarketplaceConnection, 
@@ -100,7 +100,7 @@ router.post('/connect', async (req, res) => {
 });
 
 // POST /api/marketplaces/create-store - Create new store with marketplace connection
-router.post('/create-store', async (req, res) => {
+router.post('/create-store', checkSubscriptionStatus, checkUsageLimits('stores'), trackUsage('apiCalls'), async (req, res) => {
   try {
     const { error } = createStoreWithMarketplaceSchema.validate(req.body);
     if (error) {

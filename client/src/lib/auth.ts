@@ -1,9 +1,17 @@
 export interface User {
-  id: string
+  _id: string
+  id?: string
   email: string
   name?: string
   firstName?: string
   lastName?: string
+  role?: string
+  subscriptionInfo?: {
+    status: string
+    plan: string
+    hasActiveSubscription: boolean
+    isTrialExpired: boolean
+  }
 }
 
 export function getCurrentUser(): User | null {
@@ -12,7 +20,19 @@ export function getCurrentUser(): User | null {
     if (!userStr) return null
     
     const userData = JSON.parse(userStr)
-    return userData.user || userData // Handle different response formats
+    
+    // Handle different response formats
+    const user = userData.user || userData
+    
+    // Ensure we have the required fields
+    if (!user || !user.email) return null
+    
+    // Normalize the id field
+    if (user._id && !user.id) {
+      user.id = user._id
+    }
+    
+    return user
   } catch {
     return null
   }
@@ -26,6 +46,8 @@ export function getUserDisplayName(user: User): string {
 }
 
 export function getUserInitials(user: User): string {
+  if (!user || !user.email) return 'U'
+  
   const displayName = getUserDisplayName(user)
   
   // If we have a proper name (not email), get initials from that
@@ -53,6 +75,8 @@ export function logout() {
 }
 
 export function getRandomColorForUser(user: User): string {
+  if (!user || !user.email) return 'bg-gray-500'
+  
   // Generate a consistent color based on user email
   const colors = [
     'bg-blue-500',

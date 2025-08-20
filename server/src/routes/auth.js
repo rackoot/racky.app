@@ -1,6 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
 const User = require('../models/User');
+const Usage = require('../models/Usage');
 const { generateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -9,7 +10,8 @@ const registerSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().min(6).required(),
   firstName: Joi.string().required(),
-  lastName: Joi.string().required()
+  lastName: Joi.string().required(),
+  subscriptionPlan: Joi.string().valid('BASIC', 'PRO', 'ENTERPRISE').optional()
 });
 
 const loginSchema = Joi.object({
@@ -21,34 +23,63 @@ router.post('/register', async (req, res) => {
   try {
     const { error } = registerSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ message: error.details[0].message });
+      return res.status(400).json({ 
+        success: false,
+        message: error.details[0].message 
+      });
     }
 
-    const { email, password, firstName, lastName } = req.body;
+    const { email, password, firstName, lastName, subscriptionPlan = 'BASIC' } = req.body;
 
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'User already exists' 
+      });
     }
 
+    // Create user with subscription setup
     const user = await User.create({
       email,
       password,
       firstName,
-      lastName
+      lastName,
+      subscriptionPlan,
+      subscriptionStatus: 'TRIAL', // New users start with trial
+      role: 'USER' // New users are regular users by default
     });
+
+    // Create initial usage record for the user
+    try {
+      await Usage.createCurrentMonthUsage(user._id);
+    } catch (usageError) {
+      console.error('Error creating initial usage record:', usageError);
+      // Don't fail registration if usage creation fails
+    }
 
     const token = generateToken(user._id);
 
     res.status(201).json({
-      _id: user._id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      token
+      success: true,
+      message: 'Account created successfully',
+      data: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        subscriptionInfo: user.getSubscriptionInfo(),
+        token
+      }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Registration error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error during registration', 
+      error: error.message 
+    });
   }
 });
 
@@ -73,11 +104,17 @@ router.post('/login', async (req, res) => {
     const token = generateToken(user._id);
 
     res.json({
-      _id: user._id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      token
+      success: true,
+      message: 'Login successful',
+      data: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        subscriptionInfo: user.getSubscriptionInfo(),
+        token
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

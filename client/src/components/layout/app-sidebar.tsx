@@ -7,6 +7,8 @@ import {
   Users,
   Settings,
   TrendingUp,
+  CreditCard,
+  Activity,
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -38,6 +40,11 @@ const items = [
     icon: BarChart3,
   },
   {
+    title: "Usage Dashboard",
+    url: "/usage",
+    icon: Activity,
+  },
+  {
     title: "Performance",
     url: "/performance",
     icon: TrendingUp,
@@ -46,6 +53,11 @@ const items = [
     title: "Customers",
     url: "/customers",
     icon: Users,
+  },
+  {
+    title: "Subscription",
+    url: "/subscription",
+    icon: CreditCard,
   },
   {
     title: "Settings",
