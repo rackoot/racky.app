@@ -77,6 +77,7 @@ const productSchema = new mongoose.Schema({
     enum: ['shopify', 'vtex', 'mercadolibre', 'amazon', 'facebook_shop', 'google_shopping', 'woocommerce']
   },
   externalId: { type: String },
+  marketplaceUrl: { type: String }, // Direct URL to the product on the marketplace
   currency: {
     type: String,
     default: 'USD'

@@ -63,6 +63,52 @@ const formatDate = (dateString: string) => {
   })
 }
 
+const getMarketplaceProductUrl = (product: ProductDetail) => {
+  const { marketplace, externalId, handle, storeConnectionId } = product
+  
+  switch (marketplace) {
+    case 'shopify':
+      // For Shopify, use the actual shop_url from credentials
+      if (storeConnectionId?.credentials?.shop_url && handle) {
+        const shopUrl = storeConnectionId.credentials.shop_url
+        // Remove protocol if present and ensure it ends with .myshopify.com
+        const cleanShopUrl = shopUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        return `https://${cleanShopUrl}/products/${handle}`
+      }
+      return null
+    case 'amazon':
+      if (externalId) {
+        return `https://www.amazon.com/dp/${externalId}`
+      }
+      return null
+    case 'mercadolibre':
+      if (externalId) {
+        return `https://www.mercadolibre.com/item/${externalId}`
+      }
+      return null
+    case 'vtex':
+      // For VTEX, use the account_name from credentials
+      if (storeConnectionId?.credentials?.account_name && handle) {
+        const accountName = storeConnectionId.credentials.account_name
+        return `https://${accountName}.vtexcommercestable.com.br/${handle}/p`
+      }
+      return null
+    case 'woocommerce':
+      // For WooCommerce, we'd need the actual domain from credentials
+      if (storeConnectionId?.credentials?.site_url && handle) {
+        const siteUrl = storeConnectionId.credentials.site_url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        return `https://${siteUrl}/product/${handle}`
+      }
+      return null
+    case 'facebook_shop':
+      return null // Facebook Shop URLs are complex and require specific page/shop IDs
+    case 'google_shopping':
+      return null // Google Shopping doesn't have direct product URLs
+    default:
+      return null
+  }
+}
+
 export function ProductDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -153,7 +199,17 @@ export function ProductDetail() {
             </div>
           </div>
         </div>
-        <Button variant="outline" size="sm">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => {
+            const url = product.marketplaceUrl || getMarketplaceProductUrl(product)
+            if (url) {
+              window.open(url, '_blank', 'noopener,noreferrer')
+            }
+          }}
+          disabled={!product.marketplaceUrl && !getMarketplaceProductUrl(product)}
+        >
           <ExternalLink className="w-4 h-4 mr-2" />
           View in {product.marketplace}
         </Button>

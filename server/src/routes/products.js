@@ -459,7 +459,7 @@ router.get('/:id', protect, async (req, res) => {
     const product = await Product.findOne({
       _id: id,
       userId: req.user._id
-    }).populate('storeConnectionId', 'storeName marketplaceType');
+    }).populate('storeConnectionId', 'storeName marketplaceType credentials');
 
     if (!product) {
       return res.status(404).json({

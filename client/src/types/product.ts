@@ -40,12 +40,18 @@ export interface ProductDetail {
   status: 'active' | 'draft' | 'archived';
   marketplace: string;
   externalId?: string;
+  marketplaceUrl?: string;
   createdAt: string;
   updatedAt: string;
   storeConnectionId?: {
     _id: string;
     storeName: string;
     marketplaceType: string;
+    credentials?: {
+      shop_url?: string;
+      account_name?: string;
+      [key: string]: any;
+    };
   };
 }
 
