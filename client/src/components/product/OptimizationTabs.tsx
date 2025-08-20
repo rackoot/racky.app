@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
   Lightbulb, 
@@ -12,8 +11,7 @@ import {
   Clock, 
   AlertCircle,
   Loader2,
-  Sparkles,
-  TrendingUp
+  Sparkles
 } from "lucide-react"
 import { optimizationsService, type OptimizationSuggestion } from "@/services/optimizations"
 import type { ProductDetail } from "@/types/product"
@@ -66,7 +64,6 @@ interface OptimizationTabsProps {
 }
 
 export function OptimizationTabs({ product }: OptimizationTabsProps) {
-  const [activeOptimizationTab, setActiveOptimizationTab] = useState("seo")
   const [suggestions, setSuggestions] = useState<Record<string, OptimizationSuggestion | null>>({})
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -203,230 +200,197 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
         </CardHeader>
       </Card>
 
-      <Tabs value={activeOptimizationTab} onValueChange={setActiveOptimizationTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="seo">SEO and Engagement</TabsTrigger>
-          <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="seo" className="space-y-6">
-          {availablePlatforms.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-12">
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">No Platforms Available</h3>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  This product is not available on any platforms that support description optimization.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {availablePlatforms.map((platform) => (
-              <Card key={platform} className="overflow-hidden">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Badge className={platformColors[platform as keyof typeof platformColors]}>
-                        {platformNames[platform as keyof typeof platformNames]}
-                      </Badge>
-                      <h3 className="font-semibold">Description Optimization</h3>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => loadSuggestion(platform, false)}
-                        disabled={loadingStates[platform]}
-                      >
-                        {loadingStates[platform] ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Lightbulb className="w-4 h-4" />
-                        )}
-                        {suggestions[platform] ? 'Refresh' : 'Generate'}
-                      </Button>
-                      {suggestions[platform] && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => loadSuggestion(platform, true)}
-                          disabled={loadingStates[platform]}
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                          Regenerate
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent>
-                  {errors[platform] && (
-                    <Alert variant="destructive" className="mb-4">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{errors[platform]}</AlertDescription>
-                    </Alert>
+      {availablePlatforms.length === 0 ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Sparkles className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-lg font-semibold mb-2">No Platforms Available</h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              This product is not available on any platforms that support description optimization.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {availablePlatforms.map((platform) => (
+          <Card key={platform} className="overflow-hidden">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Badge className={platformColors[platform as keyof typeof platformColors]}>
+                    {platformNames[platform as keyof typeof platformNames]}
+                  </Badge>
+                  <h3 className="font-semibold">Description Optimization</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadSuggestion(platform, false)}
+                    disabled={loadingStates[platform]}
+                  >
+                    {loadingStates[platform] ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Lightbulb className="w-4 h-4" />
+                    )}
+                    {suggestions[platform] ? 'Refresh' : 'Generate'}
+                  </Button>
+                  {suggestions[platform] && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadSuggestion(platform, true)}
+                      disabled={loadingStates[platform]}
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Regenerate
+                    </Button>
                   )}
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Before Column */}
-                    <div>
-                      <h4 className="font-medium mb-3 text-slate-700">Before</h4>
-                      <div className="bg-slate-50 rounded-lg p-4 min-h-[200px]">
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                          {product.description || 'No description available'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* After Column */}
-                    <div>
-                      <h4 className="font-medium mb-3 text-blue-700">After (AI Optimized)</h4>
-                      <div className="bg-blue-50 rounded-lg p-4 min-h-[200px] border border-blue-200">
-                        {loadingStates[platform] ? (
-                          <div className="flex items-center justify-center h-full">
-                            <div className="text-center">
-                              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
-                              <p className="text-sm text-blue-600">Generating optimization...</p>
-                            </div>
-                          </div>
-                        ) : suggestions[platform] ? (
-                          <div className="space-y-3">
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                              {suggestions[platform]?.suggestedContent}
-                            </p>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-blue-200">
-                              <Clock className="w-3 h-3" />
-                              <span>Generated {new Date(suggestions[platform]?.createdAt || '').toLocaleString()}</span>
-                              <span>•</span>
-                              <span>{suggestions[platform]?.metadata.confidence * 100}% confidence</span>
-                              <span>•</span>
-                              <span>{suggestions[platform]?.metadata.tokens} tokens</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-center h-full">
-                            <div className="text-center text-muted-foreground">
-                              <Lightbulb className="w-8 h-8 mx-auto mb-2" />
-                              <p className="text-sm">Click "Generate" to create AI optimization</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions Column */}
-                    <div>
-                      <h4 className="font-medium mb-3 text-slate-700">Actions</h4>
-                      <div className="space-y-3">
-                        {suggestions[platform] && (
-                          <>
-                            <div className="text-sm">
-                              <p className="text-muted-foreground mb-2">Status:</p>
-                              <Badge 
-                                variant={
-                                  suggestions[platform]?.status === 'accepted' ? 'default' :
-                                  suggestions[platform]?.status === 'rejected' ? 'destructive' :
-                                  'secondary'
-                                }
-                              >
-                                {suggestions[platform]?.status === 'accepted' && <Check className="w-3 h-3 mr-1" />}
-                                {suggestions[platform]?.status === 'rejected' && <X className="w-3 h-3 mr-1" />}
-                                {suggestions[platform]?.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                                {suggestions[platform]?.status}
-                              </Badge>
-                            </div>
-
-                            {suggestions[platform]?.status === 'pending' && (
-                              <div className="space-y-2">
-                                <Button 
-                                  size="sm" 
-                                  className="w-full bg-green-600 hover:bg-green-700"
-                                  onClick={() => handleStatusUpdate(platform, suggestions[platform]!.id, 'accepted')}
-                                  disabled={loadingStates[`${platform}_apply`]}
-                                >
-                                  {loadingStates[`${platform}_apply`] ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <Check className="w-4 h-4 mr-2" />
-                                  )}
-                                  {loadingStates[`${platform}_apply`] ? 'Applying to Store...' : 'Accept & Apply'}
-                                </Button>
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  className="w-full border-red-300 text-red-600 hover:bg-red-50"
-                                  onClick={() => handleStatusUpdate(platform, suggestions[platform]!.id, 'rejected')}
-                                  disabled={loadingStates[`${platform}_apply`]}
-                                >
-                                  <X className="w-4 h-4 mr-2" />
-                                  Reject
-                                </Button>
-                              </div>
-                            )}
-
-                            {suggestions[platform]?.status === 'accepted' && (suggestions[platform] as any)?.storeUpdateResult && (
-                              <div className="pt-3 border-t">
-                                <p className="text-xs text-muted-foreground mb-2">Store Update:</p>
-                                <div className={`p-2 rounded text-xs ${
-                                  (suggestions[platform] as any).storeUpdateResult.success 
-                                    ? 'bg-green-50 text-green-700 border border-green-200' 
-                                    : 'bg-red-50 text-red-700 border border-red-200'
-                                }`}>
-                                  {(suggestions[platform] as any).storeUpdateResult.message}
-                                </div>
-                              </div>
-                            )}
-
-                            {suggestions[platform]?.metadata.keywords && suggestions[platform]?.metadata.keywords.length > 0 && (
-                              <div className="pt-3 border-t">
-                                <p className="text-xs text-muted-foreground mb-2">Keywords:</p>
-                                <div className="flex flex-wrap gap-1">
-                                  {suggestions[platform]?.metadata.keywords.slice(0, 6).map((keyword, index) => (
-                                    <Badge key={index} variant="outline" className="text-xs">
-                                      {keyword}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="opportunities" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Business Opportunities
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                AI-generated insights and recommendations to improve your product performance and sales.
-              </p>
+                </div>
+              </div>
             </CardHeader>
+
             <CardContent>
-              <div className="text-center py-12">
-                <TrendingUp className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <h3 className="text-lg font-semibold mb-2">Opportunities Coming Soon</h3>
-                <p className="text-muted-foreground max-w-md mx-auto">
-                  We're working on AI-powered business opportunity analysis. This feature will provide 
-                  insights on pricing, market positioning, and growth opportunities.
-                </p>
+              {errors[platform] && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{errors[platform]}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Before Column */}
+                <div>
+                  <h4 className="font-medium mb-3 text-slate-700">Before</h4>
+                  <div className="bg-slate-50 rounded-lg p-4 min-h-[200px]">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {product.description || 'No description available'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* After Column */}
+                <div>
+                  <h4 className="font-medium mb-3 text-blue-700">After (AI Optimized)</h4>
+                  <div className="bg-blue-50 rounded-lg p-4 min-h-[200px] border border-blue-200">
+                    {loadingStates[platform] ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
+                          <p className="text-sm text-blue-600">Generating optimization...</p>
+                        </div>
+                      </div>
+                    ) : suggestions[platform] ? (
+                      <div className="space-y-3">
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {suggestions[platform]?.suggestedContent}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-blue-200">
+                          <Clock className="w-3 h-3" />
+                          <span>Generated {new Date(suggestions[platform]?.createdAt || '').toLocaleString()}</span>
+                          <span>•</span>
+                          <span>{suggestions[platform]?.metadata.confidence * 100}% confidence</span>
+                          <span>•</span>
+                          <span>{suggestions[platform]?.metadata.tokens} tokens</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center text-muted-foreground">
+                          <Lightbulb className="w-8 h-8 mx-auto mb-2" />
+                          <p className="text-sm">Click "Generate" to create AI optimization</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions Column */}
+                <div>
+                  <h4 className="font-medium mb-3 text-slate-700">Actions</h4>
+                  <div className="space-y-3">
+                    {suggestions[platform] && (
+                      <>
+                        <div className="text-sm">
+                          <p className="text-muted-foreground mb-2">Status:</p>
+                          <Badge 
+                            variant={
+                              suggestions[platform]?.status === 'accepted' ? 'default' :
+                              suggestions[platform]?.status === 'rejected' ? 'destructive' :
+                              'secondary'
+                            }
+                          >
+                            {suggestions[platform]?.status === 'accepted' && <Check className="w-3 h-3 mr-1" />}
+                            {suggestions[platform]?.status === 'rejected' && <X className="w-3 h-3 mr-1" />}
+                            {suggestions[platform]?.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                            {suggestions[platform]?.status}
+                          </Badge>
+                        </div>
+
+                        {suggestions[platform]?.status === 'pending' && (
+                          <div className="space-y-2">
+                            <Button 
+                              size="sm" 
+                              className="w-full bg-green-600 hover:bg-green-700"
+                              onClick={() => handleStatusUpdate(platform, suggestions[platform]!.id, 'accepted')}
+                              disabled={loadingStates[`${platform}_apply`]}
+                            >
+                              {loadingStates[`${platform}_apply`] ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Check className="w-4 h-4 mr-2" />
+                              )}
+                              {loadingStates[`${platform}_apply`] ? 'Applying to Store...' : 'Accept & Apply'}
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="w-full border-red-300 text-red-600 hover:bg-red-50"
+                              onClick={() => handleStatusUpdate(platform, suggestions[platform]!.id, 'rejected')}
+                              disabled={loadingStates[`${platform}_apply`]}
+                            >
+                              <X className="w-4 h-4 mr-2" />
+                              Reject
+                            </Button>
+                          </div>
+                        )}
+
+                        {suggestions[platform]?.status === 'accepted' && (suggestions[platform] as any)?.storeUpdateResult && (
+                          <div className="pt-3 border-t">
+                            <p className="text-xs text-muted-foreground mb-2">Store Update:</p>
+                            <div className={`p-2 rounded text-xs ${
+                              (suggestions[platform] as any).storeUpdateResult.success 
+                                ? 'bg-green-50 text-green-700 border border-green-200' 
+                                : 'bg-red-50 text-red-700 border border-red-200'
+                            }`}>
+                              {(suggestions[platform] as any).storeUpdateResult.message}
+                            </div>
+                          </div>
+                        )}
+
+                        {suggestions[platform]?.metadata.keywords && suggestions[platform]?.metadata.keywords.length > 0 && (
+                          <div className="pt-3 border-t">
+                            <p className="text-xs text-muted-foreground mb-2">Keywords:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {suggestions[platform]?.metadata.keywords.slice(0, 6).map((keyword, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {keyword}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        ))}
+        </div>
+      )}
     </div>
   )
 }

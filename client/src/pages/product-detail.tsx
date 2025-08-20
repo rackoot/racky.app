@@ -230,7 +230,7 @@ export function ProductDetail() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="optimizations">Optimizations</TabsTrigger>
+          <TabsTrigger value="optimizations">SEO and Engagement</TabsTrigger>
           <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
