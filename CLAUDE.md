@@ -137,6 +137,7 @@ The application supports 7 marketplace types:
 - Google Shopping (Requires service account JWT - currently validates credential format only)
 
 ## UI/UX Architecture
+- **UI Components**: Uses shadcn/ui component library for all UI components (buttons, forms, dialogs, etc.)
 - Custom responsive sidebar layout (not using shadcn sidebar due to overlay issues)
 - Desktop: Sidebar collapses to icon-only mode (64px width)
 - Mobile: Sidebar slides over content with backdrop

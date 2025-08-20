@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Package,
   AlertCircle,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react"
 import { productsService, type Product, type ProductsResponse, type ProductsQuery } from "@/services/products"
 
@@ -262,30 +263,35 @@ export function Products() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {products.map((product) => (
-                    <TableRow key={product._id || product.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          {product.images[0] && (
-                            <img
-                              src={product.images[0].url}
-                              alt={product.images[0].altText || product.title}
-                              className="w-12 h-12 rounded object-cover"
-                            />
-                          )}
-                          <div>
-                            <button 
-                              onClick={() => navigate(`/products/${product._id || product.id}`)}
-                              className="font-medium hover:text-blue-600 text-left transition-colors"
-                            >
-                              {product.title}
-                            </button>
-                            <div className="text-sm text-muted-foreground">
-                              SKU: {product.handle || 'N/A'}
+                  {products.map((product) => {
+                    const isDisconnected = !product.isMarketplaceConnected;
+                    return (
+                      <TableRow 
+                        key={product._id || product.id} 
+                        className={isDisconnected ? "opacity-50" : ""}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {product.images[0] && (
+                              <img
+                                src={product.images[0].url}
+                                alt={product.images[0].altText || product.title}
+                                className={`w-12 h-12 rounded object-cover ${isDisconnected ? "grayscale" : ""}`}
+                              />
+                            )}
+                            <div>
+                              <button 
+                                onClick={() => navigate(`/products/${product._id || product.id}`)}
+                                className="font-medium hover:text-blue-600 text-left transition-colors"
+                              >
+                                {product.title}
+                              </button>
+                              <div className="text-sm text-muted-foreground">
+                                SKU: {product.handle || 'N/A'}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
                       <TableCell>
                         <div className="font-medium">{formatCurrency(product.price)}</div>
                         {product.compareAtPrice && product.compareAtPrice > product.price && (
@@ -324,26 +330,47 @@ export function Products() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => navigate(`/products/${product._id || product.id}`)}>
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleProductAction('resync', product)}>
-                              <RefreshCw className="w-4 h-4 mr-2" />
-                              Re-sync
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleProductAction('delete', product)}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
+                            {/* Always show View on Marketplace */}
+                            {product.marketplaceUrl ? (
+                              <DropdownMenuItem 
+                                onClick={() => window.open(product.marketplaceUrl, '_blank')}
+                              >
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                View on Marketplace
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                <ExternalLink className="w-4 h-4 mr-2" />
+                                View on Marketplace
+                              </DropdownMenuItem>
+                            )}
+                            
+                            {/* Show editing options only for connected products */}
+                            {!isDisconnected && (
+                              <>
+                                <DropdownMenuItem onClick={() => navigate(`/products/${product._id || product.id}`)}>
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleProductAction('resync', product)}>
+                                  <RefreshCw className="w-4 h-4 mr-2" />
+                                  Re-sync
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  onClick={() => handleProductAction('delete', product)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )
+                  })}
                 </TableBody>
               </Table>
 

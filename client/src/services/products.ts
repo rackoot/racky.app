@@ -26,6 +26,8 @@ export interface Product {
   createdAt: string
   updatedAt: string
   marketplace?: string
+  isMarketplaceConnected?: boolean
+  marketplaceUrl?: string
 }
 
 export interface ProductsResponse {

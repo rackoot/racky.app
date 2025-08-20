@@ -122,8 +122,8 @@ export const marketplaceService = {
   },
 
   // Disconnect marketplace from store
-  async disconnectMarketplace(connectionId: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/connections/${connectionId}`, {
+  async disconnectMarketplace(connectionId: string, deleteProducts: boolean = false): Promise<any> {
+    const response = await fetch(`${API_BASE}/connections/${connectionId}?deleteProducts=${deleteProducts}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });

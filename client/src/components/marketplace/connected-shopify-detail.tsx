@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, RotateCcw, Package, TrendingUp, DollarSign, Archive, Trash2, AlertTriangle } from "lucide-react"
 import { productsService, type Product } from "@/services/products"
 import { marketplaceService } from "@/services/marketplace"
@@ -25,6 +26,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
   const [disconnecting, setDisconnecting] = useState(false)
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
   const [showSyncConfirm, setShowSyncConfirm] = useState(false)
+  const [deleteProducts, setDeleteProducts] = useState(true)
   const [stats, setStats] = useState({
     totalProducts: 0,
     activeProducts: 0,
@@ -106,7 +108,8 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     setDisconnecting(true)
     try {
       await marketplaceService.disconnectMarketplace(
-        marketplace.connectionInfo.connectionId
+        marketplace.connectionInfo.connectionId,
+        deleteProducts
       )
       setShowDisconnectConfirm(false)
       onBack() // Navigate back to stores after disconnect
@@ -328,11 +331,33 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
               <ul className="list-disc list-inside mt-2 ml-4">
                 <li>Remove the connection to your Shopify store</li>
                 <li>Stop product synchronization</li>
-                <li>Keep existing product data but mark it as disconnected</li>
+                <li>{deleteProducts ? "Delete all product data locally" : "Keep existing product data but mark it as disconnected"}</li>
               </ul>
               <p className="mt-2">You can reconnect later if needed.</p>
             </AlertDescription>
           </Alert>
+          
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="delete-products"
+                checked={deleteProducts}
+                onCheckedChange={(checked) => setDeleteProducts(checked === true)}
+              />
+              <label 
+                htmlFor="delete-products" 
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                Delete products locally ({stats.totalProducts} products)
+              </label>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {deleteProducts 
+                ? "Products will be permanently removed from your local database. You can re-sync them after reconnecting."
+                : "Products will remain in your local database but will be marked as disconnected and cannot be edited."
+              }
+            </p>
+          </div>
           
           <DialogFooter>
             <Button 

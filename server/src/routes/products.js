@@ -4,6 +4,48 @@ const { protect } = require('../middleware/auth');
 const Product = require('../models/Product');
 const StoreConnection = require('../models/StoreConnection');
 
+// Helper function to generate marketplace URLs
+function generateMarketplaceUrl(product) {
+  if (!product.marketplace || !product.externalId) return null;
+  
+  const marketplace = product.marketplace.toLowerCase();
+  const storeConnectionId = product.storeConnectionId;
+  
+  switch (marketplace) {
+    case 'shopify':
+      // For Shopify, we need the shop domain from credentials
+      if (storeConnectionId?.credentials?.shop_url) {
+        const shopUrl = storeConnectionId.credentials.shop_url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        const productId = product.externalId.replace('gid://shopify/Product/', '');
+        return `https://${shopUrl}/admin/products/${productId}`;
+      }
+      return null;
+    case 'amazon':
+      // Amazon product URLs are complex and require marketplace-specific domains
+      return `https://sellercentral.amazon.com/inventory`;
+    case 'vtex':
+      if (storeConnectionId?.credentials?.account_name) {
+        const productId = product.externalId;
+        return `https://${storeConnectionId.credentials.account_name}.vtexcommercestable.com.br/admin/Site/ProdutoForm.aspx?IdProduto=${productId}`;
+      }
+      return null;
+    case 'mercadolibre':
+      return `https://listado.mercadolibre.com.ar/administracion/mis-publicaciones/article/${product.externalId}`;
+    case 'facebook_shop':
+      return `https://business.facebook.com/commerce/`;
+    case 'google_shopping':
+      return `https://merchants.google.com/mc/products/`;
+    case 'woocommerce':
+      if (storeConnectionId?.credentials?.site_url) {
+        const siteUrl = storeConnectionId.credentials.site_url.replace(/\/$/, '');
+        return `${siteUrl}/wp-admin/post.php?post=${product.externalId}&action=edit`;
+      }
+      return null;
+    default:
+      return null;
+  }
+}
+
 // Get all products for a user with pagination, filtering, and sorting
 router.get('/', protect, async (req, res) => {
   try {
@@ -51,7 +93,7 @@ router.get('/', protect, async (req, res) => {
     // Get products with pagination
     const [products, totalCount] = await Promise.all([
       Product.find(filter)
-        .populate('storeConnectionId', 'storeName marketplaceType')
+        .populate('storeConnectionId', 'storeName marketplaceType isActive credentials')
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit)),
@@ -77,7 +119,9 @@ router.get('/', protect, async (req, res) => {
       return {
         ...productObj,
         id: productObj._id.toString(),
-        _id: productObj._id.toString()
+        _id: productObj._id.toString(),
+        isMarketplaceConnected: productObj.storeConnectionId?.isActive || false,
+        marketplaceUrl: productObj.marketplaceUrl || generateMarketplaceUrl(productObj)
       };
     });
 

@@ -135,7 +135,9 @@ router.post('/:id/marketplace', async (req, res) => {
 // DELETE /api/connections/:id - Delete entire marketplace connection
 router.delete('/:id', async (req, res) => {
   try {
-    const connection = await StoreConnection.findOneAndDelete({
+    const deleteProducts = req.query.deleteProducts === 'true';
+    
+    const connection = await StoreConnection.findOne({
       _id: req.params.id,
       userId: req.user._id
     });
@@ -147,10 +149,46 @@ router.delete('/:id', async (req, res) => {
       });
     }
 
+    let deletedProductsCount = 0;
+
+    // If deleteProducts is true, delete all associated products
+    if (deleteProducts) {
+      const Product = require('../models/Product');
+      const deleteResult = await Product.deleteMany({
+        userId: req.user._id,
+        storeConnectionId: req.params.id
+      });
+      deletedProductsCount = deleteResult.deletedCount;
+    } else {
+      // Mark connection as inactive without deleting products
+      connection.isActive = false;
+      await connection.save();
+      
+      return res.json({ 
+        success: true,
+        message: 'Marketplace connection disconnected successfully',
+        data: { 
+          connection,
+          deletedProductsCount: 0,
+          productsPreserved: true
+        }
+      });
+    }
+
+    // Delete the connection
+    await StoreConnection.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+
     res.json({ 
       success: true,
-      message: 'Marketplace connection deleted successfully',
-      data: connection 
+      message: `Marketplace connection deleted successfully. ${deletedProductsCount} products removed.`,
+      data: { 
+        connection,
+        deletedProductsCount,
+        productsPreserved: false
+      }
     });
   } catch (error) {
     res.status(500).json({ 
