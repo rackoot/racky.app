@@ -18,6 +18,7 @@ import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
+import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 
 function App() {
   return (
@@ -238,10 +239,7 @@ function App() {
             <ProtectedRoute>
               <RequireSuperAdmin>
                 <AdminLayout>
-                  <div className="text-center py-10">
-                    <h1 className="text-2xl font-bold">Subscriptions</h1>
-                    <p className="text-muted-foreground">Subscription management coming soon...</p>
-                  </div>
+                  <AdminSubscriptions />
                 </AdminLayout>
               </RequireSuperAdmin>
             </ProtectedRoute>

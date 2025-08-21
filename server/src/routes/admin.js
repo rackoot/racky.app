@@ -444,6 +444,188 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
+// GET /api/admin/subscriptions - List all subscriptions with filtering
+router.get('/subscriptions', async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      search = '',
+      status = '',
+      plan = '',
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build query filter
+    const filter = {};
+    
+    // Join with User collection for search functionality
+    const pipeline = [
+      // Join with users collection
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $unwind: '$user'
+      }
+    ];
+
+    // Add match stages for filtering
+    const matchStages = [];
+    
+    if (search) {
+      matchStages.push({
+        $or: [
+          { 'user.email': { $regex: search, $options: 'i' } },
+          { 'user.firstName': { $regex: search, $options: 'i' } },
+          { 'user.lastName': { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+    
+    if (status) {
+      matchStages.push({ 'user.subscriptionStatus': status });
+    }
+    
+    if (plan) {
+      matchStages.push({ 'user.subscriptionPlan': plan });
+    }
+
+    if (matchStages.length > 0) {
+      pipeline.push({
+        $match: {
+          $and: matchStages
+        }
+      });
+    }
+
+    // Add sorting
+    const sortStage = {};
+    if (sortBy === 'email') {
+      sortStage['user.email'] = sortOrder === 'desc' ? -1 : 1;
+    } else if (sortBy === 'status') {
+      sortStage['user.subscriptionStatus'] = sortOrder === 'desc' ? -1 : 1;
+    } else if (sortBy === 'plan') {
+      sortStage['user.subscriptionPlan'] = sortOrder === 'desc' ? -1 : 1;
+    } else {
+      sortStage[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    }
+    
+    pipeline.push({ $sort: sortStage });
+
+    // Get total count
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const totalResult = await Subscription.aggregate(countPipeline);
+    const totalCount = totalResult[0]?.total || 0;
+
+    // Add pagination
+    pipeline.push(
+      { $skip: (parseInt(page) - 1) * parseInt(limit) },
+      { $limit: parseInt(limit) }
+    );
+
+    // Project the final shape
+    pipeline.push({
+      $project: {
+        _id: 1,
+        userId: 1,
+        planName: 1,
+        status: 1,
+        startDate: 1,
+        endDate: 1,
+        trialEndDate: 1,
+        amount: 1,
+        currency: 1,
+        paymentMethod: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        user: {
+          _id: '$user._id',
+          email: '$user.email',
+          firstName: '$user.firstName',
+          lastName: '$user.lastName',
+          subscriptionStatus: '$user.subscriptionStatus',
+          subscriptionPlan: '$user.subscriptionPlan',
+          trialEndsAt: '$user.trialEndsAt',
+          subscriptionEndsAt: '$user.subscriptionEndsAt',
+          isActive: '$user.isActive'
+        }
+      }
+    });
+
+    // Execute the aggregation
+    const subscriptions = await Subscription.aggregate(pipeline);
+
+    // Get subscription statistics from actual Subscription records
+    const stats = await Subscription.aggregate([
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $unwind: '$user'
+      },
+      {
+        $group: {
+          _id: null,
+          totalSubscriptions: { $sum: 1 },
+          activeSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'ACTIVE'] }, 1, 0] } },
+          trialSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'TRIAL'] }, 1, 0] } },
+          suspendedSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'SUSPENDED'] }, 1, 0] } },
+          cancelledSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'CANCELLED'] }, 1, 0] } },
+          basicPlan: { $sum: { $cond: [{ $eq: ['$user.subscriptionPlan', 'BASIC'] }, 1, 0] } },
+          proPlan: { $sum: { $cond: [{ $eq: ['$user.subscriptionPlan', 'PRO'] }, 1, 0] } },
+          enterprisePlan: { $sum: { $cond: [{ $eq: ['$user.subscriptionPlan', 'ENTERPRISE'] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
+
+    res.json({
+      success: true,
+      data: {
+        subscriptions,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          totalCount,
+          limit: parseInt(limit),
+          hasNext: parseInt(page) < totalPages,
+          hasPrev: parseInt(page) > 1
+        },
+        stats: stats[0] || {
+          totalSubscriptions: 0,
+          activeSubscriptions: 0,
+          trialSubscriptions: 0,
+          suspendedSubscriptions: 0,
+          cancelledSubscriptions: 0,
+          basicPlan: 0,
+          proPlan: 0,
+          enterprisePlan: 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching subscriptions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch subscriptions',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/admin/analytics - Platform usage analytics
 router.get('/analytics', async (req, res) => {
   try {
