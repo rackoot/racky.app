@@ -259,4 +259,10 @@ PORT=5000
 - **Full-Stack Implementation Required**: When implementing new features, ALWAYS work on both backend (`/server`) and frontend (`/client`) components. Features must be complete end-to-end implementations.
 - **Documentation Updates Required**: When adding new features or making changes to frontend/backend, update relevant documentation including `/RACKY_BACKEND_API.md`
 - **Postman Collection Maintenance**: Always update `/server/postman_collection.json` when new API endpoints are added to the server
+- **Entity Relationship Diagram Maintenance**: **CRITICAL** - When modifying existing entities in `/server/src/models/` or creating new entities, MUST update the Entity Relationship Diagram in `/server/ER_DIAGRAM.md`. This includes:
+  - Adding new entities with their complete field definitions
+  - Updating existing entities when fields are added, removed, or modified
+  - Adding new relationships between entities
+  - Updating the description sections to reflect changes
+  - Updating the "Última Actualización" section with current date and entity count
 - **Breaking Changes**: Document any API changes or breaking changes that affect client-server communication

@@ -52,7 +52,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/demo', demoRoutes);
 
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Racky API is running' });
+  res.json({ status: 'OK', message: 'Racky API is running with hot reload!' });
 });
 
 app.use(errorHandler);
