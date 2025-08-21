@@ -30,7 +30,7 @@ const createStoreWithMarketplaceSchema = Joi.object({
 });
 
 // GET /api/marketplaces - List all available marketplaces
-router.get('/', (req, res) => {
+router.get('/', trackUsage('api_call'), (req, res) => {
   try {
     const marketplaces = getAvailableMarketplaces();
     res.json({
@@ -47,7 +47,7 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/marketplaces/status - Get user's marketplace connection status
-router.get('/status', async (req, res) => {
+router.get('/status', trackUsage('api_call'), async (req, res) => {
   try {
     const marketplaceStatus = await getUserMarketplaceStatus(req.user._id);
     res.json({
@@ -64,7 +64,11 @@ router.get('/status', async (req, res) => {
 });
 
 // POST /api/marketplaces/test - Test marketplace connection
-router.post('/test', async (req, res) => {
+router.post('/test', 
+  checkSubscriptionStatus,
+  trackUsage('marketplace_test'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const { error } = testConnectionSchema.validate(req.body);
     if (error) {
@@ -100,7 +104,13 @@ router.post('/connect', async (req, res) => {
 });
 
 // POST /api/marketplaces/create-store - Create new store with marketplace connection
-router.post('/create-store', checkSubscriptionStatus, checkUsageLimits('stores'), trackUsage('apiCalls'), async (req, res) => {
+router.post('/create-store', 
+  checkSubscriptionStatus, 
+  checkUsageLimits('stores'), 
+  trackUsage('store_created'),
+  trackUsage('marketplace_connected'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const { error } = createStoreWithMarketplaceSchema.validate(req.body);
     if (error) {

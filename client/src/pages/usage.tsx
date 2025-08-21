@@ -64,36 +64,41 @@ export function Usage() {
       setLoading(true)
       setError(null)
 
-      // Mock data for now - in real implementation this would fetch from backend
-      await new Promise(resolve => setTimeout(resolve, 1000)) // Simulate API call
+      // Fetch real usage data from backend
+      const [currentResponse, trendsResponse, historyResponse] = await Promise.all([
+        fetch('http://localhost:5000/api/usage/current', {
+          headers: getAuthHeaders()
+        }),
+        fetch('http://localhost:5000/api/usage/trends', {
+          headers: getAuthHeaders()
+        }),
+        fetch('http://localhost:5000/api/usage/history?days=7', {
+          headers: getAuthHeaders()
+        })
+      ])
 
-      const mockData: UsageData = {
-        currentPeriod: {
-          apiCalls: Math.floor(Math.random() * 5000) + 1000,
-          productsSync: Math.floor(Math.random() * 100) + 20,
-          storesConnected: Math.floor(Math.random() * 3) + 1,
-          storageUsed: Math.floor(Math.random() * 500) + 50,
-          features: {
-            aiSuggestions: Math.floor(Math.random() * 50) + 10,
-            opportunityScans: Math.floor(Math.random() * 30) + 5,
-            bulkOperations: Math.floor(Math.random() * 15) + 2
+      if (currentResponse.ok && trendsResponse.ok && historyResponse.ok) {
+        const [currentData, trendsData, historyData] = await Promise.all([
+          currentResponse.json(),
+          trendsResponse.json(),
+          historyResponse.json()
+        ])
+
+        if (currentData.success && trendsData.success && historyData.success) {
+          const usageData: UsageData = {
+            currentPeriod: currentData.data.currentPeriod,
+            limits: currentData.data.limits,
+            trends: trendsData.data.trends,
+            history: historyData.data
           }
-        },
-        limits: {
-          maxStores: 5,
-          maxProducts: 10000,
-          maxMarketplaces: 3,
-          apiCallsPerMonth: 10000
-        },
-        trends: {
-          apiCallsGrowth: Math.floor(Math.random() * 40) - 20, // -20 to +20
-          productsSyncGrowth: Math.floor(Math.random() * 30) - 15,
-          storageGrowth: Math.floor(Math.random() * 20) - 10
-        },
-        history: generateMockHistory()
+          
+          setUsageData(usageData)
+        } else {
+          throw new Error('Failed to fetch usage data')
+        }
+      } else {
+        throw new Error('Failed to fetch usage data')
       }
-
-      setUsageData(mockData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load usage data')
     } finally {

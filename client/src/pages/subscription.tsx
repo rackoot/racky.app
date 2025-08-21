@@ -81,12 +81,13 @@ export function Subscription() {
       setLoading(true)
       setError(null)
 
-      const [planResponse] = await Promise.all([
+      const [planResponse, usageResponse] = await Promise.all([
         fetch('http://localhost:5000/api/plans/user/current', {
           headers: getAuthHeaders()
+        }),
+        fetch('http://localhost:5000/api/usage/current', {
+          headers: getAuthHeaders()
         })
-        // Note: Usage endpoint would need to be implemented
-        // fetch('http://localhost:5000/api/usage/current', { headers: getAuthHeaders() })
       ])
 
       if (planResponse.ok) {
@@ -96,18 +97,18 @@ export function Subscription() {
         }
       }
 
-      // Mock usage data for now
-      setUsage({
-        apiCalls: Math.floor(Math.random() * 1000),
-        productsSync: Math.floor(Math.random() * 50),
-        storesConnected: 1,
-        storageUsed: Math.floor(Math.random() * 100),
-        features: {
-          aiSuggestions: Math.floor(Math.random() * 20),
-          opportunityScans: Math.floor(Math.random() * 15),
-          bulkOperations: Math.floor(Math.random() * 5)
+      if (usageResponse.ok) {
+        const usageData = await usageResponse.json()
+        if (usageData.success) {
+          setUsage({
+            apiCalls: usageData.data.currentPeriod.apiCalls,
+            productsSync: usageData.data.currentPeriod.productsSync,
+            storesConnected: usageData.data.currentPeriod.storesConnected,
+            storageUsed: usageData.data.currentPeriod.storageUsed,
+            features: usageData.data.currentPeriod.features
+          })
         }
-      })
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load subscription data')

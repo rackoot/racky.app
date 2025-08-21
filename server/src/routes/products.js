@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, checkSubscriptionStatus, trackUsage } = require('../middleware/auth');
+const { protect, checkSubscriptionStatus, checkUsageLimits, trackUsage, requireFeature, checkSyncFrequency } = require('../middleware/auth');
 const Product = require('../models/Product');
 const StoreConnection = require('../models/StoreConnection');
 
@@ -47,7 +47,7 @@ function generateMarketplaceUrl(product) {
 }
 
 // Get all products for a user with pagination, filtering, and sorting
-router.get('/', protect, async (req, res) => {
+router.get('/', protect, trackUsage('api_call'), async (req, res) => {
   try {
     const {
       page = 1,
@@ -156,7 +156,7 @@ router.get('/', protect, async (req, res) => {
 });
 
 // Get products for a specific store connection
-router.get('/store/:connectionId', protect, async (req, res) => {
+router.get('/store/:connectionId', protect, trackUsage('api_call'), async (req, res) => {
   try {
     const { connectionId } = req.params;
     
@@ -193,7 +193,7 @@ router.get('/store/:connectionId', protect, async (req, res) => {
 });
 
 // Get product count for a specific store connection
-router.get('/store/:connectionId/count', protect, async (req, res) => {
+router.get('/store/:connectionId/count', protect, trackUsage('api_call'), async (req, res) => {
   try {
     const { connectionId } = req.params;
     
@@ -233,7 +233,13 @@ router.get('/store/:connectionId/count', protect, async (req, res) => {
 });
 
 // Sync products from a marketplace
-router.post('/sync/:connectionId', protect, checkSubscriptionStatus, trackUsage('productsSync'), async (req, res) => {
+router.post('/sync/:connectionId', 
+  protect, 
+  checkSubscriptionStatus, 
+  checkSyncFrequency(),
+  trackUsage('products_sync'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const { connectionId } = req.params;
     const { force = false } = req.body;
@@ -556,7 +562,7 @@ async function saveShopifyProduct(shopifyProduct, userId, connectionId) {
 }
 
 // Get single product by ID
-router.get('/:id', protect, async (req, res) => {
+router.get('/:id', protect, trackUsage('api_call'), async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -647,7 +653,13 @@ router.patch('/:id/description', protect, async (req, res) => {
 });
 
 // POST /products/:id/description/apply-to-marketplace - Apply description to marketplace
-router.post('/:id/description/apply-to-marketplace', protect, async (req, res) => {
+router.post('/:id/description/apply-to-marketplace', 
+  protect, 
+  checkSubscriptionStatus,
+  requireFeature('AI Suggestions'),
+  trackUsage('ai_suggestion'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const { id } = req.params;
     const { description, marketplace } = req.body;

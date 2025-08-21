@@ -171,6 +171,170 @@ const trackUsage = (metric) => {
   };
 };
 
+// Middleware to check plan-based feature access
+const requireFeature = (featureName) => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+
+      // Skip feature check for SUPERADMIN
+      if (req.user.isSuperAdmin()) {
+        return next();
+      }
+
+      // Get user's current plan
+      const userPlan = await req.user.getCurrentPlan();
+      if (!userPlan) {
+        return res.status(402).json({
+          success: false,
+          message: 'No active subscription plan found',
+          subscriptionInfo: req.user.getSubscriptionInfo()
+        });
+      }
+
+      // Check if feature is enabled in current plan
+      const feature = userPlan.features.find(f => f.name === featureName);
+      if (!feature || !feature.enabled) {
+        return res.status(403).json({
+          success: false,
+          message: `Feature '${featureName}' is not available in your current plan`,
+          requiredPlan: getMinimumPlanForFeature(featureName),
+          subscriptionInfo: req.user.getSubscriptionInfo()
+        });
+      }
+
+      next();
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking feature access',
+        error: error.message
+      });
+    }
+  };
+};
+
+// Helper function to determine minimum plan required for a feature
+const getMinimumPlanForFeature = (featureName) => {
+  const featurePlanMap = {
+    'AI Suggestions': 'PRO',
+    'Advanced Analytics': 'PRO',
+    'Bulk Operations': 'PRO',
+    'Priority Support': 'PRO',
+    'Custom Integrations': 'ENTERPRISE',
+    'Dedicated Manager': 'ENTERPRISE'
+  };
+  
+  return featurePlanMap[featureName] || 'PRO';
+};
+
+// Middleware to check API rate limits based on plan
+const checkApiRateLimit = () => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || req.user.isSuperAdmin()) {
+        return next();
+      }
+
+      // Get current month usage
+      const currentDate = new Date();
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const currentUsage = await Usage.findOne({
+        userId: req.user._id,
+        date: {
+          $gte: startOfMonth,
+          $lt: new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 1)
+        }
+      });
+
+      const apiCallsThisMonth = currentUsage?.apiCalls || 0;
+      const userPlan = await req.user.getCurrentPlan();
+      const monthlyLimit = userPlan?.limits?.apiCallsPerMonth || 1000;
+
+      if (apiCallsThisMonth >= monthlyLimit) {
+        return res.status(429).json({
+          success: false,
+          message: `Monthly API limit exceeded (${monthlyLimit} calls)`,
+          usage: {
+            current: apiCallsThisMonth,
+            limit: monthlyLimit
+          },
+          subscriptionInfo: req.user.getSubscriptionInfo()
+        });
+      }
+
+      // Add usage info to request for tracking
+      req.apiUsage = {
+        current: apiCallsThisMonth,
+        limit: monthlyLimit,
+        remaining: monthlyLimit - apiCallsThisMonth
+      };
+
+      next();
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking API rate limit',
+        error: error.message
+      });
+    }
+  };
+};
+
+// Middleware to enforce sync frequency limits
+const checkSyncFrequency = () => {
+  return async (req, res, next) => {
+    try {
+      if (!req.user || req.user.isSuperAdmin()) {
+        return next();
+      }
+
+      const userPlan = await req.user.getCurrentPlan();
+      const minSyncInterval = userPlan?.limits?.maxSyncFrequency || 24; // hours
+
+      // Check last sync time for this connection
+      const connectionId = req.params.connectionId;
+      if (connectionId) {
+        const StoreConnection = require('../models/StoreConnection');
+        const connection = await StoreConnection.findOne({
+          _id: connectionId,
+          userId: req.user._id
+        });
+
+        if (connection && connection.lastSyncAt) {
+          const timeSinceLastSync = (Date.now() - connection.lastSyncAt.getTime()) / (1000 * 60 * 60); // hours
+          
+          if (timeSinceLastSync < minSyncInterval) {
+            const hoursRemaining = Math.ceil(minSyncInterval - timeSinceLastSync);
+            return res.status(429).json({
+              success: false,
+              message: `Sync frequency limit exceeded. Next sync available in ${hoursRemaining} hours`,
+              syncLimits: {
+                minInterval: minSyncInterval,
+                hoursRemaining
+              },
+              subscriptionInfo: req.user.getSubscriptionInfo()
+            });
+          }
+        }
+      }
+
+      next();
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error checking sync frequency',
+        error: error.message
+      });
+    }
+  };
+};
+
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN,
@@ -183,5 +347,8 @@ module.exports = {
   checkSubscriptionStatus, 
   checkUsageLimits,
   trackUsage,
+  requireFeature,
+  checkApiRateLimit,
+  checkSyncFrequency,
   generateToken 
 };

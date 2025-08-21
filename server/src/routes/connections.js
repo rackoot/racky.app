@@ -1,7 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
 const StoreConnection = require('../models/StoreConnection');
-const { protect } = require('../middleware/auth');
+const { protect, checkSubscriptionStatus, checkUsageLimits, trackUsage } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -29,17 +29,24 @@ const updateConnectionSchema = Joi.object({
   isActive: Joi.boolean()
 });
 
-router.get('/', async (req, res) => {
+router.get('/', trackUsage('api_call'), async (req, res) => {
   try {
     const connections = await StoreConnection.find({ userId: req.user._id })
       .sort({ createdAt: -1 });
-    res.json(connections);
+    res.json({
+      success: true,
+      data: connections
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', trackUsage('api_call'), async (req, res) => {
   try {
     const connection = await StoreConnection.findOne({
       _id: req.params.id,
@@ -47,20 +54,38 @@ router.get('/:id', async (req, res) => {
     });
 
     if (!connection) {
-      return res.status(404).json({ message: 'Connection not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Connection not found' 
+      });
     }
 
-    res.json(connection);
+    res.json({
+      success: true,
+      data: connection
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', 
+  checkSubscriptionStatus,
+  checkUsageLimits('stores'),
+  trackUsage('store_created'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const { error } = createConnectionSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ message: error.details[0].message });
+      return res.status(400).json({ 
+        success: false,
+        message: error.details[0].message 
+      });
     }
 
     const connection = await StoreConnection.create({
@@ -68,17 +93,31 @@ router.post('/', async (req, res) => {
       ...req.body
     });
 
-    res.status(201).json(connection);
+    res.status(201).json({
+      success: true,
+      data: connection
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', 
+  checkSubscriptionStatus,
+  trackUsage('store_updated'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const { error } = updateConnectionSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ message: error.details[0].message });
+      return res.status(400).json({ 
+        success: false,
+        message: error.details[0].message 
+      });
     }
 
     const connection = await StoreConnection.findOneAndUpdate(
@@ -88,16 +127,30 @@ router.put('/:id', async (req, res) => {
     );
 
     if (!connection) {
-      return res.status(404).json({ message: 'Connection not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Connection not found' 
+      });
     }
 
-    res.json(connection);
+    res.json({
+      success: true,
+      data: connection
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 
-router.post('/:id/marketplace', async (req, res) => {
+router.post('/:id/marketplace', 
+  checkSubscriptionStatus,
+  trackUsage('marketplace_connected'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const marketplaceSchema = Joi.object({
       type: Joi.string().valid('shopify', 'vtex', 'mercadolibre', 'amazon', 'facebook_shop', 'google_shopping', 'woocommerce').required(),
@@ -106,7 +159,10 @@ router.post('/:id/marketplace', async (req, res) => {
 
     const { error } = marketplaceSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ message: error.details[0].message });
+      return res.status(400).json({ 
+        success: false,
+        message: error.details[0].message 
+      });
     }
 
     const connection = await StoreConnection.findOne({
@@ -115,25 +171,42 @@ router.post('/:id/marketplace', async (req, res) => {
     });
 
     if (!connection) {
-      return res.status(404).json({ message: 'Connection not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Connection not found' 
+      });
     }
 
     const existingMarketplace = connection.marketplaces.find(m => m.type === req.body.type);
     if (existingMarketplace) {
-      return res.status(400).json({ message: 'Marketplace already connected' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'Marketplace already connected' 
+      });
     }
 
     connection.marketplaces.push(req.body);
     await connection.save();
 
-    res.status(201).json(connection);
+    res.status(201).json({
+      success: true,
+      data: connection
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 
 // DELETE /api/connections/:id - Delete entire marketplace connection
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', 
+  checkSubscriptionStatus,
+  trackUsage('store_deleted'),
+  trackUsage('api_call'),
+  async (req, res) => {
   try {
     const deleteProducts = req.query.deleteProducts === 'true';
     

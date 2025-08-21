@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema({
   // Subscription Management
   subscriptionStatus: {
     type: String,
-    enum: ['TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED'],
+    enum: ['TRIAL', 'TRIAL_EXPIRED', 'ACTIVE', 'SUSPENDED', 'CANCELLED'],
     default: 'TRIAL'
   },
   subscriptionPlan: {
@@ -85,6 +85,31 @@ const userSchema = new mongoose.Schema({
   stripeSubscriptionId: {
     type: String,
     sparse: true
+  },
+  // Notification Tracking
+  lastTrialWarningAt: {
+    type: Date
+  },
+  trialExpiredNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  trialExpiredAt: {
+    type: Date
+  },
+  suspensionNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  subscriptionSuspendedAt: {
+    type: Date
+  },
+  cancellationNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  subscriptionCancelledAt: {
+    type: Date
   }
 }, {
   timestamps: true
@@ -149,6 +174,13 @@ userSchema.methods.getSubscriptionInfo = function() {
     hasActiveSubscription: this.hasActiveSubscription(),
     isTrialExpired: this.isTrialExpired()
   };
+};
+
+// Get user's current plan with limits and features
+userSchema.methods.getCurrentPlan = async function() {
+  const Plan = require('./Plan');
+  const plan = await Plan.findOne({ name: this.subscriptionPlan });
+  return plan;
 };
 
 // Update plan limits when subscription plan changes
