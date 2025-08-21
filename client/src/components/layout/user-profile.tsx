@@ -34,6 +34,11 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
   }
 
   const getSubscriptionStatus = () => {
+    // SUPERADMIN users don't need subscriptions
+    if (user?.role === 'SUPERADMIN') {
+      return { text: 'Admin', variant: 'secondary' as const, icon: null }
+    }
+    
     if (!user?.subscriptionInfo) return { text: 'No Subscription', variant: 'destructive' as const, icon: AlertTriangle }
     
     const { status, hasActiveSubscription } = user.subscriptionInfo
@@ -112,6 +117,14 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
           <Settings className="mr-2 h-4 w-4" />
           <span>Account Settings</span>
         </DropdownMenuItem>
+        {user.role !== 'SUPERADMIN' && (
+          <DropdownMenuItem asChild>
+            <Link to="/subscription" onClick={() => setIsOpen(false)}>
+              <CreditCard className="mr-2 h-4 w-4" />
+              <span>Subscription</span>
+            </Link>
+          </DropdownMenuItem>
+        )}
         {user.role === 'SUPERADMIN' && (
           <>
             <DropdownMenuSeparator />

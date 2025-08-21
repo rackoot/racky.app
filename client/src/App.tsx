@@ -4,6 +4,7 @@ import { AdminLayout } from '@/components/layout/admin-layout'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { RequireSuperAdmin } from '@/components/auth/require-role'
 import { RequireSubscription } from '@/components/auth/require-subscription'
+import { SmartRedirect } from '@/components/auth/smart-redirect'
 import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
@@ -277,7 +278,7 @@ function App() {
           }
         />
         
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<SmartRedirect />} />
       </Routes>
     </Router>
   )

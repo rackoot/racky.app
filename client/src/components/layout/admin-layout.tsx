@@ -1,13 +1,20 @@
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { Users, BarChart3, Settings, Shield, CreditCard, Activity } from "lucide-react"
+import { Users, BarChart3, Settings, Shield, CreditCard, Activity, Home } from "lucide-react"
 import { UserProfile } from "./user-profile"
+import { getCurrentUser } from "@/lib/auth"
 
 interface AdminLayoutProps {
   children: React.ReactNode
 }
 
 const adminNavItems = [
+  {
+    title: "Dashboard",
+    href: "/admin",
+    icon: Home,
+    description: "Admin dashboard overview"
+  },
   {
     title: "Users",
     href: "/admin/users",
@@ -42,6 +49,7 @@ const adminNavItems = [
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation()
+  const user = getCurrentUser()
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -59,12 +67,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               </Link>
             </div>
             <div className="flex items-center gap-4">
-              <Link 
-                to="/dashboard" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ← Back to App
-              </Link>
+              {user?.role !== 'SUPERADMIN' && (
+                <Link 
+                  to="/dashboard" 
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  ← Back to App
+                </Link>
+              )}
               <UserProfile />
             </div>
           </div>

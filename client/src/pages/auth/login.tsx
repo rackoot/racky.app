@@ -31,9 +31,14 @@ export function Login() {
       if (response.ok && responseData.success && responseData.data) {
         localStorage.setItem('token', responseData.data.token)
         localStorage.setItem('user', JSON.stringify(responseData.data))
-        console.log('Login successful, redirecting to dashboard...')
-        // Redirect to dashboard
-        navigate('/dashboard')
+        console.log('Login successful, redirecting...')
+        
+        // Redirect SUPERADMIN users to admin panel, regular users to dashboard
+        if (responseData.data.role === 'SUPERADMIN') {
+          navigate('/admin')
+        } else {
+          navigate('/dashboard')
+        }
       } else {
         const errorMessage = responseData.message || 'Login failed'
         setError(errorMessage)

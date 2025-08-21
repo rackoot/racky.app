@@ -13,6 +13,11 @@ export function RequireSubscription({ children, fallback = "/subscription" }: Re
     return <Navigate to="/login" replace />
   }
 
+  // SUPERADMIN users don't need subscriptions - redirect them to admin panel
+  if (user.role === 'SUPERADMIN') {
+    return <Navigate to="/admin" replace />
+  }
+
   // Check if user has an active subscription
   if (!user.subscriptionInfo || !user.subscriptionInfo.hasActiveSubscription) {
     return <Navigate to={fallback} replace />

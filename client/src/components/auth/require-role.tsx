@@ -19,8 +19,8 @@ export function RequireRole({ children, role, fallback = "/dashboard", requireSu
     return <Navigate to={fallback} replace />
   }
 
-  // Check if user needs an active subscription
-  if (requireSubscription && (!user.subscriptionInfo || !user.subscriptionInfo.hasActiveSubscription)) {
+  // Check if user needs an active subscription (SUPERADMIN users are exempt)
+  if (requireSubscription && user.role !== 'SUPERADMIN' && (!user.subscriptionInfo || !user.subscriptionInfo.hasActiveSubscription)) {
     return <Navigate to="/subscription" replace />
   }
 

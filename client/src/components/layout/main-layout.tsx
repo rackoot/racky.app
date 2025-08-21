@@ -18,6 +18,9 @@ export function MainLayout({ children }: MainLayoutProps) {
   const shouldShowSubscriptionBanner = () => {
     if (!user?.subscriptionInfo) return false
     
+    // SUPERADMIN users don't need subscriptions, so no banner
+    if (user.role === 'SUPERADMIN') return false
+    
     const { status, hasActiveSubscription } = user.subscriptionInfo
     
     return (
