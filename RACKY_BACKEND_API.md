@@ -1052,7 +1052,9 @@ Get platform usage analytics.
       "totalApiCalls": 15000,
       "totalProductsSync": 2500,
       "totalStorageUsed": 500,
-      "totalUsers": 100
+      "totalUsers": 100,
+      "totalProducts": 17,
+      "totalStoreConnections": 1
     },
     "userGrowth": [...],
     "subscriptionBreakdown": [...],

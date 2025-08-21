@@ -654,7 +654,9 @@ router.get('/analytics', async (req, res) => {
       totalUsage,
       userGrowth,
       subscriptionBreakdown,
-      revenueData
+      revenueData,
+      totalProducts,
+      totalStoreConnections
     ] = await Promise.all([
       // Total platform usage
       Usage.getTotalUsageByPeriod(startDate, now),
@@ -689,7 +691,7 @@ router.get('/analytics', async (req, res) => {
         }
       ]),
 
-      // Revenue data (mock for now - would connect to Stripe)
+      // Revenue data - get actual subscription plan distribution
       User.aggregate([
         {
           $match: {
@@ -702,16 +704,26 @@ router.get('/analytics', async (req, res) => {
             count: { $sum: 1 }
           }
         }
-      ])
+      ]),
+
+      // Total products count
+      Product.countDocuments(),
+
+      // Total store connections count
+      StoreConnection.countDocuments({ isActive: true })
     ]);
 
     const analytics = {
       period,
-      totalUsage: totalUsage[0] || {
-        totalApiCalls: 0,
-        totalProductsSync: 0,
-        totalStorageUsed: 0,
-        totalUsers: 0
+      totalUsage: {
+        // Use real data when available, fallback to 0
+        totalApiCalls: totalUsage[0]?.totalApiCalls || 0,
+        totalProductsSync: totalUsage[0]?.totalProductsSync || 0,
+        totalStorageUsed: totalUsage[0]?.totalStorageUsed || 0,
+        totalUsers: totalUsage[0]?.totalUsers || 0,
+        // Add real product and store counts
+        totalProducts: totalProducts,
+        totalStoreConnections: totalStoreConnections
       },
       userGrowth,
       subscriptionBreakdown,

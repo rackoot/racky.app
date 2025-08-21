@@ -18,6 +18,8 @@ interface AnalyticsData {
     totalProductsSync: number
     totalStorageUsed: number
     totalUsers: number
+    totalProducts: number
+    totalStoreConnections: number
   }
   userGrowth: Array<{
     _id: { year: number; month: number; day: number }
@@ -267,21 +269,21 @@ export function AdminDashboard() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between">
+              <span className="text-sm">Total Products</span>
+              <span className="font-medium">
+                {analytics?.totalUsage.totalProducts?.toLocaleString() || 0}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-sm">Store Connections</span>
+              <span className="font-medium">
+                {analytics?.totalUsage.totalStoreConnections?.toLocaleString() || 0}
+              </span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-sm">Products Synced</span>
               <span className="font-medium">
                 {analytics?.totalUsage.totalProductsSync?.toLocaleString() || 0}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Storage Used</span>
-              <span className="font-medium">
-                {analytics?.totalUsage.totalStorageUsed || 0} MB
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Active Users</span>
-              <span className="font-medium">
-                {analytics?.totalUsage.totalUsers || 0}
               </span>
             </div>
           </CardContent>
