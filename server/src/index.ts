@@ -1,0 +1,95 @@
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import connectDB from './_common/config/database';
+import errorHandler from './_common/middleware/errorHandler';
+
+import authRoutes from './modules/auth/routes/auth';
+import connectionRoutes from './modules/stores/routes/connections';
+import marketplaceRoutes from './modules/marketplaces/routes/marketplaces';
+import productRoutes from './modules/products/routes/products';
+import dashboardRoutes from './modules/dashboard/routes/dashboard';
+import optimizationRoutes from './modules/opportunities/routes/optimizations';
+import opportunityRoutes from './modules/opportunities/routes/opportunities';
+import adminRoutes from './modules/admin/routes/admin';
+import planRoutes from './modules/subscriptions/routes/plans';
+import usageRoutes from './modules/subscriptions/routes/usage';
+import billingRoutes from './modules/subscriptions/routes/billing';
+import demoRoutes from './modules/demo/routes/demo';
+import { initializeNotificationScheduler } from './modules/notifications/services/notificationScheduler';
+
+dotenv.config();
+
+const app = express();
+
+connectDB();
+
+// Initialize notification scheduler after database connection
+let notificationCleanup: (() => void) | undefined;
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000 // limit each IP to 1000 requests per windowMs (increased for development)
+});
+
+app.use(helmet());
+app.use(cors());
+app.use(morgan('tiny'));
+app.use(limiter);
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+app.use('/api/auth', authRoutes);
+app.use('/api/connections', connectionRoutes);
+app.use('/api/marketplaces', marketplaceRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/optimizations', optimizationRoutes);
+app.use('/api/opportunities', opportunityRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/plans', planRoutes);
+app.use('/api/usage', usageRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/demo', demoRoutes);
+
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'OK', message: 'Racky API is running with hot reload!' });
+});
+
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
+const server = app.listen(PORT, () => {
+  console.log(`Racky server running on port ${PORT}`);
+  
+  // Initialize notification scheduler after server starts
+  setTimeout(() => {
+    notificationCleanup = initializeNotificationScheduler();
+  }, 2000); // Wait 2 seconds for database to be fully ready
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  if (notificationCleanup) {
+    notificationCleanup();
+  }
+  server.close(() => {
+    console.log('Server closed.');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received. Shutting down gracefully...');
+  if (notificationCleanup) {
+    notificationCleanup();
+  }
+  server.close(() => {
+    console.log('Server closed.');
+    process.exit(0);
+  });
+});

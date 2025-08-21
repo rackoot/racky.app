@@ -1,0 +1,317 @@
+import mongoose, { Document, Model, Schema, Types } from 'mongoose';
+
+// Type for subscription status
+export type SubscriptionStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED';
+
+// Type for billing interval
+export type BillingInterval = 'month' | 'year';
+
+// Interface for Subscription document
+export interface ISubscription extends Document {
+  userId: Types.ObjectId;
+  planId: Types.ObjectId;
+  status: SubscriptionStatus;
+  // Stripe Integration
+  stripeSubscriptionId?: string;
+  stripeCustomerId?: string;
+  // Pricing information
+  amount: number; // Amount in cents
+  currency: string;
+  interval: BillingInterval;
+  // Subscription periods
+  startsAt: Date;
+  endsAt: Date;
+  // Billing
+  nextBillingDate?: Date;
+  lastBillingDate?: Date;
+  // Cancellation
+  cancelAtPeriodEnd: boolean;
+  cancelledAt?: Date;
+  cancellationReason?: string;
+  // Suspension
+  suspendedAt?: Date;
+  suspensionReason?: string;
+  // Payment tracking
+  paymentFailed: boolean;
+  paymentFailedAt?: Date;
+  // Notification tracking
+  expirationWarningsSent: Date[];
+  expiredNotificationSent: boolean;
+  cancellationNotificationSent: boolean;
+  suspensionNotificationSent: boolean;
+  // Metadata
+  metadata: Record<string, any>;
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date;
+
+  // Instance methods
+  isActive(): boolean;
+  isExpired(): boolean;
+  isCancelled(): boolean;
+  isSuspended(): boolean;
+  daysUntilExpiration(): number;
+  daysUntilNextBilling(): number | null;
+  cancel(reason?: string): Promise<ISubscription>;
+  suspend(reason?: string): Promise<ISubscription>;
+  reactivate(): Promise<ISubscription>;
+  renew(months?: number): Promise<ISubscription>;
+}
+
+// Interface for Subscription model with static methods
+export interface ISubscriptionModel extends Model<ISubscription> {
+  findActiveByUser(userId: Types.ObjectId): Promise<ISubscription | null>;
+  findByStripeId(stripeSubscriptionId: string): Promise<ISubscription | null>;
+  findExpiringSubscriptions(days?: number): Promise<ISubscription[]>;
+  findExpiredSubscriptions(): Promise<ISubscription[]>;
+  createSubscription(userId: Types.ObjectId, planId: Types.ObjectId, interval?: BillingInterval): Promise<ISubscription>;
+}
+
+const subscriptionSchema = new Schema<ISubscription>({
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  planId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Plan',
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['ACTIVE', 'SUSPENDED', 'CANCELLED', 'EXPIRED'],
+    required: true,
+    default: 'ACTIVE'
+  },
+  // Stripe Integration
+  stripeSubscriptionId: {
+    type: String,
+    sparse: true,
+    unique: true
+  },
+  stripeCustomerId: {
+    type: String,
+    sparse: true
+  },
+  // Pricing information
+  amount: {
+    type: Number,
+    required: true // Amount in cents
+  },
+  currency: {
+    type: String,
+    default: 'usd'
+  },
+  interval: {
+    type: String,
+    enum: ['month', 'year'],
+    required: true,
+    default: 'month'
+  },
+  // Subscription periods
+  startsAt: {
+    type: Date,
+    required: true,
+    default: Date.now
+  },
+  endsAt: {
+    type: Date,
+    required: true
+  },
+  // Billing
+  nextBillingDate: {
+    type: Date
+  },
+  lastBillingDate: {
+    type: Date
+  },
+  // Cancellation
+  cancelAtPeriodEnd: {
+    type: Boolean,
+    default: false
+  },
+  cancelledAt: {
+    type: Date
+  },
+  cancellationReason: {
+    type: String
+  },
+  // Suspension
+  suspendedAt: {
+    type: Date
+  },
+  suspensionReason: {
+    type: String
+  },
+  // Payment tracking
+  paymentFailed: {
+    type: Boolean,
+    default: false
+  },
+  paymentFailedAt: {
+    type: Date
+  },
+  // Notification tracking
+  expirationWarningsSent: [{
+    type: Date
+  }],
+  expiredNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  cancellationNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  suspensionNotificationSent: {
+    type: Boolean,
+    default: false
+  },
+  // Metadata
+  metadata: {
+    type: Schema.Types.Mixed,
+    default: {}
+  }
+}, {
+  timestamps: true
+});
+
+// Instance Methods
+subscriptionSchema.methods.isActive = function(this: ISubscription): boolean {
+  return this.status === 'ACTIVE' && this.endsAt > new Date();
+};
+
+subscriptionSchema.methods.isExpired = function(this: ISubscription): boolean {
+  return this.endsAt <= new Date();
+};
+
+subscriptionSchema.methods.isCancelled = function(this: ISubscription): boolean {
+  return this.status === 'CANCELLED';
+};
+
+subscriptionSchema.methods.isSuspended = function(this: ISubscription): boolean {
+  return this.status === 'SUSPENDED';
+};
+
+subscriptionSchema.methods.daysUntilExpiration = function(this: ISubscription): number {
+  const now = new Date();
+  const timeDiff = this.endsAt.getTime() - now.getTime();
+  return Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+};
+
+subscriptionSchema.methods.daysUntilNextBilling = function(this: ISubscription): number | null {
+  if (!this.nextBillingDate) return null;
+  const now = new Date();
+  const timeDiff = this.nextBillingDate.getTime() - now.getTime();
+  return Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+};
+
+subscriptionSchema.methods.cancel = async function(this: ISubscription, reason?: string): Promise<ISubscription> {
+  this.status = 'CANCELLED';
+  this.cancelledAt = new Date();
+  this.cancellationReason = reason;
+  return await this.save();
+};
+
+subscriptionSchema.methods.suspend = async function(this: ISubscription, reason?: string): Promise<ISubscription> {
+  this.status = 'SUSPENDED';
+  this.suspendedAt = new Date();
+  this.suspensionReason = reason;
+  return await this.save();
+};
+
+subscriptionSchema.methods.reactivate = async function(this: ISubscription): Promise<ISubscription> {
+  this.status = 'ACTIVE';
+  this.suspendedAt = undefined;
+  this.suspensionReason = undefined;
+  return await this.save();
+};
+
+subscriptionSchema.methods.renew = async function(this: ISubscription, months: number = 1): Promise<ISubscription> {
+  const currentEnd = this.endsAt > new Date() ? this.endsAt : new Date();
+  this.endsAt = new Date(currentEnd.getTime() + (months * 30 * 24 * 60 * 60 * 1000));
+  this.lastBillingDate = new Date();
+  this.nextBillingDate = new Date(this.endsAt);
+  this.paymentFailed = false;
+  this.paymentFailedAt = undefined;
+  
+  if (this.status !== 'ACTIVE') {
+    this.status = 'ACTIVE';
+  }
+  
+  return await this.save();
+};
+
+// Static Methods
+subscriptionSchema.statics.findActiveByUser = function(this: ISubscriptionModel, userId: Types.ObjectId): Promise<ISubscription | null> {
+  return this.findOne({
+    userId,
+    status: 'ACTIVE',
+    endsAt: { $gt: new Date() }
+  }).populate('planId');
+};
+
+subscriptionSchema.statics.findByStripeId = function(this: ISubscriptionModel, stripeSubscriptionId: string): Promise<ISubscription | null> {
+  return this.findOne({ stripeSubscriptionId }).populate('planId');
+};
+
+subscriptionSchema.statics.findExpiringSubscriptions = function(this: ISubscriptionModel, days: number = 7): Promise<ISubscription[]> {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + days);
+  
+  return this.find({
+    status: 'ACTIVE',
+    endsAt: { 
+      $gte: new Date(),
+      $lte: futureDate 
+    }
+  }).populate('userId planId');
+};
+
+subscriptionSchema.statics.findExpiredSubscriptions = function(this: ISubscriptionModel): Promise<ISubscription[]> {
+  return this.find({
+    status: 'ACTIVE',
+    endsAt: { $lt: new Date() },
+    expiredNotificationSent: false
+  }).populate('userId planId');
+};
+
+subscriptionSchema.statics.createSubscription = async function(this: ISubscriptionModel, userId: Types.ObjectId, planId: Types.ObjectId, interval: BillingInterval = 'month'): Promise<ISubscription> {
+  const Plan = (await import('./Plan')).default;
+  const plan = await Plan.findById(planId);
+  
+  if (!plan) {
+    throw new Error('Plan not found');
+  }
+  
+  const amount = interval === 'year' ? plan.yearlyPrice : plan.monthlyPrice;
+  const durationMonths = interval === 'year' ? 12 : 1;
+  const endsAt = new Date();
+  endsAt.setMonth(endsAt.getMonth() + durationMonths);
+  
+  return await this.create({
+    userId,
+    planId,
+    amount,
+    interval,
+    endsAt,
+    nextBillingDate: endsAt
+  });
+};
+
+// Indexes
+subscriptionSchema.index({ userId: 1 });
+subscriptionSchema.index({ planId: 1 });
+subscriptionSchema.index({ status: 1 });
+subscriptionSchema.index({ endsAt: 1 });
+subscriptionSchema.index({ stripeSubscriptionId: 1 }, { sparse: true, unique: true });
+subscriptionSchema.index({ stripeCustomerId: 1 }, { sparse: true });
+subscriptionSchema.index({ nextBillingDate: 1 });
+subscriptionSchema.index({ createdAt: 1 });
+
+// Compound indexes
+subscriptionSchema.index({ userId: 1, status: 1 });
+subscriptionSchema.index({ status: 1, endsAt: 1 });
+
+export default mongoose.model<ISubscription, ISubscriptionModel>('Subscription', subscriptionSchema);

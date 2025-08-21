@@ -40,14 +40,74 @@ node scripts/setup-saas.js   # Initialize SaaS platform with super admin and pla
 
 ## Architecture Overview
 
-### Backend Structure (`/server/src/`)
-- **Models**: Mongoose schemas for User, StoreConnection, Product, Opportunity, Suggestion, Subscription, Plan, Usage
-- **Routes**: API endpoints organized by feature (auth, connections, marketplaces, admin, plans)
-- **Services**: Business logic for marketplace integrations (marketplaceService.js)
-- **Middleware**: Authentication (JWT), role-based access control, subscription checks, usage tracking, validation (Joi), error handling
+### Backend Structure (`/server/src/`) - Modular Architecture
+
+**New Modular Structure:**
+```
+/server/src/
+├── _common/                    # Shared code across modules
+│   ├── middleware/             # Auth, validation, errorHandler
+│   ├── config/                # Database, environment configuration  
+│   ├── constants/             # Marketplace constants, general constants
+│   ├── types/                 # Shared TypeScript interfaces
+│   └── utils/                 # General utilities
+├── modules/                   # Feature modules
+│   ├── auth/                  # Authentication & authorization
+│   │   ├── routes/            # Auth endpoints
+│   │   ├── models/            # User model
+│   │   ├── services/          # Auth business logic
+│   │   └── interfaces/        # Auth-specific types
+│   ├── subscriptions/         # Subscription management
+│   │   ├── routes/            # Plans, billing, usage endpoints
+│   │   ├── models/            # Plan, Subscription, Usage models
+│   │   ├── services/          # Subscription business logic
+│   │   └── interfaces/        # Subscription-specific types
+│   ├── marketplaces/          # Marketplace integrations
+│   │   ├── routes/            # Marketplace endpoints
+│   │   ├── services/          # Marketplace integration logic
+│   │   └── interfaces/        # Marketplace-specific types
+│   ├── stores/                # Store/connection management
+│   │   ├── routes/            # Store connection endpoints
+│   │   ├── models/            # StoreConnection model
+│   │   ├── services/          # Store management logic
+│   │   └── interfaces/        # Store-specific types
+│   ├── products/              # Product management
+│   │   ├── routes/            # Product endpoints
+│   │   ├── models/            # Product model
+│   │   ├── services/          # Product business logic
+│   │   └── interfaces/        # Product-specific types
+│   ├── opportunities/         # Optimization opportunities
+│   │   ├── routes/            # Opportunity & optimization endpoints
+│   │   ├── models/            # Opportunity, Suggestion models
+│   │   ├── services/          # AI service, optimization logic
+│   │   └── interfaces/        # Opportunity-specific types
+│   ├── admin/                 # Admin panel functionality
+│   │   ├── routes/            # Admin endpoints
+│   │   ├── services/          # Admin business logic
+│   │   └── interfaces/        # Admin-specific types
+│   ├── dashboard/             # Dashboard & analytics
+│   │   ├── routes/            # Dashboard endpoints
+│   │   ├── services/          # Dashboard logic
+│   │   └── interfaces/        # Dashboard-specific types
+│   ├── notifications/         # Notification system
+│   │   ├── services/          # Email & notification scheduler
+│   │   └── interfaces/        # Notification-specific types
+│   └── demo/                  # Demo functionality
+│       ├── routes/            # Demo endpoints
+│       ├── services/          # Demo logic
+│       └── interfaces/        # Demo-specific types
+└── index.ts                   # Main application entry point
+```
 
 **API Base URL**: `http://localhost:5000/api`
 **Authentication**: JWT tokens in Authorization header (`Bearer <token>`)
+
+**Modular Benefits:**
+- **Clear separation of concerns** - Each module owns its domain logic
+- **Improved maintainability** - Changes isolated to specific modules  
+- **Better scalability** - Easy to add new modules or scale existing ones
+- **Enhanced testability** - Module-specific testing strategies
+- **Reduced coupling** - Modules communicate through well-defined interfaces
 
 ### SaaS Architecture
 
@@ -256,13 +316,30 @@ PORT=5000
 - Store creation and product sync endpoints enforce subscription and usage limits
 
 ## Development Guidelines
+
+### Modular Architecture Patterns
+- **Module-Based Development**: All new backend features MUST follow the modular architecture pattern located in `/server/src/modules/`
+- **Module Structure**: Each module MUST contain its own `routes/`, `services/`, `models/`, and `interfaces/` directories
+- **Shared Code Placement**: Common utilities, middleware, and types belong in `/server/src/_common/`
+- **Import Conventions**: Always import from module-specific paths (e.g., `import User from '../modules/auth/models/User'`)
+- **Module Isolation**: Each module should be self-contained with minimal cross-module dependencies
+
+### Implementation Requirements
 - **Full-Stack Implementation Required**: When implementing new features, ALWAYS work on both backend (`/server`) and frontend (`/client`) components. Features must be complete end-to-end implementations.
 - **Documentation Updates Required**: When adding new features or making changes to frontend/backend, update relevant documentation including `/RACKY_BACKEND_API.md`
 - **Postman Collection Maintenance**: Always update `/server/postman_collection.json` when new API endpoints are added to the server
-- **Entity Relationship Diagram Maintenance**: **CRITICAL** - When modifying existing entities in `/server/src/models/` or creating new entities, MUST update the Entity Relationship Diagram in `/server/ER_DIAGRAM.md`. This includes:
+- **Entity Relationship Diagram Maintenance**: **CRITICAL** - When modifying existing entities in `/server/src/modules/*/models/` or creating new entities, MUST update the Entity Relationship Diagram in `/server/ER_DIAGRAM.md`. This includes:
   - Adding new entities with their complete field definitions
-  - Updating existing entities when fields are added, removed, or modified
+  - Updating existing entities when fields are added, removed, or modified  
   - Adding new relationships between entities
   - Updating the description sections to reflect changes
   - Updating the "Última Actualización" section with current date and entity count
 - **Breaking Changes**: Document any API changes or breaking changes that affect client-server communication
+
+### Module Creation Guidelines
+When creating a new module:
+1. Create the module directory structure: `/server/src/modules/{module-name}/{routes,services,models,interfaces}/`
+2. Add module route imports to `/server/src/index.ts`
+3. Update this CLAUDE.md file to document the new module
+4. Create module-specific interfaces in the `interfaces/` directory
+5. Keep module business logic in the `services/` directory

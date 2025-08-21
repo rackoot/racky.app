@@ -4,12 +4,16 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig.json ./
 
-# Install all dependencies (including devDependencies for development)
+# Install all dependencies (including devDependencies for TypeScript compilation)
 RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY . .
+
+# Build TypeScript to JavaScript
+RUN npm run build
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
