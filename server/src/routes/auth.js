@@ -2,7 +2,7 @@ const express = require('express');
 const Joi = require('joi');
 const User = require('../models/User');
 const Usage = require('../models/Usage');
-const { generateToken } = require('../middleware/auth');
+const { generateToken, protect } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -17,6 +17,17 @@ const registerSchema = Joi.object({
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required()
+});
+
+const updateProfileSchema = Joi.object({
+  firstName: Joi.string().required(),
+  lastName: Joi.string().required(),
+  email: Joi.string().email().required()
+});
+
+const updatePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required(),
+  newPassword: Joi.string().min(6).required()
 });
 
 router.post('/register', async (req, res) => {
@@ -178,6 +189,108 @@ router.get('/me', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/auth/profile - Update user profile
+router.put('/profile', protect, async (req, res) => {
+  try {
+    const { error } = updateProfileSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    const { firstName, lastName, email } = req.body;
+    
+    // Check if email is already taken by another user
+    if (email !== req.user.email) {
+      const existingUser = await User.findOne({ email, _id: { $ne: req.user._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already taken by another user'
+        });
+      }
+    }
+
+    // Update user profile
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { firstName, lastName, email },
+      { new: true, select: '-password' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        _id: updatedUser._id,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        role: updatedUser.role,
+        subscriptionInfo: await updatedUser.getSubscriptionInfo()
+      }
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating profile',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/auth/password - Update user password
+router.put('/password', protect, async (req, res) => {
+  try {
+    const { error } = updatePasswordSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    
+    // Get user with password for verification
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await user.matchPassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Update password (will be hashed by pre-save middleware)
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while updating password',
       error: error.message
     });
   }

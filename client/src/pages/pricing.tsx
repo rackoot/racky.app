@@ -193,7 +193,7 @@ export function Pricing() {
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             Scale your marketplace management with flexible pricing that grows with your business. 
-            Start with a free trial on any plan.
+            Start with instant access to any plan.
           </p>
           
           {/* Billing Toggle */}
@@ -337,9 +337,9 @@ export function Pricing() {
               </p>
             </div>
             <div>
-              <h3 className="text-lg font-semibold mb-2">Is there a free trial?</h3>
+              <h3 className="text-lg font-semibold mb-2">How does billing work?</h3>
               <p className="text-muted-foreground">
-                Absolutely! All new accounts start with a 14-day free trial on any plan. 
+                All subscriptions are billed monthly or yearly based on your preference. 
                 No credit card required to start.
               </p>
             </div>
@@ -365,12 +365,12 @@ export function Pricing() {
           <h2 className="text-2xl font-bold mb-4">Ready to Scale Your Marketplace Business?</h2>
           <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
             Join thousands of businesses already using Racky to manage their multi-channel operations. 
-            Start your free trial today and see the difference.
+            Start your subscription today and see the difference.
           </p>
           {!user && (
             <Button size="lg" asChild>
               <Link to="/register">
-                Start Free Trial
+                Get Started
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
             </Button>

@@ -18,12 +18,12 @@ export function MainLayout({ children }: MainLayoutProps) {
   const shouldShowSubscriptionBanner = () => {
     if (!user?.subscriptionInfo) return false
     
-    const { status, isTrialExpired, hasActiveSubscription } = user.subscriptionInfo
+    const { status, hasActiveSubscription } = user.subscriptionInfo
     
     return (
-      (status === 'TRIAL' && isTrialExpired) ||
       status === 'SUSPENDED' ||
       status === 'CANCELLED' ||
+      status === 'EXPIRED' ||
       !hasActiveSubscription
     )
   }
@@ -31,12 +31,12 @@ export function MainLayout({ children }: MainLayoutProps) {
   const getSubscriptionBannerMessage = () => {
     if (!user?.subscriptionInfo) return null
     
-    const { status, isTrialExpired } = user.subscriptionInfo
+    const { status, hasActiveSubscription } = user.subscriptionInfo
     
-    if (status === 'TRIAL' && isTrialExpired) {
+    if (!hasActiveSubscription) {
       return {
-        message: "Your free trial has expired. Upgrade to continue using all features.",
-        action: "Upgrade Now",
+        message: "You need an active subscription to access all features.",
+        action: "Subscribe Now",
         variant: "destructive" as const
       }
     } else if (status === 'SUSPENDED') {
@@ -49,6 +49,12 @@ export function MainLayout({ children }: MainLayoutProps) {
       return {
         message: "Your subscription has been cancelled. Reactivate to continue.",
         action: "Reactivate",
+        variant: "destructive" as const
+      }
+    } else if (status === 'EXPIRED') {
+      return {
+        message: "Your subscription has expired. Renew to continue using all features.",
+        action: "Renew Now",
         variant: "destructive" as const
       }
     }
@@ -106,7 +112,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </span>
               </div>
               <Button size="sm" variant="destructive" asChild>
-                <Link to="/subscription">
+                <Link to="/pricing">
                   <CreditCard className="w-4 h-4 mr-2" />
                   {bannerInfo.action}
                 </Link>

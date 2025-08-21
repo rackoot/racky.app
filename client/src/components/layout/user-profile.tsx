@@ -34,23 +34,23 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
   }
 
   const getSubscriptionStatus = () => {
-    if (!user?.subscriptionInfo) return null
+    if (!user?.subscriptionInfo) return { text: 'No Subscription', variant: 'destructive' as const, icon: AlertTriangle }
     
-    const { status, isTrialExpired, hasActiveSubscription } = user.subscriptionInfo
+    const { status, hasActiveSubscription } = user.subscriptionInfo
     
-    if (status === 'TRIAL' && !isTrialExpired) {
-      return { text: 'Trial', variant: 'secondary' as const, icon: null }
-    } else if (status === 'TRIAL' && isTrialExpired) {
-      return { text: 'Trial Expired', variant: 'destructive' as const, icon: AlertTriangle }
-    } else if (status === 'ACTIVE' && hasActiveSubscription) {
+    if (status === 'ACTIVE' && hasActiveSubscription) {
       return { text: 'Active', variant: 'default' as const, icon: null }
     } else if (status === 'SUSPENDED') {
       return { text: 'Suspended', variant: 'destructive' as const, icon: AlertTriangle }
     } else if (status === 'CANCELLED') {
       return { text: 'Cancelled', variant: 'destructive' as const, icon: AlertTriangle }
+    } else if (status === 'EXPIRED') {
+      return { text: 'Expired', variant: 'destructive' as const, icon: AlertTriangle }
+    } else if (!hasActiveSubscription) {
+      return { text: 'Inactive', variant: 'destructive' as const, icon: AlertTriangle }
     }
     
-    return null
+    return { text: 'Unknown', variant: 'outline' as const, icon: null }
   }
 
   const subscriptionStatus = getSubscriptionStatus()
@@ -111,12 +111,6 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
         <DropdownMenuItem onClick={handleEditAccount}>
           <Settings className="mr-2 h-4 w-4" />
           <span>Account Settings</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/subscription" onClick={() => setIsOpen(false)}>
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Subscription</span>
-          </Link>
         </DropdownMenuItem>
         {user.role === 'SUPERADMIN' && (
           <>

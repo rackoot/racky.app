@@ -10,7 +10,6 @@ export interface User {
     status: string
     plan: string
     hasActiveSubscription: boolean
-    isTrialExpired: boolean
   }
 }
 
