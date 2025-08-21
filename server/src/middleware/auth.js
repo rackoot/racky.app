@@ -83,11 +83,13 @@ const checkSubscriptionStatus = async (req, res, next) => {
     }
 
     // Check if user has active subscription
-    if (!req.user.hasActiveSubscription()) {
+    const hasActiveSubscription = await req.user.hasActiveSubscription();
+    if (!hasActiveSubscription) {
+      const subscriptionInfo = await req.user.getSubscriptionInfo();
       return res.status(402).json({
         success: false,
-        message: 'Active subscription required',
-        subscriptionInfo: req.user.getSubscriptionInfo()
+        message: 'Active subscription required. Please subscribe to access this feature.',
+        subscriptionInfo
       });
     }
 
@@ -117,27 +119,37 @@ const checkUsageLimits = (limitType) => {
         return next();
       }
 
+      // Get current plan
+      const currentPlan = await req.user.getCurrentPlan();
+      if (!currentPlan) {
+        return res.status(402).json({
+          success: false,
+          message: 'Active subscription required to access this feature'
+        });
+      }
+
       let hasReachedLimit = false;
       let limitMessage = '';
 
       switch (limitType) {
         case 'stores':
           hasReachedLimit = await req.user.hasReachedStoreLimit();
-          limitMessage = `Store limit reached (${req.user.maxStores} stores maximum for ${req.user.subscriptionPlan} plan)`;
+          limitMessage = `Store limit reached (${currentPlan.limits.maxStores} stores maximum for ${currentPlan.name} plan)`;
           break;
         case 'products':
           hasReachedLimit = await req.user.hasReachedProductLimit();
-          limitMessage = `Product limit reached (${req.user.maxProducts} products maximum for ${req.user.subscriptionPlan} plan)`;
+          limitMessage = `Product limit reached (${currentPlan.limits.maxProducts} products maximum for ${currentPlan.name} plan)`;
           break;
         default:
           return next();
       }
 
       if (hasReachedLimit) {
+        const subscriptionInfo = await req.user.getSubscriptionInfo();
         return res.status(429).json({
           success: false,
           message: limitMessage,
-          subscriptionInfo: req.user.getSubscriptionInfo()
+          subscriptionInfo
         });
       }
 
@@ -254,9 +266,18 @@ const checkApiRateLimit = () => {
 
       const apiCallsThisMonth = currentUsage?.apiCalls || 0;
       const userPlan = await req.user.getCurrentPlan();
-      const monthlyLimit = userPlan?.limits?.apiCallsPerMonth || 1000;
+      
+      if (!userPlan) {
+        return res.status(402).json({
+          success: false,
+          message: 'Active subscription required to access API'
+        });
+      }
+      
+      const monthlyLimit = userPlan.limits.apiCallsPerMonth;
 
       if (apiCallsThisMonth >= monthlyLimit) {
+        const subscriptionInfo = await req.user.getSubscriptionInfo();
         return res.status(429).json({
           success: false,
           message: `Monthly API limit exceeded (${monthlyLimit} calls)`,
@@ -264,7 +285,7 @@ const checkApiRateLimit = () => {
             current: apiCallsThisMonth,
             limit: monthlyLimit
           },
-          subscriptionInfo: req.user.getSubscriptionInfo()
+          subscriptionInfo
         });
       }
 
@@ -295,7 +316,14 @@ const checkSyncFrequency = () => {
       }
 
       const userPlan = await req.user.getCurrentPlan();
-      const minSyncInterval = userPlan?.limits?.maxSyncFrequency || 24; // hours
+      if (!userPlan) {
+        return res.status(402).json({
+          success: false,
+          message: 'Active subscription required to sync data'
+        });
+      }
+      
+      const minSyncInterval = userPlan.limits.maxSyncFrequency; // hours
 
       // Check last sync time for this connection
       const connectionId = req.params.connectionId;

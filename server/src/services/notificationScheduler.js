@@ -1,91 +1,85 @@
 const User = require('../models/User');
+const Subscription = require('../models/Subscription');
 const { 
-  sendTrialExpirationWarning, 
-  sendTrialExpiredNotification,
+  sendSubscriptionExpirationWarning, 
+  sendSubscriptionExpiredNotification,
+  sendSubscriptionSuspensionNotification,
   sendSubscriptionCancelledNotification 
 } = require('./emailService');
 
-// Check for users with trials expiring soon and send notifications
-const checkTrialExpirations = async () => {
+// Check for subscriptions expiring soon and send notifications
+const checkSubscriptionExpirations = async () => {
   try {
-    console.log('🔍 Checking for trial expirations...');
+    console.log('🔍 Checking for subscription expirations...');
     
-    const now = new Date();
-    const threeDaysFromNow = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000));
-    const oneDayFromNow = new Date(now.getTime() + (1 * 24 * 60 * 60 * 1000));
+    // Find subscriptions expiring in 7 days
+    const subscriptionsExpiring7Days = await Subscription.findExpiringSubscriptions(7);
     
-    // Find users with trials expiring in 3 days
-    const usersExpiring3Days = await User.find({
-      subscriptionStatus: 'TRIAL',
-      trialEndsAt: {
-        $gte: now,
-        $lte: threeDaysFromNow
-      },
-      lastTrialWarningAt: { $exists: false }
-    });
+    // Find subscriptions expiring in 3 days
+    const subscriptionsExpiring3Days = await Subscription.findExpiringSubscriptions(3);
+    
+    // Find subscriptions expiring in 1 day
+    const subscriptionsExpiring1Day = await Subscription.findExpiringSubscriptions(1);
+    
+    // Find expired subscriptions
+    const expiredSubscriptions = await Subscription.findExpiredSubscriptions();
 
-    // Find users with trials expiring in 1 day
-    const usersExpiring1Day = await User.find({
-      subscriptionStatus: 'TRIAL',
-      trialEndsAt: {
-        $gte: now,
-        $lte: oneDayFromNow
-      },
-      lastTrialWarningAt: { $lt: oneDayFromNow }
-    });
-
-    // Find users with expired trials
-    const usersExpired = await User.find({
-      subscriptionStatus: 'TRIAL',
-      trialEndsAt: { $lt: now },
-      trialExpiredNotificationSent: { $ne: true }
-    });
+    // Send 7-day warnings (only once)
+    for (const subscription of subscriptionsExpiring7Days) {
+      const daysRemaining = subscription.daysUntilExpiration();
+      if (daysRemaining === 7 && subscription.expirationWarningsSent.length === 0) {
+        console.log(`📧 Sending 7-day expiration warning to ${subscription.userId.email}`);
+        await sendSubscriptionExpirationWarning(subscription.userId, subscription, daysRemaining);
+        
+        // Track warning sent
+        subscription.expirationWarningsSent.push(new Date());
+        await subscription.save();
+      }
+    }
 
     // Send 3-day warnings
-    for (const user of usersExpiring3Days) {
-      const daysRemaining = Math.ceil((user.trialEndsAt - now) / (24 * 60 * 60 * 1000));
-      if (daysRemaining <= 3 && daysRemaining > 1) {
-        console.log(`📧 Sending 3-day trial warning to ${user.email}`);
-        await sendTrialExpirationWarning(user, daysRemaining);
+    for (const subscription of subscriptionsExpiring3Days) {
+      const daysRemaining = subscription.daysUntilExpiration();
+      if (daysRemaining === 3 && subscription.expirationWarningsSent.length === 1) {
+        console.log(`📧 Sending 3-day expiration warning to ${subscription.userId.email}`);
+        await sendSubscriptionExpirationWarning(subscription.userId, subscription, daysRemaining);
         
-        // Update user to mark warning sent
-        await User.findByIdAndUpdate(user._id, {
-          lastTrialWarningAt: now
-        });
+        // Track warning sent
+        subscription.expirationWarningsSent.push(new Date());
+        await subscription.save();
       }
     }
 
     // Send 1-day warnings
-    for (const user of usersExpiring1Day) {
-      const daysRemaining = Math.ceil((user.trialEndsAt - now) / (24 * 60 * 60 * 1000));
-      if (daysRemaining <= 1 && daysRemaining >= 0) {
-        console.log(`📧 Sending 1-day trial warning to ${user.email}`);
-        await sendTrialExpirationWarning(user, Math.max(1, daysRemaining));
+    for (const subscription of subscriptionsExpiring1Day) {
+      const daysRemaining = subscription.daysUntilExpiration();
+      if (daysRemaining === 1 && subscription.expirationWarningsSent.length === 2) {
+        console.log(`📧 Sending 1-day expiration warning to ${subscription.userId.email}`);
+        await sendSubscriptionExpirationWarning(subscription.userId, subscription, daysRemaining);
         
-        // Update user to mark final warning sent
-        await User.findByIdAndUpdate(user._id, {
-          lastTrialWarningAt: now
-        });
+        // Track warning sent
+        subscription.expirationWarningsSent.push(new Date());
+        await subscription.save();
       }
     }
 
     // Send expiration notifications and update status
-    for (const user of usersExpired) {
-      console.log(`📧 Sending trial expired notification to ${user.email}`);
-      await sendTrialExpiredNotification(user);
+    for (const subscription of expiredSubscriptions) {
+      console.log(`📧 Sending subscription expired notification to ${subscription.userId.email}`);
+      await sendSubscriptionExpiredNotification(subscription.userId, subscription);
       
-      // Update user status
-      await User.findByIdAndUpdate(user._id, {
-        subscriptionStatus: 'TRIAL_EXPIRED',
-        trialExpiredNotificationSent: true,
-        trialExpiredAt: now
-      });
+      // Update subscription status
+      subscription.status = 'EXPIRED';
+      subscription.expiredNotificationSent = true;
+      await subscription.save();
     }
 
-    console.log(`✅ Trial expiration check complete. Processed ${usersExpiring3Days.length + usersExpiring1Day.length + usersExpired.length} users.`);
+    const totalProcessed = subscriptionsExpiring7Days.length + subscriptionsExpiring3Days.length + 
+                          subscriptionsExpiring1Day.length + expiredSubscriptions.length;
+    console.log(`✅ Subscription expiration check complete. Processed ${totalProcessed} subscriptions.`);
     
   } catch (error) {
-    console.error('❌ Error checking trial expirations:', error);
+    console.error('❌ Error checking subscription expirations:', error);
   }
 };
 
@@ -97,25 +91,23 @@ const checkSuspendedSubscriptions = async () => {
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
     
-    // Find users with recently suspended subscriptions that haven't been notified
-    const suspendedUsers = await User.find({
-      subscriptionStatus: 'SUSPENDED',
-      subscriptionSuspendedAt: { $gte: oneDayAgo },
-      suspensionNotificationSent: { $ne: true }
-    });
+    // Find recently suspended subscriptions that haven't been notified
+    const suspendedSubscriptions = await Subscription.find({
+      status: 'SUSPENDED',
+      suspendedAt: { $gte: oneDayAgo },
+      suspensionNotificationSent: false
+    }).populate('userId planId');
 
-    for (const user of suspendedUsers) {
-      console.log(`📧 Sending suspension notification to ${user.email}`);
-      // You could create a specific suspension notification email
-      await sendTrialExpiredNotification(user); // Reuse expired notification for now
+    for (const subscription of suspendedSubscriptions) {
+      console.log(`📧 Sending suspension notification to ${subscription.userId.email}`);
+      await sendSubscriptionSuspensionNotification(subscription.userId, subscription);
       
       // Mark notification as sent
-      await User.findByIdAndUpdate(user._id, {
-        suspensionNotificationSent: true
-      });
+      subscription.suspensionNotificationSent = true;
+      await subscription.save();
     }
 
-    console.log(`✅ Suspended subscription check complete. Processed ${suspendedUsers.length} users.`);
+    console.log(`✅ Suspended subscription check complete. Processed ${suspendedSubscriptions.length} subscriptions.`);
     
   } catch (error) {
     console.error('❌ Error checking suspended subscriptions:', error);
@@ -130,24 +122,23 @@ const checkCancelledSubscriptions = async () => {
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
     
-    // Find users with recently cancelled subscriptions that haven't been notified
-    const cancelledUsers = await User.find({
-      subscriptionStatus: 'CANCELLED',
-      subscriptionCancelledAt: { $gte: oneDayAgo },
-      cancellationNotificationSent: { $ne: true }
-    });
+    // Find recently cancelled subscriptions that haven't been notified
+    const cancelledSubscriptions = await Subscription.find({
+      status: 'CANCELLED',
+      cancelledAt: { $gte: oneDayAgo },
+      cancellationNotificationSent: false
+    }).populate('userId planId');
 
-    for (const user of cancelledUsers) {
-      console.log(`📧 Sending cancellation notification to ${user.email}`);
-      await sendSubscriptionCancelledNotification(user);
+    for (const subscription of cancelledSubscriptions) {
+      console.log(`📧 Sending cancellation notification to ${subscription.userId.email}`);
+      await sendSubscriptionCancelledNotification(subscription.userId, subscription);
       
       // Mark notification as sent
-      await User.findByIdAndUpdate(user._id, {
-        cancellationNotificationSent: true
-      });
+      subscription.cancellationNotificationSent = true;
+      await subscription.save();
     }
 
-    console.log(`✅ Cancelled subscription check complete. Processed ${cancelledUsers.length} users.`);
+    console.log(`✅ Cancelled subscription check complete. Processed ${cancelledSubscriptions.length} subscriptions.`);
     
   } catch (error) {
     console.error('❌ Error checking cancelled subscriptions:', error);
@@ -158,7 +149,7 @@ const checkCancelledSubscriptions = async () => {
 const runNotificationChecks = async () => {
   console.log('🚀 Starting notification scheduler...');
   
-  await checkTrialExpirations();
+  await checkSubscriptionExpirations();
   await checkSuspendedSubscriptions();
   await checkCancelledSubscriptions();
   
@@ -187,7 +178,7 @@ const initializeNotificationScheduler = () => {
     console.log('📅 Daily notification check scheduled for 9 AM');
   }, adjustedMillis);
   
-  console.log('📧 Notification scheduler initialized - running hourly checks');
+  console.log('📧 Subscription notification scheduler initialized - running hourly checks');
   
   // Return cleanup function
   return () => {
@@ -197,7 +188,7 @@ const initializeNotificationScheduler = () => {
 };
 
 module.exports = {
-  checkTrialExpirations,
+  checkSubscriptionExpirations,
   checkSuspendedSubscriptions,
   checkCancelledSubscriptions,
   runNotificationChecks,
