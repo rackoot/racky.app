@@ -1,8 +1,11 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Menu } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Menu, AlertTriangle, CreditCard } from "lucide-react"
+import { Link } from "react-router-dom"
 import { AppSidebar } from "./app-sidebar"
 import { UserProfile } from "./user-profile"
+import { getCurrentUser } from "@/lib/auth"
 
 interface MainLayoutProps {
   children: React.ReactNode
@@ -10,6 +13,59 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const user = getCurrentUser()
+
+  const shouldShowSubscriptionBanner = () => {
+    if (!user?.subscriptionInfo) return false
+    
+    // SUPERADMIN users don't need subscriptions, so no banner
+    if (user.role === 'SUPERADMIN') return false
+    
+    const { status, hasActiveSubscription } = user.subscriptionInfo
+    
+    return (
+      status === 'SUSPENDED' ||
+      status === 'CANCELLED' ||
+      status === 'EXPIRED' ||
+      !hasActiveSubscription
+    )
+  }
+
+  const getSubscriptionBannerMessage = () => {
+    if (!user?.subscriptionInfo) return null
+    
+    const { status, hasActiveSubscription } = user.subscriptionInfo
+    
+    if (!hasActiveSubscription) {
+      return {
+        message: "You need an active subscription to access all features.",
+        action: "Subscribe Now",
+        variant: "destructive" as const
+      }
+    } else if (status === 'SUSPENDED') {
+      return {
+        message: "Your subscription is suspended. Please update your payment method.",
+        action: "Update Payment",
+        variant: "destructive" as const
+      }
+    } else if (status === 'CANCELLED') {
+      return {
+        message: "Your subscription has been cancelled. Reactivate to continue.",
+        action: "Reactivate",
+        variant: "destructive" as const
+      }
+    } else if (status === 'EXPIRED') {
+      return {
+        message: "Your subscription has expired. Renew to continue using all features.",
+        action: "Renew Now",
+        variant: "destructive" as const
+      }
+    }
+    
+    return null
+  }
+
+  const bannerInfo = getSubscriptionBannerMessage()
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -48,6 +104,26 @@ export function MainLayout({ children }: MainLayoutProps) {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-h-screen md:ml-0">
+        {/* Subscription Banner */}
+        {shouldShowSubscriptionBanner() && bannerInfo && (
+          <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <span className="text-sm font-medium text-destructive">
+                  {bannerInfo.message}
+                </span>
+              </div>
+              <Button size="sm" variant="destructive" asChild>
+                <Link to="/pricing">
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  {bannerInfo.action}
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
+        
         <header className="h-16 border-b bg-background px-4 flex items-center gap-4">
           <Button
             variant="ghost"

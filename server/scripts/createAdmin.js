@@ -14,12 +14,15 @@ const createAdmin = async () => {
       process.exit(0);
     }
 
-    // Create admin user
+    // Create admin user with SUPERADMIN role
     const adminUser = await User.create({
       email: 'admin@example.com',
       password: 'admin123',
       firstName: 'Admin',
-      lastName: 'User'
+      lastName: 'User',
+      role: 'SUPERADMIN',
+      subscriptionStatus: 'ACTIVE',
+      subscriptionPlan: 'ENTERPRISE'
     });
 
     console.log('Admin user created successfully:');

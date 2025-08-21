@@ -36,11 +36,15 @@ export function Register() {
       })
 
       if (response.ok) {
-        const data = await response.json()
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('user', JSON.stringify(data))
-        // Redirect to dashboard
-        navigate('/dashboard')
+        const responseData = await response.json()
+        if (responseData.success && responseData.data) {
+          localStorage.setItem('token', responseData.data.token)
+          localStorage.setItem('user', JSON.stringify(responseData.data))
+          // Redirect to dashboard
+          navigate('/dashboard')
+        } else {
+          console.error('Registration response missing required data')
+        }
       } else {
         console.error('Registration failed')
       }

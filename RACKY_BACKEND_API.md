@@ -833,6 +833,237 @@ Get opportunity summary statistics for a product.
 - Categories include both general improvements and marketplace-specific suggestions
 - Expired opportunities are automatically cleaned up
 
+## Admin Endpoints
+
+**Note:** All admin endpoints require SUPERADMIN role and are protected by authentication middleware.
+
+### User Management
+
+#### GET /admin/users
+List all users with pagination and filtering.
+
+**Query Parameters:**
+- `page` - Page number (default: 1)
+- `limit` - Items per page (default: 20)
+- `search` - Search by email, firstName, lastName
+- `role` - Filter by role (USER, SUPERADMIN)
+- `subscriptionStatus` - Filter by subscription status (TRIAL, ACTIVE, SUSPENDED, CANCELLED)
+- `subscriptionPlan` - Filter by plan (BASIC, PRO, ENTERPRISE)
+- `sortBy` - Sort field (default: createdAt)
+- `sortOrder` - Sort order (asc, desc, default: desc)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "users": [
+      {
+        "_id": "user_id",
+        "email": "user@example.com",
+        "firstName": "John",
+        "lastName": "Doe",
+        "role": "USER",
+        "isActive": true,
+        "subscriptionStatus": "ACTIVE",
+        "subscriptionPlan": "PRO",
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "stats": {
+          "storeCount": 2,
+          "productCount": 150,
+          "currentUsage": {
+            "apiCalls": 1200,
+            "productsSync": 150,
+            "storageUsed": 50
+          }
+        },
+        "subscriptionInfo": {
+          "status": "Active",
+          "plan": "Pro",
+          "hasActiveSubscription": true,
+          "isTrialExpired": false
+        }
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 5,
+      "totalCount": 100,
+      "limit": 20,
+      "hasNext": true,
+      "hasPrev": false
+    },
+    "stats": {
+      "totalUsers": 100,
+      "activeUsers": 85,
+      "trialUsers": 15,
+      "activeSubscriptions": 70,
+      "superAdmins": 2
+    }
+  }
+}
+```
+
+#### GET /admin/users/:id
+Get detailed information about a specific user.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "user_id",
+    "email": "user@example.com",
+    "firstName": "John",
+    "lastName": "Doe",
+    "role": "USER",
+    "isActive": true,
+    "subscriptionStatus": "ACTIVE",
+    "subscriptionPlan": "PRO",
+    "storeConnections": [...],
+    "recentProducts": [...],
+    "usageHistory": [...],
+    "subscription": {...},
+    "subscriptionInfo": {...}
+  }
+}
+```
+
+#### PUT /admin/users/:id/status
+Activate or deactivate a user account.
+
+**Request Body:**
+```json
+{
+  "isActive": true
+}
+```
+
+#### PUT /admin/users/:id/role
+Update user role.
+
+**Request Body:**
+```json
+{
+  "role": "SUPERADMIN"
+}
+```
+
+#### PUT /admin/users/:id/subscription
+Update user subscription details.
+
+**Request Body:**
+```json
+{
+  "subscriptionStatus": "ACTIVE",
+  "subscriptionPlan": "PRO",
+  "trialEndsAt": "2024-12-31T23:59:59.999Z",
+  "subscriptionEndsAt": "2025-12-31T23:59:59.999Z"
+}
+```
+
+#### DELETE /admin/users/:id?force=true
+Delete a user account and all associated data.
+
+**Query Parameters:**
+- `force` - Set to true to delete user with all data
+
+### Subscription Management
+
+#### GET /admin/subscriptions
+List all subscriptions with filtering and search.
+
+**Query Parameters:**
+- `page` - Page number (default: 1)
+- `limit` - Items per page (default: 20)
+- `search` - Search by user email, firstName, lastName
+- `status` - Filter by subscription status (TRIAL, ACTIVE, SUSPENDED, CANCELLED)
+- `plan` - Filter by plan (BASIC, PRO, ENTERPRISE)
+- `sortBy` - Sort field (default: createdAt)
+- `sortOrder` - Sort order (asc, desc, default: desc)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "subscriptions": [
+      {
+        "_id": "subscription_id",
+        "userId": "user_id",
+        "planName": "PRO",
+        "status": "ACTIVE",
+        "startDate": "2024-01-01T00:00:00.000Z",
+        "endDate": "2025-01-01T00:00:00.000Z",
+        "amount": 79,
+        "currency": "USD",
+        "paymentMethod": "stripe",
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "user": {
+          "_id": "user_id",
+          "email": "user@example.com",
+          "firstName": "John",
+          "lastName": "Doe",
+          "subscriptionStatus": "ACTIVE",
+          "subscriptionPlan": "PRO",
+          "trialEndsAt": null,
+          "subscriptionEndsAt": "2025-01-01T00:00:00.000Z",
+          "isActive": true
+        }
+      }
+    ],
+    "pagination": {
+      "currentPage": 1,
+      "totalPages": 3,
+      "totalCount": 50,
+      "limit": 20,
+      "hasNext": true,
+      "hasPrev": false
+    },
+    "stats": {
+      "totalSubscriptions": 50,
+      "activeSubscriptions": 35,
+      "trialSubscriptions": 10,
+      "suspendedSubscriptions": 3,
+      "cancelledSubscriptions": 2,
+      "basicPlan": 15,
+      "proPlan": 25,
+      "enterprisePlan": 10
+    }
+  }
+}
+```
+
+### Analytics
+
+#### GET /admin/analytics?period=30d
+Get platform usage analytics.
+
+**Query Parameters:**
+- `period` - Time period (7d, 30d, 90d, default: 30d)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "period": "30d",
+    "totalUsage": {
+      "totalApiCalls": 15000,
+      "totalProductsSync": 2500,
+      "totalStorageUsed": 500,
+      "totalUsers": 100,
+      "totalProducts": 17,
+      "totalStoreConnections": 1
+    },
+    "userGrowth": [...],
+    "subscriptionBreakdown": [...],
+    "revenueData": [...],
+    "generatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
 ## Supported Marketplaces
 
 The system supports the following marketplace types with their required credentials:

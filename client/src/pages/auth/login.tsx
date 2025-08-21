@@ -9,11 +9,13 @@ export function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError("")
     
     try {
       const response = await fetch('http://localhost:5000/api/auth/login', {
@@ -24,17 +26,27 @@ export function Login() {
         body: JSON.stringify({ email, password }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('user', JSON.stringify(data))
-        // Redirect to dashboard
-        navigate('/dashboard')
+      const responseData = await response.json()
+      
+      if (response.ok && responseData.success && responseData.data) {
+        localStorage.setItem('token', responseData.data.token)
+        localStorage.setItem('user', JSON.stringify(responseData.data))
+        console.log('Login successful, redirecting...')
+        
+        // Redirect SUPERADMIN users to admin panel, regular users to dashboard
+        if (responseData.data.role === 'SUPERADMIN') {
+          navigate('/admin')
+        } else {
+          navigate('/dashboard')
+        }
       } else {
-        console.error('Login failed')
+        const errorMessage = responseData.message || 'Login failed'
+        setError(errorMessage)
+        console.error('Login failed:', errorMessage)
       }
     } catch (error) {
       console.error('Login error:', error)
+      setError('Network error. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -51,6 +63,11 @@ export function Login() {
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                {error}
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
