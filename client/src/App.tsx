@@ -3,6 +3,7 @@ import { MainLayout } from '@/components/layout/main-layout'
 import { AdminLayout } from '@/components/layout/admin-layout'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { RequireSuperAdmin } from '@/components/auth/require-role'
+import { RequireSubscription } from '@/components/auth/require-subscription'
 import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
@@ -28,9 +29,11 @@ function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <Dashboard />
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <Dashboard />
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -38,9 +41,11 @@ function App() {
           path="/stores"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <Stores />
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <Stores />
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -48,9 +53,11 @@ function App() {
           path="/stores/:marketplace"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <MarketplacePage />
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <MarketplacePage />
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -58,9 +65,11 @@ function App() {
           path="/products"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <Products />
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <Products />
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -68,9 +77,11 @@ function App() {
           path="/products/:id"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <ProductDetail />
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <ProductDetail />
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -78,12 +89,14 @@ function App() {
           path="/orders"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <div className="p-6">
-                  <h1 className="text-3xl font-bold mb-4">Orders</h1>
-                  <p>Orders page coming soon...</p>
-                </div>
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <div className="p-6">
+                    <h1 className="text-3xl font-bold mb-4">Orders</h1>
+                    <p>Orders page coming soon...</p>
+                  </div>
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -91,12 +104,14 @@ function App() {
           path="/analytics"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <div className="p-6">
-                  <h1 className="text-3xl font-bold mb-4">Analytics</h1>
-                  <p>Analytics page coming soon...</p>
-                </div>
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <div className="p-6">
+                    <h1 className="text-3xl font-bold mb-4">Analytics</h1>
+                    <p>Analytics page coming soon...</p>
+                  </div>
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -104,12 +119,14 @@ function App() {
           path="/performance"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <div className="p-6">
-                  <h1 className="text-3xl font-bold mb-4">Performance</h1>
-                  <p>Performance page coming soon...</p>
-                </div>
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <div className="p-6">
+                    <h1 className="text-3xl font-bold mb-4">Performance</h1>
+                    <p>Performance page coming soon...</p>
+                  </div>
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -117,12 +134,14 @@ function App() {
           path="/customers"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <div className="p-6">
-                  <h1 className="text-3xl font-bold mb-4">Customers</h1>
-                  <p>Customers page coming soon...</p>
-                </div>
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <div className="p-6">
+                    <h1 className="text-3xl font-bold mb-4">Customers</h1>
+                    <p>Customers page coming soon...</p>
+                  </div>
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />
@@ -130,12 +149,14 @@ function App() {
           path="/settings"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <div className="p-6">
-                  <h1 className="text-3xl font-bold mb-4">Settings</h1>
-                  <p>Settings page coming soon...</p>
-                </div>
-              </MainLayout>
+              <RequireSubscription>
+                <MainLayout>
+                  <div className="p-6">
+                    <h1 className="text-3xl font-bold mb-4">Settings</h1>
+                    <p>Settings page coming soon...</p>
+                  </div>
+                </MainLayout>
+              </RequireSubscription>
             </ProtectedRoute>
           }
         />

@@ -44,8 +44,6 @@ interface UserPlan {
     status: string
     plan: string
     hasActiveSubscription: boolean
-    isTrialExpired: boolean
-    trialEndsAt?: string
     subscriptionEndsAt?: string
     maxStores: number
     maxProducts: number
@@ -122,12 +120,14 @@ export function Subscription() {
   }
 
   const getStatusBadge = (subscription: UserPlan['userSubscription']) => {
-    if (subscription.status === 'TRIAL') {
-      return <Badge variant="secondary">Free Trial</Badge>
-    } else if (subscription.status === 'ACTIVE') {
+    if (subscription.status === 'ACTIVE') {
       return <Badge variant="default">Active</Badge>
     } else if (subscription.status === 'SUSPENDED') {
       return <Badge variant="destructive">Suspended</Badge>
+    } else if (subscription.status === 'CANCELLED') {
+      return <Badge variant="outline">Cancelled</Badge>
+    } else if (subscription.status === 'EXPIRED') {
+      return <Badge variant="destructive">Expired</Badge>
     } else {
       return <Badge variant="outline">{subscription.status}</Badge>
     }
@@ -195,7 +195,18 @@ export function Subscription() {
           <CardDescription>Your active subscription details</CardDescription>
         </CardHeader>
         <CardContent>
-          {userPlan && (
+          {!userPlan ? (
+            <div className="text-center py-8">
+              <Crown className="w-16 h-16 mx-auto mb-4 text-yellow-500 opacity-50" />
+              <h3 className="text-xl font-semibold mb-2">No Active Subscription</h3>
+              <p className="text-muted-foreground mb-6">
+                You need an active subscription to access Racky features.
+              </p>
+              <Button size="lg" asChild>
+                <a href="/pricing">Choose a Plan</a>
+              </Button>
+            </div>
+          ) : (
             <div className="space-y-6">
               <div className="flex items-start justify-between">
                 <div>
@@ -211,14 +222,14 @@ export function Subscription() {
                 <Button>Upgrade Plan</Button>
               </div>
 
-              {/* Trial/Subscription Info */}
-              {userPlan.userSubscription.status === 'TRIAL' && userPlan.userSubscription.trialEndsAt && (
+              {/* Subscription Info */}
+              {userPlan.userSubscription.subscriptionEndsAt && userPlan.userSubscription.hasActiveSubscription && (
                 <div className="flex items-center gap-2 p-4 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
                   <Calendar className="w-5 h-5 text-blue-600" />
                   <div>
-                    <p className="font-medium">Trial ends on {new Date(userPlan.userSubscription.trialEndsAt).toLocaleDateString()}</p>
+                    <p className="font-medium">Next billing on {new Date(userPlan.userSubscription.subscriptionEndsAt).toLocaleDateString()}</p>
                     <p className="text-sm text-muted-foreground">
-                      Upgrade to continue using all features after your trial
+                      Your subscription will automatically renew
                     </p>
                   </div>
                 </div>
@@ -248,16 +259,17 @@ export function Subscription() {
       </Card>
 
       {/* Usage Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-green-600" />
-            Current Usage
-          </CardTitle>
-          <CardDescription>Your usage this month</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {usage && userPlan && (
+      {userPlan && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-green-600" />
+              Current Usage
+            </CardTitle>
+            <CardDescription>Your usage this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {usage && (
             <div className="space-y-6">
               {/* API Calls */}
               <div>
@@ -314,9 +326,10 @@ export function Subscription() {
                 </div>
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Plan Features */}
       {userPlan && (
@@ -345,7 +358,8 @@ export function Subscription() {
       )}
 
       {/* Billing Information */}
-      <Card>
+      {userPlan && (
+        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-blue-600" />
@@ -380,7 +394,8 @@ export function Subscription() {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
+      )}
     </div>
   )
 }

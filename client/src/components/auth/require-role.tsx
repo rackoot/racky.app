@@ -5,9 +5,10 @@ interface RequireRoleProps {
   children: React.ReactNode
   role: 'SUPERADMIN' | 'USER'
   fallback?: string
+  requireSubscription?: boolean
 }
 
-export function RequireRole({ children, role, fallback = "/dashboard" }: RequireRoleProps) {
+export function RequireRole({ children, role, fallback = "/dashboard", requireSubscription = true }: RequireRoleProps) {
   const user = getCurrentUser()
 
   if (!user) {
@@ -18,12 +19,17 @@ export function RequireRole({ children, role, fallback = "/dashboard" }: Require
     return <Navigate to={fallback} replace />
   }
 
+  // Check if user needs an active subscription
+  if (requireSubscription && (!user.subscriptionInfo || !user.subscriptionInfo.hasActiveSubscription)) {
+    return <Navigate to="/subscription" replace />
+  }
+
   return <>{children}</>
 }
 
-export function RequireSuperAdmin({ children, fallback }: Omit<RequireRoleProps, 'role'>) {
+export function RequireSuperAdmin({ children, fallback, requireSubscription }: Omit<RequireRoleProps, 'role'>) {
   return (
-    <RequireRole role="SUPERADMIN" fallback={fallback}>
+    <RequireRole role="SUPERADMIN" fallback={fallback} requireSubscription={requireSubscription}>
       {children}
     </RequireRole>
   )
