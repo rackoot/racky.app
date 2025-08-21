@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { getCurrentUser } from "@/lib/auth"
 import { getAuthHeaders } from "@/lib/utils"
+import { useNavigate } from "react-router-dom"
 
 interface Plan {
   name: string
@@ -67,8 +68,10 @@ export function Subscription() {
   const [usage, setUsage] = useState<Usage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [upgrading, setUpgrading] = useState(false)
   
   const user = getCurrentUser()
+  const navigate = useNavigate()
 
   useEffect(() => {
     loadSubscriptionData()
@@ -141,6 +144,39 @@ export function Subscription() {
     if (percentage >= 90) return "destructive"
     if (percentage >= 75) return "warning" 
     return "default"
+  }
+
+  const handleUpgradePlan = async () => {
+    if (!userPlan) return
+    
+    setUpgrading(true)
+    
+    try {
+      // Create Stripe billing portal session
+      const response = await fetch('http://localhost:5000/api/billing/portal', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const data = await response.json()
+      
+      if (data.success && data.data.url) {
+        // Redirect to Stripe billing portal
+        window.location.href = data.data.url
+      } else {
+        // Fallback to pricing page
+        navigate('/pricing')
+      }
+    } catch (error) {
+      console.error('Error creating portal session:', error)
+      // Fallback to pricing page
+      navigate('/pricing')
+    } finally {
+      setUpgrading(false)
+    }
   }
 
   if (loading) {
@@ -219,7 +255,9 @@ export function Subscription() {
                     ${formatPrice(userPlan.plan.monthlyPrice)}/month
                   </div>
                 </div>
-                <Button>Upgrade Plan</Button>
+                <Button onClick={handleUpgradePlan} disabled={upgrading}>
+                  {upgrading ? 'Loading...' : 'Upgrade Plan'}
+                </Button>
               </div>
 
               {/* Subscription Info */}

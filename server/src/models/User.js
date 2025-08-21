@@ -33,6 +33,23 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // Subscription Information
+  subscriptionStatus: {
+    type: String,
+    enum: ['TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED'],
+    default: 'TRIAL'
+  },
+  subscriptionPlan: {
+    type: String,
+    enum: ['BASIC', 'PRO', 'ENTERPRISE'],
+    default: 'BASIC'
+  },
+  trialEndsAt: {
+    type: Date
+  },
+  subscriptionEndsAt: {
+    type: Date
+  },
   // Company Information (optional)
   companyName: {
     type: String,
@@ -87,15 +104,16 @@ userSchema.methods.getActiveSubscription = async function() {
 
 // Check if user has an active subscription
 userSchema.methods.hasActiveSubscription = async function() {
-  const subscription = await this.getActiveSubscription();
-  return !!subscription;
+  const subscriptionInfo = await this.getSubscriptionInfo();
+  return subscriptionInfo.hasActiveSubscription;
 };
 
 // Get user's current plan
 userSchema.methods.getCurrentPlan = async function() {
-  const subscription = await this.getActiveSubscription();
-  if (!subscription) return null;
-  return subscription.planId;
+  if (!this.subscriptionPlan) return null;
+  
+  const Plan = require('./Plan');
+  return await Plan.findByName(this.subscriptionPlan);
 };
 
 // Check if user has reached their limits
@@ -127,9 +145,8 @@ userSchema.methods.getFullName = function() {
 
 // Get user's subscription info
 userSchema.methods.getSubscriptionInfo = async function() {
-  const subscription = await this.getActiveSubscription();
-  
-  if (!subscription) {
+  // Use subscription data from User model instead of Subscription collection
+  if (!this.subscriptionStatus || this.subscriptionStatus === 'CANCELLED') {
     return {
       status: 'NONE',
       plan: null,
@@ -138,14 +155,23 @@ userSchema.methods.getSubscriptionInfo = async function() {
       planLimits: null
     };
   }
-  
+
+  // Check if subscription is expired
+  const now = new Date();
+  const isTrialExpired = this.trialEndsAt && now > this.trialEndsAt;
+  const isSubscriptionExpired = this.subscriptionEndsAt && now > this.subscriptionEndsAt;
+
+  const hasActiveSubscription = this.subscriptionStatus === 'ACTIVE' || 
+    (this.subscriptionStatus === 'TRIAL' && !isTrialExpired);
+
   return {
-    status: subscription.status,
-    plan: subscription.planId.name,
-    hasActiveSubscription: true,
-    endsAt: subscription.endsAt,
-    planLimits: subscription.planId.limits,
-    planFeatures: subscription.planId.features
+    status: this.subscriptionStatus,
+    plan: this.subscriptionPlan,
+    hasActiveSubscription,
+    endsAt: this.subscriptionEndsAt,
+    trialEndsAt: this.trialEndsAt,
+    isTrialExpired,
+    planLimits: null // Will be populated by getCurrentPlan if needed
   };
 };
 

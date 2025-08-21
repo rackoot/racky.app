@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import { getCurrentUser } from "@/lib/auth"
+import { getAuthHeaders } from "@/lib/utils"
 
 interface Plan {
   name: string
@@ -136,12 +137,38 @@ export function Pricing() {
     }
 
     setLoading(true)
-    // In a real implementation, this would create a Stripe checkout session
-    // For now, just redirect to subscription page
-    setTimeout(() => {
+    
+    try {
+      // Create Stripe checkout session
+      const response = await fetch('http://localhost:5000/api/billing/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          planName,
+          billingCycle
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success && data.data.url) {
+        // Redirect to Stripe checkout
+        window.location.href = data.data.url
+      } else {
+        console.error('Failed to create checkout session:', data.message)
+        // Fallback to subscription page
+        navigate('/subscription')
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error)
+      // Fallback to subscription page
       navigate('/subscription')
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   const getPlanIcon = (planName: string) => {

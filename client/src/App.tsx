@@ -16,6 +16,7 @@ import { Account } from '@/pages/account'
 import { Subscription } from '@/pages/subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
+import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
@@ -27,6 +28,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/pricing" element={<Pricing />} />
+        <Route path="/demo-checkout" element={<DemoCheckout />} />
         <Route
           path="/dashboard"
           element={

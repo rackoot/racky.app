@@ -53,12 +53,19 @@ router.get('/:name', async (req, res) => {
 // GET /api/plans/user/current - Get current user's plan (requires auth)
 router.get('/user/current', protect, async (req, res) => {
   try {
+    if (!req.user.subscriptionPlan) {
+      return res.status(400).json({
+        success: false,
+        message: 'User has no subscription plan assigned'
+      });
+    }
+
     const userPlan = await Plan.findByName(req.user.subscriptionPlan);
     
     if (!userPlan) {
       return res.status(404).json({
         success: false,
-        message: 'User plan not found'
+        message: `Plan '${req.user.subscriptionPlan}' not found`
       });
     }
 
@@ -66,7 +73,7 @@ router.get('/user/current', protect, async (req, res) => {
       success: true,
       data: {
         plan: userPlan,
-        userSubscription: req.user.getSubscriptionInfo()
+        userSubscription: await req.user.getSubscriptionInfo()
       }
     });
   } catch (error) {
