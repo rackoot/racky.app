@@ -67,17 +67,17 @@ interface SuggestionsQuery {
 router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
   try {
     await protect(req, res, async () => {
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
       // Get total products count
-      const totalProducts = await Product.countDocuments({ userId });
+      const totalProducts = await Product.countDocuments({ workspaceId });
 
       // Get connected stores count
-      const connectedStores = await StoreConnection.countDocuments({ userId });
+      const connectedStores = await StoreConnection.countDocuments({ workspaceId });
 
       // Get product distribution by marketplace
       const productDistribution = await Product.aggregate([
-        { $match: { userId } },
+        { $match: { workspaceId } },
         {
           $group: {
             _id: '$marketplace',
@@ -121,7 +121,7 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
       const productsTrend = await Product.aggregate([
         {
           $match: {
-            userId,
+            workspaceId,
             createdAt: { $gte: sixMonthsAgo }
           }
         },
@@ -155,7 +155,7 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
       lastMonth.setMonth(lastMonth.getMonth() - 1);
 
       const productsLastMonth = await Product.countDocuments({
-        userId,
+        workspaceId,
         createdAt: { $gte: lastMonth }
       });
 
@@ -193,7 +193,7 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/suggestions', async (req: AuthenticatedRequest, res: Response) => {
   try {
     await protect(req, res, async () => {
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
       const forceRefresh = req.query.refresh === 'true';
 
       // Clean up expired suggestions first
@@ -201,10 +201,10 @@ router.get('/suggestions', async (req: AuthenticatedRequest, res: Response) => {
 
       // Check if we have valid cached suggestions
       if (!forceRefresh) {
-        const cachedSuggestions = await GeneralSuggestion.findValidSuggestions(userId.toString() as any);
+        const cachedSuggestions = await GeneralSuggestion.findValidSuggestions(workspaceId.toString() as any);
         
         if (cachedSuggestions.length > 0) {
-          console.log(`Returning ${cachedSuggestions.length} cached suggestions for user ${userId}`);
+          console.log(`Returning ${cachedSuggestions.length} cached suggestions for user ${workspaceId}`);
           return res.json({
             success: true,
             data: {
@@ -223,12 +223,12 @@ router.get('/suggestions', async (req: AuthenticatedRequest, res: Response) => {
         }
       }
 
-      console.log(`Generating new suggestions for user ${userId}`);
+      console.log(`Generating new suggestions for user ${workspaceId}`);
 
       // Get user's store connections and products for context
-      const connections = await StoreConnection.find({ userId });
-      const products = await Product.find({ userId }).limit(10);
-      const totalProducts = await Product.countDocuments({ userId });
+      const connections = await StoreConnection.find({ workspaceId });
+      const products = await Product.find({ workspaceId }).limit(10);
+      const totalProducts = await Product.countDocuments({ workspaceId });
 
       // Build context for AI
       const marketplaces = connections.map((conn: any) => conn.marketplaceType).filter(Boolean);
@@ -306,7 +306,7 @@ Focus on practical improvements like marketplace expansion, pricing optimization
       const savedSuggestions = await Promise.all(
         suggestions.map((suggestion: Suggestion) => 
           new GeneralSuggestion({
-            userId,
+            workspaceId,
             title: suggestion.title,
             description: suggestion.description,
             priority: suggestion.priority,
@@ -317,7 +317,7 @@ Focus on practical improvements like marketplace expansion, pricing optimization
         )
       );
 
-      console.log(`Saved ${savedSuggestions.length} new suggestions for user ${userId}`);
+      console.log(`Saved ${savedSuggestions.length} new suggestions for user ${workspaceId}`);
 
       res.json({
         success: true,

@@ -41,12 +41,12 @@ router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }>, re
   try {
     await protect(req, res, async () => {
       const { id: productId } = req.params;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
       const category = req.query.category as string;
 
 
       // Verify product belongs to user
-      const product = await Product.findOne({ _id: productId, userId });
+      const product = await Product.findOne({ _id: productId, workspaceId });
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -60,9 +60,9 @@ router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }>, re
       // Get opportunities (filtered by category if specified)
       let opportunities: any[];
       if (category) {
-        opportunities = await Opportunity.findByCategory(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId), category as any);
+        opportunities = await Opportunity.findByCategory(new mongoose.Types.ObjectId(workspaceId.toString()), new mongoose.Types.ObjectId(productId), category as any);
       } else {
-        opportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId));
+        opportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(workspaceId.toString()), new mongoose.Types.ObjectId(productId));
       }
 
       // Group opportunities by category for easier frontend handling
@@ -81,7 +81,7 @@ router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }>, re
       });
 
       // Determine available tabs (current marketplace + connected + suggested)
-      const userConnections = await StoreConnection.find({ userId, isActive: true });
+      const userConnections = await StoreConnection.find({ workspaceId, isActive: true });
       const connectedMarketplaces = new Set<string>();
       
       userConnections.forEach((conn: any) => {
@@ -129,11 +129,11 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
   try {
     await protect(req, res, async () => {
       const { id: productId } = req.params;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
       const forceRefresh = (req.body as any)?.forceRefresh || false;
 
       // Verify product belongs to user
-      const product = await Product.findOne({ _id: productId, userId })
+      const product = await Product.findOne({ _id: productId, workspaceId })
         .populate('storeConnectionId');
       
       if (!product) {
@@ -145,7 +145,7 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
 
       // Check if we have recent opportunities (unless force refresh)
       if (!forceRefresh) {
-        const existingOpportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId));
+        const existingOpportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(workspaceId.toString()), new mongoose.Types.ObjectId(productId));
         if (existingOpportunities.length > 0) {
           return res.json({
             success: true,
@@ -159,7 +159,7 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
       }
 
       // Get user's connected marketplaces for context
-      const userConnections = await StoreConnection.find({ userId, isActive: true });
+      const userConnections = await StoreConnection.find({ workspaceId, isActive: true });
       const connectedMarketplaces: string[] = [];
       
       userConnections.forEach((conn: any) => {
@@ -170,11 +170,11 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
 
       // Remove existing opportunities if force refresh
       if (forceRefresh) {
-        await Opportunity.deleteMany({ userId, productId });
+        await Opportunity.deleteMany({ workspaceId, productId });
       }
 
       // Generate new opportunities using AI
-      console.log(`Generating opportunities for product ${productId} (user: ${userId})`);
+      console.log(`Generating opportunities for product ${productId} (user: ${workspaceId})`);
       
       const generatedOpportunities = await aiService.default.generateProductOpportunities(
         product.toObject() as any, 
@@ -192,7 +192,7 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
           }
 
           const opportunity = new Opportunity({
-            userId,
+            workspaceId,
             productId,
             category: oppData.category,
             marketplace: oppData.marketplace || null,
@@ -255,7 +255,7 @@ router.patch('/:id/status', async (req: AuthenticatedRequest<{ id: string }>, re
     await protect(req, res, async () => {
       const { id } = req.params;
       const status = (req.body as any)?.status;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
       if (!['open', 'in_progress', 'completed', 'dismissed'].includes(status)) {
         return res.status(400).json({
@@ -264,7 +264,7 @@ router.patch('/:id/status', async (req: AuthenticatedRequest<{ id: string }>, re
         });
       }
       
-      const opportunity = await Opportunity.findOne({ _id: id, userId });
+      const opportunity = await Opportunity.findOne({ _id: id, workspaceId });
       if (!opportunity) {
         return res.status(404).json({
           success: false,
@@ -297,10 +297,10 @@ router.get('/products/:id/summary', async (req: AuthenticatedRequest<{ id: strin
   try {
     await protect(req, res, async () => {
       const { id: productId } = req.params;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
       // Verify product belongs to user
-      const product = await Product.findOne({ _id: productId, userId });
+      const product = await Product.findOne({ _id: productId, workspaceId });
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -308,7 +308,7 @@ router.get('/products/:id/summary', async (req: AuthenticatedRequest<{ id: strin
         });
       }
 
-      const opportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId));
+      const opportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(workspaceId.toString()), new mongoose.Types.ObjectId(productId));
 
       // Calculate summary stats
       const stats = {

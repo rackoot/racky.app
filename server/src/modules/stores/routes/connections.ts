@@ -70,7 +70,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     await trackUsage('api_call')(req, res, async () => {
       
-      const connections = await StoreConnection.find({ userId: req.user!._id })
+      const connections = await StoreConnection.find({ workspaceId: req.workspace!._id })
         .sort({ createdAt: -1 });
       
       res.json({
@@ -94,7 +94,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
       
       const connection = await StoreConnection.findOne({
         _id: req.params.id,
-        userId: req.user!._id
+        workspaceId: req.workspace!._id
       });
 
       if (!connection) {
@@ -134,7 +134,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
             }
             
             const connection = await StoreConnection.create({
-              userId: req.user!._id,
+              workspaceId: req.workspace!._id,
               ...req.body
             });
 
@@ -170,7 +170,7 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
           }
           
           const connection = await StoreConnection.findOneAndUpdate(
-            { _id: req.params.id, userId: req.user!._id },
+            { _id: req.params.id, workspaceId: req.workspace!._id },
             req.body,
             { new: true, runValidators: true }
           );
@@ -214,7 +214,7 @@ router.post('/:id/marketplace', async (req: AuthenticatedRequest, res: Response)
           
           const connection = await StoreConnection.findOne({
             _id: req.params.id,
-            userId: req.user!._id
+            workspaceId: req.workspace!._id
           });
 
           if (!connection) {
@@ -226,7 +226,7 @@ router.post('/:id/marketplace', async (req: AuthenticatedRequest, res: Response)
 
           // Check if this marketplace type is already connected for this user
           const existingConnection = await StoreConnection.findOne({
-            userId: req.user!._id,
+            workspaceId: req.workspace!._id,
             marketplaceType: (req.body as any).type
           });
           
@@ -239,7 +239,7 @@ router.post('/:id/marketplace', async (req: AuthenticatedRequest, res: Response)
 
           // This route should actually create a new store connection instead of modifying existing one
           const newConnection = await StoreConnection.create({
-            userId: req.user!._id,
+            workspaceId: req.workspace!._id,
             storeName: connection.storeName + ` - ${(req.body as any).type}`,
             marketplaceType: (req.body as any).type,
             credentials: (req.body as any).credentials,
@@ -273,7 +273,7 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
           
           const connection = await StoreConnection.findOne({
             _id: req.params.id,
-            userId: req.user!._id
+            workspaceId: req.workspace!._id
           });
 
           if (!connection) {
@@ -288,7 +288,7 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
           // If deleteProducts is true, delete all associated products
           if (deleteProducts) {
             const deleteResult = await Product.deleteMany({
-              userId: req.user!._id,
+              workspaceId: req.workspace!._id,
               storeConnectionId: req.params.id
             });
             deletedProductsCount = deleteResult.deletedCount;
@@ -311,7 +311,7 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
           // Delete the connection
           await StoreConnection.findOneAndDelete({
             _id: req.params.id,
-            userId: req.user!._id
+            workspaceId: req.workspace!._id
           });
 
           res.json({ 

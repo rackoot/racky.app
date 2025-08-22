@@ -27,6 +27,7 @@ import billingRoutes from '@/subscriptions/routes/billing';
 import demoRoutes from '@/demo/routes/demo';
 import workspaceRoutes from './modules/workspaces/routes/workspaces';
 import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
+import { protect, requireWorkspace } from '@/common/middleware/auth';
 
 
 const app = express();
@@ -57,19 +58,24 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Routes that don't require workspace context
 app.use('/api/auth', authRoutes);
-app.use('/api/workspaces', workspaceRoutes);
-app.use('/api/connections', connectionRoutes);
-app.use('/api/marketplaces', marketplaceRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/optimizations', optimizationRoutes);
-app.use('/api/opportunities', opportunityRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/plans', planRoutes);
-app.use('/api/usage', usageRoutes);
-app.use('/api/billing', billingRoutes);
 app.use('/api/demo', demoRoutes);
+
+// Workspace management routes (protected but don't require workspace context)
+app.use('/api/workspaces', protect, workspaceRoutes);
+
+// Routes that require workspace context
+app.use('/api/connections', protect, requireWorkspace, connectionRoutes);
+app.use('/api/marketplaces', protect, requireWorkspace, marketplaceRoutes);
+app.use('/api/products', protect, requireWorkspace, productRoutes);
+app.use('/api/dashboard', protect, requireWorkspace, dashboardRoutes);
+app.use('/api/optimizations', protect, requireWorkspace, optimizationRoutes);
+app.use('/api/opportunities', protect, requireWorkspace, opportunityRoutes);
+app.use('/api/usage', protect, requireWorkspace, usageRoutes);
+app.use('/api/billing', protect, requireWorkspace, billingRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', message: 'Racky API is running with hot reload!' });

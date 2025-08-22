@@ -93,7 +93,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
         
         // Build query filter
-        const filter: any = { userId: req.user!._id };
+        const filter: any = { workspaceId: req.workspace!._id };
         
         if (search) {
           filter.$or = [
@@ -134,7 +134,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
         // Get marketplace statistics
         const marketplaceStats = await Product.aggregate([
-          { $match: { userId: req.user!._id } },
+          { $match: { workspaceId: req.workspace!._id } },
           {
             $group: {
               _id: '$marketplace',
@@ -200,7 +200,7 @@ router.get('/store/:connectionId', async (req: AuthenticatedRequest, res: Respon
         // Verify user owns the store connection
         const connection = await StoreConnection.findOne({
           _id: connectionId,
-          userId: req.user!._id
+          workspaceId: req.workspace!._id
         });
 
         if (!connection) {
@@ -211,7 +211,7 @@ router.get('/store/:connectionId', async (req: AuthenticatedRequest, res: Respon
         }
 
         const products = await Product.find({ 
-          userId: req.user!._id,
+          workspaceId: req.workspace!._id,
           storeConnectionId: connectionId
         }).sort({ createdAt: -1 });
 
@@ -242,7 +242,7 @@ router.get('/store/:connectionId/count', async (req: AuthenticatedRequest, res: 
         // Verify user owns the store connection
         const connection = await StoreConnection.findOne({
           _id: connectionId,
-          userId: req.user!._id
+          workspaceId: req.workspace!._id
         });
 
         if (!connection) {
@@ -253,7 +253,7 @@ router.get('/store/:connectionId/count', async (req: AuthenticatedRequest, res: 
         }
 
         const count = await Product.countDocuments({ 
-          userId: req.user!._id,
+          workspaceId: req.workspace!._id,
           storeConnectionId: connectionId
         });
 
@@ -291,7 +291,7 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
               // Verify user owns the store connection
               const connection = await StoreConnection.findOne({
                 _id: connectionId,
-                userId: req.user!._id
+                workspaceId: req.workspace!._id
               });
 
               if (!connection) {
@@ -306,7 +306,7 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
               // If force sync, delete all existing products for this connection first
               if (force) {
                 const deleteResult = await Product.deleteMany({
-                  userId: req.user!._id,
+                  workspaceId: req.workspace!._id,
                   storeConnectionId: connectionId
                 });
                 deletedProducts = deleteResult.deletedCount;
@@ -632,7 +632,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
                 
         const product = await Product.findOne({
           _id: id,
-          userId: req.user!._id
+          workspaceId: req.workspace!._id
         }).populate('storeConnectionId', 'storeName marketplaceType credentials');
 
         if (!product) {
@@ -689,7 +689,7 @@ router.patch('/:id/description', async (req: AuthenticatedRequest, res: Response
             
       const product = await Product.findOne({
         _id: id,
-        userId: req.user!._id
+        workspaceId: req.workspace!._id
       });
 
       if (!product) {
@@ -738,7 +738,7 @@ router.post('/:id/description/apply-to-marketplace', async (
                             
               const product = await Product.findOne({
                 _id: id,
-                userId: req.user!._id
+                workspaceId: req.workspace!._id
               }).populate('storeConnectionId');
 
               if (!product) {
