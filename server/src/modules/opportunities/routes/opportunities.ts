@@ -1,12 +1,12 @@
 import express, { Response } from 'express';
 import mongoose from 'mongoose';
-import { AuthenticatedRequest } from '../../../_common/types/express';
-import Product from '../../products/models/Product';
+import { AuthenticatedRequest } from '@/common/types/express';
+import Product from '@/products/models/Product';
 import Opportunity from '../models/Opportunity';
 import OpportunityCategory from '../models/OpportunityCategory';
-import StoreConnection from '../../stores/models/StoreConnection';
+import StoreConnection from '@/stores/models/StoreConnection';
 import * as aiService from '../services/aiService';
-import { protect } from '../../../_common/middleware/auth';
+import { protect } from '@/common/middleware/auth';
 
 const router = express.Router();
 

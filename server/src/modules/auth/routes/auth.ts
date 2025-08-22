@@ -1,10 +1,11 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
 import jwt from 'jsonwebtoken';
-import { AuthenticatedRequest } from '../../../_common/types/express';
+import { AuthenticatedRequest } from '@/common/types/express';
 import User from '../models/User';
-import Usage from '../../subscriptions/models/Usage';
-import { generateToken, protect } from '../../../_common/middleware/auth';
+import Usage from '@/subscriptions/models/Usage';
+import { generateToken, protect } from '@/common/middleware/auth';
+import getEnv from '@/common/config/env';
 
 const router = express.Router();
 
@@ -177,7 +178,7 @@ router.get('/me', async (req: express.Request, res: Response) => {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+      const decoded = jwt.verify(token, getEnv().JWT_SECRET) as any;
             const user = await User.findById(decoded.id).select('-password');
       
       if (!user) {

@@ -1,6 +1,6 @@
 import axios from 'axios';
-import { SUPPORTED_MARKETPLACES } from '../../../_common/constants/marketplaces';
-import { Marketplace } from '../../../_common/types/marketplace';
+import { SUPPORTED_MARKETPLACES } from '@/common/constants/marketplaces';
+import { Marketplace } from '@/common/types/marketplace';
 // Note: These imports may cause circular dependencies and should be handled carefully
 // import StoreConnection from '../../stores/models/StoreConnection';
 // import Product from '../../products/models/Product';

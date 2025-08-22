@@ -1,11 +1,11 @@
 import express, { Response } from 'express';
-import { AuthenticatedRequest } from '../../../_common/types/express';
-import { asString } from '../../../_common/utils/queryParams';
-import { protect, trackUsage } from '../../../_common/middleware/auth';
+import { AuthenticatedRequest } from '@/common/types/express';
+import { asString } from '@/common/utils/queryParams';
+import { protect, trackUsage } from '@/common/middleware/auth';
 import Usage from '../models/Usage';
-import User from '../../auth/models/User';
-import StoreConnection from '../../stores/models/StoreConnection';
-import Product from '../../products/models/Product';
+import User from '@/auth/models/User';
+import StoreConnection from '@/stores/models/StoreConnection';
+import Product from '@/products/models/Product';
 
 const router = express.Router();
 

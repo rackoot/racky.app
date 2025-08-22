@@ -2,18 +2,28 @@ import express, { Response } from 'express';
 import mongoose from 'mongoose';
 import OpenAI from 'openai';
 import axios from 'axios';
-import { AuthenticatedRequest } from '../../../_common/types/express';
-import Product from '../../products/models/Product';
+import { AuthenticatedRequest } from '@/common/types/express';
+import getEnv from '@/common/config/env';
+import Product from '@/products/models/Product';
 import Suggestion from '../models/Suggestion';
 import * as marketplaceService from '../../marketplaces/services/marketplaceService';
-import { protect } from '../../../_common/middleware/auth';
+import { protect } from '@/common/middleware/auth';
 
 const router = express.Router();
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI conditionally
+let openai: OpenAI | null = null;
+const env = getEnv();
+if (env.OPENAI_API_KEY) {
+  try {
+    openai = new OpenAI({
+      apiKey: env.OPENAI_API_KEY,
+    });
+  } catch (error) {
+    console.warn('OpenAI client initialization failed in optimizations:', error);
+    openai = null;
+  }
+}
 
 // Interface definitions
 interface UpdateStatusBody {
@@ -130,11 +140,15 @@ function generateFallbackDescription(platform: string, product: any): AIResult {
 
 // Generate AI-optimized description
 async function generateOptimizedDescription(platform: string, product: any): Promise<AIResult> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!env.OPENAI_API_KEY) {
     return generateFallbackDescription(platform, product);
   }
 
   try {
+    if (!openai) {
+      throw new Error('OpenAI API key not configured');
+    }
+
     const prompt = platformPrompts[platform] + `\n\nProduct: ${product.title}\nCurrent Description: ${product.description}\nProduct Type: ${product.productType || 'General'}\nTags: ${product.tags?.join(', ') || 'None'}`;
 
     const response = await openai.chat.completions.create({
@@ -560,7 +574,7 @@ async function updateWooCommerceProductDescription(product: any, newDescription:
     const cleanUrl = site_url.replace(/\/$/, '');
     
     const response = await axios.put(
-      `${cleanUrl}/wp-json/wc/v3/products/${product.externalId}`,
+      `${cleanUrl}/wp-json/@/products/${product.externalId}`,
       {
         description: newDescription
       },

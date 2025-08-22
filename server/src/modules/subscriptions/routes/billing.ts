@@ -1,10 +1,10 @@
 import express, { Response, Request } from 'express';
 import Stripe from 'stripe';
-import { AuthenticatedRequest } from '../../../_common/types/express';
+import { AuthenticatedRequest } from '@/common/types/express';
 import Plan from '../models/Plan';
-import User from '../../auth/models/User';
+import User from '@/auth/models/User';
 import Subscription from '../models/Subscription';
-import { protect } from '../../../_common/middleware/auth';
+import { protect } from '@/common/middleware/auth';
 
 const router = express.Router();
 

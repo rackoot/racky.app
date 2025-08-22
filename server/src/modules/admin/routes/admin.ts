@@ -1,13 +1,13 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
-import { AuthenticatedRequest } from '../../../_common/types/express';
-import { asString, asNumber } from '../../../_common/utils/queryParams';
-import User from '../../auth/models/User';
-import Subscription from '../../subscriptions/models/Subscription';
-import Usage from '../../subscriptions/models/Usage';
-import StoreConnection from '../../stores/models/StoreConnection';
-import Product from '../../products/models/Product';
-import { protect, requireSuperAdmin } from '../../../_common/middleware/auth';
+import { AuthenticatedRequest } from '@/common/types/express';
+import { asString, asNumber } from '@/common/utils/queryParams';
+import User from '@/auth/models/User';
+import Subscription from '@/subscriptions/models/Subscription';
+import Usage from '@/subscriptions/models/Usage';
+import StoreConnection from '@/stores/models/StoreConnection';
+import Product from '@/products/models/Product';
+import { protect, requireSuperAdmin } from '@/common/middleware/auth';
 
 const router = express.Router();
 

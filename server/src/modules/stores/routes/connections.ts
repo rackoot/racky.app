@@ -1,9 +1,9 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
-import { AuthenticatedRequest } from '../../../_common/types/express';
+import { AuthenticatedRequest } from '@/common/types/express';
 import StoreConnection from '../models/StoreConnection';
-import Product from '../../products/models/Product';
-import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits } from '../../../_common/middleware/auth';
+import Product from '@/products/models/Product';
+import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits } from '@/common/middleware/auth';
 
 const router = express.Router();
 

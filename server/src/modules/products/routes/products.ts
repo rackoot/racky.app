@@ -1,10 +1,10 @@
 import express, { Request, Response } from 'express';
-import { AuthenticatedRequest } from '../../../_common/types/express';
+import { AuthenticatedRequest } from '@/common/types/express';
 import axios from 'axios';
 import { PlatformType } from '../models/Product';
 import Product from '../models/Product';
-import StoreConnection from '../../stores/models/StoreConnection';
-import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits, checkSyncFrequency, requireFeature } from '../../../_common/middleware/auth';
+import StoreConnection from '@/stores/models/StoreConnection';
+import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits, checkSyncFrequency, requireFeature } from '@/common/middleware/auth';
 
 const router = express.Router();
 

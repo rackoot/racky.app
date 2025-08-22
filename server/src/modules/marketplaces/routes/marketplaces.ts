@@ -1,9 +1,9 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
-import { AuthenticatedRequest } from '../../../_common/types/express';
-import StoreConnection from '../../stores/models/StoreConnection';
-import Product from '../../products/models/Product';
-import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits } from '../../../_common/middleware/auth';
+import { AuthenticatedRequest } from '@/common/types/express';
+import StoreConnection from '@/stores/models/StoreConnection';
+import Product from '@/products/models/Product';
+import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits } from '@/common/middleware/auth';
 import * as marketplaceService from '../services/marketplaceService';
 
 const router = express.Router();

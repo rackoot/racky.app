@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
-import { AuthenticatedRequest } from '../../../_common/types/express';
+import { AuthenticatedRequest } from '@/common/types/express';
 import Plan from '../models/Plan';
-import { protect } from '../../../_common/middleware/auth';
+import { protect } from '@/common/middleware/auth';
 
 const router = express.Router();
 

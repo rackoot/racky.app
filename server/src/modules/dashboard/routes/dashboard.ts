@@ -1,18 +1,28 @@
 import express, { Response } from 'express';
 import OpenAI from 'openai';
-import { AuthenticatedRequest } from '../../../_common/types/express';
-import StoreConnection from '../../stores/models/StoreConnection';
-import Product from '../../products/models/Product';
-import User from '../../auth/models/User';
-import GeneralSuggestion from '../../opportunities/models/GeneralSuggestion';
-import { protect } from '../../../_common/middleware/auth';
+import { AuthenticatedRequest } from '@/common/types/express';
+import getEnv from '@/common/config/env';
+import StoreConnection from '@/stores/models/StoreConnection';
+import Product from '@/products/models/Product';
+import User from '@/auth/models/User';
+import GeneralSuggestion from '@/opportunities/models/GeneralSuggestion';
+import { protect } from '@/common/middleware/auth';
 
 const router = express.Router();
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI conditionally
+let openai: OpenAI | null = null;
+const env = getEnv();
+if (env.OPENAI_API_KEY) {
+  try {
+    openai = new OpenAI({
+      apiKey: env.OPENAI_API_KEY,
+    });
+  } catch (error) {
+    console.warn('OpenAI client initialization failed:', error);
+    openai = null;
+  }
+}
 
 // Interface definitions
 interface DashboardMetrics {
@@ -258,6 +268,10 @@ Please provide suggestions in this exact JSON format:
 }
 
 Focus on practical improvements like marketplace expansion, pricing optimization, inventory management, or marketing strategies.`;
+
+          if (!openai) {
+            throw new Error('OpenAI API key not configured');
+          }
 
           const completion = await openai.chat.completions.create({
             model: "gpt-3.5-turbo",

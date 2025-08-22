@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "dev": "nodemon --exec ts-node -r tsconfig-paths/register src/index.ts",
     "test": "jest",
     "clean": "rm -rf dist"
   },
@@ -19,6 +19,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@types/module-alias": "^2.0.4",
     "axios": "^1.11.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -28,10 +29,12 @@
     "helmet": "^7.1.0",
     "joi": "^17.11.0",
     "jsonwebtoken": "^9.0.2",
+    "module-alias": "^2.2.3",
     "mongoose": "^8.0.3",
     "morgan": "^1.10.1",
     "openai": "^5.13.1",
-    "stripe": "^18.4.0"
+    "stripe": "^18.4.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -47,6 +50,20 @@
     "nodemon": "^3.0.2",
     "supertest": "^6.3.3",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.3.3"
+  },
+  "_moduleAliases": {
+    "@/common": "dist/common",
+    "@/auth": "dist/modules/auth",
+    "@/admin": "dist/modules/admin",
+    "@/dashboard": "dist/modules/dashboard",
+    "@/demo": "dist/modules/demo",
+    "@/marketplaces": "dist/modules/marketplaces",
+    "@/notifications": "dist/modules/notifications",
+    "@/opportunities": "dist/modules/opportunities",
+    "@/products": "dist/modules/products",
+    "@/stores": "dist/modules/stores",
+    "@/subscriptions": "dist/modules/subscriptions"
   }
 }

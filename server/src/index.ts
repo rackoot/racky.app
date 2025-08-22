@@ -1,27 +1,32 @@
-import dotenv from 'dotenv';
+// Register module aliases only for production builds
+if (process.env.NODE_ENV === 'production') {
+  require('module-alias/register');
+}
+
+// Import environment configuration (handles dotenv loading)
+import getEnv from '@/common/config/env';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import connectDB from './_common/config/database';
-import errorHandler from './_common/middleware/errorHandler';
+import connectDB from '@/common/config/database';
+import errorHandler from '@/common/middleware/errorHandler';
 
-import authRoutes from './modules/auth/routes/auth';
-import connectionRoutes from './modules/stores/routes/connections';
-import marketplaceRoutes from './modules/marketplaces/routes/marketplaces';
-import productRoutes from './modules/products/routes/products';
-import dashboardRoutes from './modules/dashboard/routes/dashboard';
-import optimizationRoutes from './modules/opportunities/routes/optimizations';
-import opportunityRoutes from './modules/opportunities/routes/opportunities';
-import adminRoutes from './modules/admin/routes/admin';
-import planRoutes from './modules/subscriptions/routes/plans';
-import usageRoutes from './modules/subscriptions/routes/usage';
-import billingRoutes from './modules/subscriptions/routes/billing';
-import demoRoutes from './modules/demo/routes/demo';
-import { initializeNotificationScheduler } from './modules/notifications/services/notificationScheduler';
+import authRoutes from '@/auth/routes/auth';
+import connectionRoutes from '@/stores/routes/connections';
+import marketplaceRoutes from '@/marketplaces/routes/marketplaces';
+import productRoutes from '@/products/routes/products';
+import dashboardRoutes from '@/dashboard/routes/dashboard';
+import optimizationRoutes from '@/opportunities/routes/optimizations';
+import opportunityRoutes from '@/opportunities/routes/opportunities';
+import adminRoutes from '@/admin/routes/admin';
+import planRoutes from '@/subscriptions/routes/plans';
+import usageRoutes from '@/subscriptions/routes/usage';
+import billingRoutes from '@/subscriptions/routes/billing';
+import demoRoutes from '@/demo/routes/demo';
+import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
 
-dotenv.config();
 
 const app = express();
 
@@ -40,7 +45,7 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    process.env.CLIENT_URL || 'http://localhost:5173'
+    getEnv().CLIENT_URL
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -70,7 +75,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = getEnv().PORT;
 const server = app.listen(PORT, () => {
   console.log(`Racky server running on port ${PORT}`);
   
