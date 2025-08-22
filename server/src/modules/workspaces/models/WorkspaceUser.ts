@@ -109,7 +109,14 @@ workspaceUserSchema.statics.findUserWorkspaces = function(
     userId,
     isActive: true
   })
-  .populate('workspaceId', 'name description slug isActive settings')
+  .populate({
+    path: 'workspaceId',
+    select: 'name description slug isActive settings ownerId createdAt updatedAt',
+    populate: {
+      path: 'ownerId',
+      select: 'email firstName lastName'
+    }
+  })
   .sort({ joinedAt: -1 }); // Most recent first
 };
 

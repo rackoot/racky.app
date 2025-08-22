@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Plus, Settings, Users, Crown, Shield, Eye, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -140,11 +140,7 @@ export default function WorkspacesPage() {
         </CardHeader>
         <CardContent>
           <WorkspaceSelector
-            currentWorkspace={currentWorkspace}
-            workspaces={workspaces}
-            onWorkspaceChange={setCurrentWorkspace}
-            onCreateWorkspace={handleCreateWorkspace}
-            onManageWorkspace={handleManageWorkspace}
+            showCreateButton={true}
           />
         </CardContent>
       </Card>

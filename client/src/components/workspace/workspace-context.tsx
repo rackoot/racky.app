@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
 interface Workspace {
   _id: string;
@@ -72,15 +72,22 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setIsLoading(true);
       setError(null);
       
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('No authentication token found');
+        return;
+      }
+      
       const response = await fetch('/api/workspaces', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load workspaces');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to load workspaces`);
       }
 
       const data = await response.json();
@@ -96,6 +103,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         throw new Error(data.message || 'Failed to load workspaces');
       }
     } catch (err) {
+      console.error('Error loading workspaces:', err);
       setError(err instanceof Error ? err.message : 'Failed to load workspaces');
     } finally {
       setIsLoading(false);
@@ -213,6 +221,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   // Load initial data and restore current workspace from localStorage
   useEffect(() => {
     const loadInitialData = async () => {
+      // Only try to load workspaces if we have a token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
       await refreshWorkspaces();
       
       // Try to restore current workspace from localStorage
