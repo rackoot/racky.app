@@ -1,17 +1,12 @@
 import express, { Response } from 'express';
 import { AuthenticatedRequest } from '../../../_common/types/express';
+import Plan from '../../subscriptions/models/Plan';
+import { protect } from '../../../_common/middleware/auth';
 
 const router = express.Router();
 
-// Dynamic imports to avoid circular dependencies
-const getPlanModel = async () => (await import('../../subscriptions/models/Plan')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
-
 // Apply authentication to all routes
-router.use(async (req: AuthenticatedRequest, res: Response, next) => {
-  const { protect } = await getAuthMiddleware();
-  protect(req, res, next);
-});
+router.use(protect);
 
 // Interface definitions
 interface UpgradeSubscriptionBody {
@@ -31,8 +26,7 @@ router.post('/upgrade-subscription', async (req: AuthenticatedRequest, res: Resp
       });
     }
 
-    const Plan = await getPlanModel();
-
+    
     // Get the plan details to validate it exists
     const plan = await Plan.findByName(planName);
     if (!plan) {

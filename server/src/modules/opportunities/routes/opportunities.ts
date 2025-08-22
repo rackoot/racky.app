@@ -1,25 +1,21 @@
 import express, { Response } from 'express';
 import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../../_common/types/express';
+import Product from '../../products/models/Product';
+import Opportunity from '../models/Opportunity';
+import OpportunityCategory from '../models/OpportunityCategory';
+import StoreConnection from '../../stores/models/StoreConnection';
+import * as aiService from '../services/aiService';
+import { protect } from '../../../_common/middleware/auth';
 
 const router = express.Router();
-
-// Dynamic imports to avoid circular dependencies
-const getProductModel = async () => (await import('../../products/models/Product')).default;
-const getOpportunityModel = async () => (await import('../models/Opportunity')).default;
-const getOpportunityCategoryModel = async () => (await import('../models/OpportunityCategory')).default;
-const getStoreConnectionModel = async () => (await import('../../stores/models/StoreConnection')).default;
-const getAiService = async () => (await import('../services/aiService'));
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
 
 // Interface definitions are handled inline for better compatibility
 
 // GET /api/opportunities/categories - Get all available categories
 router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
-      const OpportunityCategory = await getOpportunityCategoryModel();
       
       // Initialize categories if they don't exist
       await OpportunityCategory.initializeDefaultCategories();
@@ -43,15 +39,11 @@ router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/opportunities/products/:id - Get cached opportunities for a product
 router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id: productId } = req.params;
       const userId = req.user!._id;
       const category = req.query.category as string;
 
-      const Product = await getProductModel();
-      const Opportunity = await getOpportunityModel();
-      const StoreConnection = await getStoreConnectionModel();
 
       // Verify product belongs to user
       const product = await Product.findOne({ _id: productId, userId });
@@ -135,16 +127,10 @@ router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }>, re
 // POST /api/opportunities/products/:id/generate - Generate new AI suggestions
 router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id: productId } = req.params;
       const userId = req.user!._id;
       const forceRefresh = (req.body as any)?.forceRefresh || false;
-
-      const Product = await getProductModel();
-      const Opportunity = await getOpportunityModel();
-      const StoreConnection = await getStoreConnectionModel();
-      const aiService = await getAiService();
 
       // Verify product belongs to user
       const product = await Product.findOne({ _id: productId, userId })
@@ -266,7 +252,6 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
 // PATCH /api/opportunities/:id/status - Update opportunity status
 router.patch('/:id/status', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id } = req.params;
       const status = (req.body as any)?.status;
@@ -278,8 +263,6 @@ router.patch('/:id/status', async (req: AuthenticatedRequest<{ id: string }>, re
           message: 'Invalid status'
         });
       }
-
-      const Opportunity = await getOpportunityModel();
       
       const opportunity = await Opportunity.findOne({ _id: id, userId });
       if (!opportunity) {
@@ -312,13 +295,9 @@ router.patch('/:id/status', async (req: AuthenticatedRequest<{ id: string }>, re
 // GET /api/opportunities/products/:id/summary - Get opportunity summary
 router.get('/products/:id/summary', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id: productId } = req.params;
       const userId = req.user!._id;
-
-      const Product = await getProductModel();
-      const Opportunity = await getOpportunityModel();
 
       // Verify product belongs to user
       const product = await Product.findOne({ _id: productId, userId });

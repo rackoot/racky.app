@@ -1,15 +1,13 @@
 import express, { Response } from 'express';
 import OpenAI from 'openai';
 import { AuthenticatedRequest } from '../../../_common/types/express';
+import StoreConnection from '../../stores/models/StoreConnection';
+import Product from '../../products/models/Product';
+import User from '../../auth/models/User';
+import GeneralSuggestion from '../../opportunities/models/GeneralSuggestion';
+import { protect } from '../../../_common/middleware/auth';
 
 const router = express.Router();
-
-// Dynamic imports to avoid circular dependencies
-const getStoreConnectionModel = async () => (await import('../../stores/models/StoreConnection')).default;
-const getProductModel = async () => (await import('../../products/models/Product')).default;
-const getUserModel = async () => (await import('../../auth/models/User')).default;
-const getGeneralSuggestionModel = async () => (await import('../../opportunities/models/GeneralSuggestion')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -58,12 +56,8 @@ interface SuggestionsQuery {
 // GET /api/dashboard/analytics - Get dashboard analytics data
 router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const userId = req.user!._id;
-
-      const StoreConnection = await getStoreConnectionModel();
-      const Product = await getProductModel();
 
       // Get total products count
       const totalProducts = await Product.countDocuments({ userId });
@@ -188,14 +182,9 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/dashboard/suggestions - Get AI suggestions for store improvement
 router.get('/suggestions', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const userId = req.user!._id;
       const forceRefresh = req.query.refresh === 'true';
-
-      const GeneralSuggestion = await getGeneralSuggestionModel();
-      const StoreConnection = await getStoreConnectionModel();
-      const Product = await getProductModel();
 
       // Clean up expired suggestions first
       await GeneralSuggestion.deactivateExpired();

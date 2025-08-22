@@ -3,14 +3,12 @@ import mongoose from 'mongoose';
 import OpenAI from 'openai';
 import axios from 'axios';
 import { AuthenticatedRequest } from '../../../_common/types/express';
+import Product from '../../products/models/Product';
+import Suggestion from '../models/Suggestion';
+import * as marketplaceService from '../../marketplaces/services/marketplaceService';
+import { protect } from '../../../_common/middleware/auth';
 
 const router = express.Router();
-
-// Dynamic imports to avoid circular dependencies
-const getProductModel = async () => (await import('../../products/models/Product')).default;
-const getSuggestionModel = async () => (await import('../models/Suggestion')).default;
-const getMarketplaceService = async () => (await import('../../marketplaces/services/marketplaceService'));
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
 
 // Initialize OpenAI
 const openai = new OpenAI({
@@ -172,13 +170,11 @@ async function generateOptimizedDescription(platform: string, product: any): Pro
 // GET /api/products/:id/optimizations/description/:platform - Get or generate description suggestion
 router.get('/products/:id/description/:platform', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
       const userId = req.user!._id;
 
-      const Product = await getProductModel();
-
+      
       // Verify product ownership
       const product = await Product.findOne({ _id: productId, userId });
       if (!product) {
@@ -267,13 +263,11 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
 // POST /api/products/:id/optimizations/description/:platform - Force regenerate description
 router.post('/products/:id/description/:platform', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
       const userId = req.user!._id;
 
-      const Product = await getProductModel();
-
+      
       // Verify product ownership
       const product = await Product.findOne({ _id: productId, userId });
       if (!product) {
@@ -339,8 +333,7 @@ router.post('/products/:id/description/:platform', async (req: AuthenticatedRequ
 // PATCH /api/products/:id/optimizations/description/:platform - Update suggestion status
 router.patch('/products/:id/description/:platform', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
       const { status, suggestionId } = req.body;
       const userId = req.user!._id;
@@ -352,8 +345,7 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
         });
       }
 
-      const Product = await getProductModel();
-
+      
       // Verify product ownership
       const product = await Product.findOne({ _id: productId, userId });
       if (!product) {
@@ -403,14 +395,12 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
 // POST /api/products/:id/optimizations/description/:platform/apply - Apply accepted description to store
 router.post('/products/:id/description/:platform/apply', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
       const { suggestionId } = req.body;
       const userId = req.user!._id;
 
-      const Product = await getProductModel();
-
+      
       // Verify product ownership and populate store connection info
       const product = await Product.findOne({ _id: productId, userId }).populate('storeConnectionId');
       if (!product) {
@@ -705,15 +695,12 @@ async function updateFacebookShopProductDescription(product: any, newDescription
 // GET /api/products/:id/suggestions - Get suggestion history
 router.get('/products/:id/suggestions', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { id: productId } = req.params;
       const { platform, type } = req.query as any;
       const userId = req.user!._id;
 
-      const Product = await getProductModel();
-      const Suggestion = await getSuggestionModel();
-
+            
       // Verify product ownership
       const product = await Product.findOne({ _id: productId, userId });
       if (!product) {

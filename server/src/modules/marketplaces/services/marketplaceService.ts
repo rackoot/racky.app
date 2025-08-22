@@ -1,6 +1,9 @@
 import axios from 'axios';
 import { SUPPORTED_MARKETPLACES } from '../../../_common/constants/marketplaces';
 import { Marketplace } from '../../../_common/types/marketplace';
+// Note: These imports may cause circular dependencies and should be handled carefully
+// import StoreConnection from '../../stores/models/StoreConnection';
+// import Product from '../../products/models/Product';
 
 // Type definitions for marketplace service
 export interface MarketplaceCredentials {
@@ -323,7 +326,7 @@ const testMarketplaceConnection = async (marketplaceType: string, credentials: M
 };
 
 const getUserMarketplaceStatus = async (userId: string): Promise<MarketplaceStatus[]> => {
-  // Use dynamic imports to avoid circular dependencies
+  // Dynamic imports to avoid circular dependencies
   const { default: StoreConnection } = await import('../../stores/models/StoreConnection');
   const { default: Product } = await import('../../products/models/Product');
   

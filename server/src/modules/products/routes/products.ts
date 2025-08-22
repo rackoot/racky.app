@@ -2,13 +2,11 @@ import express, { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../../../_common/types/express';
 import axios from 'axios';
 import { PlatformType } from '../models/Product';
+import Product from '../models/Product';
+import StoreConnection from '../../stores/models/StoreConnection';
+import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits, checkSyncFrequency, requireFeature } from '../../../_common/middleware/auth';
 
 const router = express.Router();
-
-// Dynamic imports to avoid circular dependencies
-const getProductModel = async () => (await import('../models/Product')).default;
-const getStoreConnectionModel = async () => (await import('../../stores/models/StoreConnection')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
 
 // Helper function to generate marketplace URLs
 function generateMarketplaceUrl(product: any): string | null {
@@ -80,8 +78,7 @@ interface ApplyDescriptionBody {
 // Get all products for a user with pagination, filtering, and sorting
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect, trackUsage } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       await trackUsage('api_call')(req, res, async () => {
         const {
           page = '1',
@@ -94,8 +91,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
           status = ''
         } = req.query as any;
 
-        const Product = await getProductModel();
-
+        
         // Build query filter
         const filter: any = { userId: req.user!._id };
         
@@ -196,14 +192,11 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 // Get products for a specific store connection
 router.get('/store/:connectionId', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect, trackUsage } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       await trackUsage('api_call')(req, res, async () => {
         const { connectionId } = req.params;
         
-        const StoreConnection = await getStoreConnectionModel();
-        const Product = await getProductModel();
-        
+                        
         // Verify user owns the store connection
         const connection = await StoreConnection.findOne({
           _id: connectionId,
@@ -241,14 +234,11 @@ router.get('/store/:connectionId', async (req: AuthenticatedRequest, res: Respon
 // Get product count for a specific store connection
 router.get('/store/:connectionId/count', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect, trackUsage } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       await trackUsage('api_call')(req, res, async () => {
         const { connectionId } = req.params;
         
-        const StoreConnection = await getStoreConnectionModel();
-        const Product = await getProductModel();
-        
+                        
         // Verify user owns the store connection
         const connection = await StoreConnection.findOne({
           _id: connectionId,
@@ -289,8 +279,7 @@ router.get('/store/:connectionId/count', async (req: AuthenticatedRequest, res: 
 // Sync products from a marketplace
 router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect, checkSubscriptionStatus, checkSyncFrequency, trackUsage } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       await checkSubscriptionStatus(req, res, async () => {
         await checkSyncFrequency()(req, res, async () => {
           await trackUsage('products_sync')(req, res, async () => {
@@ -298,9 +287,7 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
               const { connectionId } = req.params;
               const { force = false } = req.body;
               
-              const StoreConnection = await getStoreConnectionModel();
-              const Product = await getProductModel();
-              
+                                          
               // Verify user owns the store connection
               const connection = await StoreConnection.findOne({
                 _id: connectionId,
@@ -528,8 +515,7 @@ async function queryShopifyGraphQL(apiUrl: string, accessToken: string, cursor: 
 }
 
 async function saveShopifyProduct(shopifyProduct: any, userId: string, connectionId: string) {
-  const Product = await getProductModel();
-  
+    
   try {
     // Find existing product by Shopify ID or title
     const existingProduct = await Product.findOne({
@@ -639,13 +625,11 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, connectio
 // Get single product by ID
 router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect, trackUsage } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       await trackUsage('api_call')(req, res, async () => {
         const { id } = req.params;
         
-        const Product = await getProductModel();
-        
+                
         const product = await Product.findOne({
           _id: id,
           userId: req.user!._id
@@ -698,13 +682,11 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 // PATCH /products/:id/description - Update product description
 router.patch('/:id/description', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { protect } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { id } = req.params;
       const { description } = req.body;
       
-      const Product = await getProductModel();
-      
+            
       const product = await Product.findOne({
         _id: id,
         userId: req.user!._id
@@ -745,8 +727,7 @@ router.post('/:id/description/apply-to-marketplace', async (
   res: Response
 ) => {
   try {
-    const { protect, checkSubscriptionStatus, requireFeature, trackUsage } = await getAuthMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       await checkSubscriptionStatus(req, res, async () => {
         await requireFeature('AI Suggestions')(req, res, async () => {
           await trackUsage('ai_suggestion')(req, res, async () => {
@@ -754,8 +735,7 @@ router.post('/:id/description/apply-to-marketplace', async (
               const { id } = req.params;
               const { description, marketplace } = req.body;
               
-              const Product = await getProductModel();
-              
+                            
               const product = await Product.findOne({
                 _id: id,
                 userId: req.user!._id

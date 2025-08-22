@@ -1,20 +1,15 @@
 import express, { Response } from 'express';
 import { AuthenticatedRequest } from '../../../_common/types/express';
 import { asString } from '../../../_common/utils/queryParams';
+import { protect, trackUsage } from '../../../_common/middleware/auth';
+import Usage from '../models/Usage';
+import User from '../../auth/models/User';
+import StoreConnection from '../../stores/models/StoreConnection';
+import Product from '../../products/models/Product';
 
 const router = express.Router();
 
-// Dynamic imports to avoid circular dependencies
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
-const getUsageModel = async () => (await import('../models/Usage')).default;
-const getUserModel = async () => (await import('../../auth/models/User')).default;
-const getStoreConnectionModel = async () => (await import('../../stores/models/StoreConnection')).default;
-const getProductModel = async () => (await import('../../products/models/Product')).default;
-
-router.use(async (req: AuthenticatedRequest, res: Response, next) => {
-  const { protect } = await getAuthMiddleware();
-  protect(req, res, next);
-});
+router.use(protect);
 
 interface TrackUsageBody {
   metric: string;
@@ -28,12 +23,8 @@ interface UsageHistoryQuery {
 // GET /api/usage/current - Get current usage statistics
 router.get('/current', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
-    await trackUsage('api_call')(req, res, async () => {
-      const Usage = await getUsageModel();
-      const StoreConnection = await getStoreConnectionModel();
-      const Product = await getProductModel();
-
+        await trackUsage('api_call')(req, res, async () => {
+                  
       const userId = req.user!._id;
       const currentDate = new Date();
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -101,10 +92,8 @@ router.get('/current', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/usage/history - Get usage history
 router.get('/history', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
-    await trackUsage('api_call')(req, res, async () => {
-      const Usage = await getUsageModel();
-      const userId = req.user!._id;
+        await trackUsage('api_call')(req, res, async () => {
+            const userId = req.user!._id;
       const days = parseInt(asString(req.query.days, '30'));
       const endDate = new Date();
       const startDate = new Date();
@@ -160,10 +149,8 @@ router.get('/history', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/usage/trends - Get usage trends and growth
 router.get('/trends', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
-    await trackUsage('api_call')(req, res, async () => {
-      const Usage = await getUsageModel();
-      const userId = req.user!._id;
+        await trackUsage('api_call')(req, res, async () => {
+            const userId = req.user!._id;
       const currentDate = new Date();
       
       // Current month
@@ -255,12 +242,8 @@ router.get('/trends', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/usage/limits - Get current usage vs limits
 router.get('/limits', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
-    await trackUsage('api_call')(req, res, async () => {
-      const Usage = await getUsageModel();
-      const StoreConnection = await getStoreConnectionModel();
-      const Product = await getProductModel();
-      const userId = req.user!._id;
+        await trackUsage('api_call')(req, res, async () => {
+                        const userId = req.user!._id;
       
       // Get current counts
       const [storeCount, productCount] = await Promise.all([
@@ -326,10 +309,8 @@ router.get('/limits', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/usage/track - Manual usage tracking (for testing)
 router.post('/track', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
-    await trackUsage('api_call')(req, res, async () => {
-      const Usage = await getUsageModel();
-      const { metric, value = 1 } = req.body;
+        await trackUsage('api_call')(req, res, async () => {
+            const { metric, value = 1 } = req.body;
       
       if (!metric) {
         return res.status(400).json({

@@ -1,19 +1,14 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
 import { AuthenticatedRequest } from '../../../_common/types/express';
+import StoreConnection from '../models/StoreConnection';
+import Product from '../../products/models/Product';
+import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits } from '../../../_common/middleware/auth';
 
 const router = express.Router();
 
-// Dynamic imports to avoid circular dependencies
-const getStoreConnectionModel = async () => (await import('../models/StoreConnection')).default;
-const getProductModel = async () => (await import('../../products/models/Product')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
-
 // Apply authentication to all routes
-router.use(async (req: AuthenticatedRequest, res: Response, next) => {
-  const { protect } = await getAuthMiddleware();
-  protect(req, res, next);
-});
+router.use(protect);
 
 // Interface definitions
 interface MarketplaceData {
@@ -73,9 +68,7 @@ const marketplaceSchema = Joi.object({
 // GET /api/connections - Get all connections for user
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
     await trackUsage('api_call')(req, res, async () => {
-      const StoreConnection = await getStoreConnectionModel();
       
       const connections = await StoreConnection.find({ userId: req.user!._id })
         .sort({ createdAt: -1 });
@@ -97,9 +90,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/connections/:id - Get specific connection
 router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
     await trackUsage('api_call')(req, res, async () => {
-      const StoreConnection = await getStoreConnectionModel();
       
       const connection = await StoreConnection.findOne({
         _id: req.params.id,
@@ -130,7 +121,6 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/connections - Create new connection
 router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { checkSubscriptionStatus, checkUsageLimits, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
       await checkUsageLimits('stores')(req, res, async () => {
         await trackUsage('store_created')(req, res, async () => {
@@ -142,8 +132,6 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
                 message: error.details[0].message 
               });
             }
-
-            const StoreConnection = await getStoreConnectionModel();
             
             const connection = await StoreConnection.create({
               userId: req.user!._id,
@@ -170,7 +158,6 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 // PUT /api/connections/:id - Update connection
 router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
       await trackUsage('store_updated')(req, res, async () => {
         await trackUsage('api_call')(req, res, async () => {
@@ -181,8 +168,6 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
               message: error.details[0].message 
             });
           }
-
-          const StoreConnection = await getStoreConnectionModel();
           
           const connection = await StoreConnection.findOneAndUpdate(
             { _id: req.params.id, userId: req.user!._id },
@@ -216,7 +201,6 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/connections/:id/marketplace - Add marketplace to connection
 router.post('/:id/marketplace', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
       await trackUsage('marketplace_connected')(req, res, async () => {
         await trackUsage('api_call')(req, res, async () => {
@@ -227,8 +211,6 @@ router.post('/:id/marketplace', async (req: AuthenticatedRequest, res: Response)
               message: error.details[0].message 
             });
           }
-
-          const StoreConnection = await getStoreConnectionModel();
           
           const connection = await StoreConnection.findOne({
             _id: req.params.id,
@@ -284,13 +266,10 @@ router.post('/:id/marketplace', async (req: AuthenticatedRequest, res: Response)
 // DELETE /api/connections/:id - Delete entire marketplace connection
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
       await trackUsage('store_deleted')(req, res, async () => {
         await trackUsage('api_call')(req, res, async () => {
           const deleteProducts = req.query.deleteProducts === 'true';
-          
-          const StoreConnection = await getStoreConnectionModel();
           
           const connection = await StoreConnection.findOne({
             _id: req.params.id,
@@ -308,7 +287,6 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
           // If deleteProducts is true, delete all associated products
           if (deleteProducts) {
-            const Product = await getProductModel();
             const deleteResult = await Product.deleteMany({
               userId: req.user!._id,
               storeConnectionId: req.params.id

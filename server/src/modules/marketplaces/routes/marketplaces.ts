@@ -1,20 +1,15 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
 import { AuthenticatedRequest } from '../../../_common/types/express';
+import StoreConnection from '../../stores/models/StoreConnection';
+import Product from '../../products/models/Product';
+import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits } from '../../../_common/middleware/auth';
+import * as marketplaceService from '../services/marketplaceService';
 
 const router = express.Router();
 
-// Dynamic imports to avoid circular dependencies
-const getStoreConnectionModel = async () => (await import('../../stores/models/StoreConnection')).default;
-const getProductModel = async () => (await import('../../products/models/Product')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
-const getMarketplaceService = async () => (await import('../services/marketplaceService'));
-
 // Apply authentication to all routes
-router.use(async (req: AuthenticatedRequest, res: Response, next) => {
-  const { protect } = await getAuthMiddleware();
-  protect(req, res, next);
-});
+router.use(protect);
 
 // Interface definitions
 interface TestConnectionBody {
@@ -55,9 +50,8 @@ const createStoreWithMarketplaceSchema = Joi.object({
 // GET /api/marketplaces - List all available marketplaces
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
-    await trackUsage('api_call')(req, res, async () => {
-      const { getAvailableMarketplaces } = await getMarketplaceService();
+        await trackUsage('api_call')(req, res, async () => {
+      const { getAvailableMarketplaces } = marketplaceService;
       
       const marketplaces = getAvailableMarketplaces();
       res.json({
@@ -77,9 +71,8 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/marketplaces/status - Get user's marketplace connection status
 router.get('/status', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { trackUsage } = await getAuthMiddleware();
-    await trackUsage('api_call')(req, res, async () => {
-      const { getUserMarketplaceStatus } = await getMarketplaceService();
+        await trackUsage('api_call')(req, res, async () => {
+      const { getUserMarketplaceStatus } = marketplaceService;
       
       const marketplaceStatus = await getUserMarketplaceStatus(req.user!._id.toString());
       res.json({
@@ -99,8 +92,7 @@ router.get('/status', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/marketplaces/test - Test marketplace connection
 router.post('/test', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
-    await checkSubscriptionStatus(req, res, async () => {
+        await checkSubscriptionStatus(req, res, async () => {
       await trackUsage('marketplace_test')(req, res, async () => {
         await trackUsage('api_call')(req, res, async () => {
           const { error } = testConnectionSchema.validate(req.body);
@@ -112,7 +104,7 @@ router.post('/test', async (req: AuthenticatedRequest, res: Response) => {
           }
 
           const { type, credentials } = req.body;
-          const { testMarketplaceConnection } = await getMarketplaceService();
+          const { testMarketplaceConnection } = marketplaceService;
           const result = await testMarketplaceConnection(type, credentials);
           
           res.json({
@@ -143,8 +135,7 @@ router.post('/connect', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/marketplaces/create-store - Create new store with marketplace connection
 router.post('/create-store', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { checkSubscriptionStatus, checkUsageLimits, trackUsage } = await getAuthMiddleware();
-    await checkSubscriptionStatus(req, res, async () => {
+        await checkSubscriptionStatus(req, res, async () => {
       await checkUsageLimits('stores')(req, res, async () => {
         await trackUsage('store_created')(req, res, async () => {
           await trackUsage('marketplace_connected')(req, res, async () => {
@@ -158,9 +149,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
               }
 
               const { storeName, type, credentials } = req.body;
-              const StoreConnection = await getStoreConnectionModel();
-              const Product = await getProductModel();
-
+                            
               // Check if user already has an ACTIVE marketplace type connected
               const existingActiveConnection = await StoreConnection.findOne({
                 userId: req.user!._id,
@@ -183,7 +172,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
               });
 
               // First test the connection
-              const { testMarketplaceConnection } = await getMarketplaceService();
+              const { testMarketplaceConnection } = marketplaceService;
               const testResult = await testMarketplaceConnection(type, credentials);
               if (!testResult.success) {
                 return res.status(400).json({
@@ -269,8 +258,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
 router.put('/:connectionId/test', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { connectionId } = req.params;
-    const StoreConnection = await getStoreConnectionModel();
-
+    
     const storeConnection = await StoreConnection.findOne({
       _id: connectionId,
       userId: req.user!._id
@@ -283,7 +271,7 @@ router.put('/:connectionId/test', async (req: AuthenticatedRequest, res: Respons
       });
     }
 
-    const { testMarketplaceConnection } = await getMarketplaceService();
+    const { testMarketplaceConnection } = marketplaceService;
     const testResult = await testMarketplaceConnection(storeConnection.marketplaceType, storeConnection.credentials);
     
     // Update sync status based on test result
@@ -313,8 +301,7 @@ router.put('/:connectionId/test', async (req: AuthenticatedRequest, res: Respons
 router.put('/:connectionId/toggle', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { connectionId } = req.params;
-    const StoreConnection = await getStoreConnectionModel();
-
+    
     const storeConnection = await StoreConnection.findOne({
       _id: connectionId,
       userId: req.user!._id

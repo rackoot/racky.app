@@ -2,20 +2,17 @@ import express, { Response } from 'express';
 import Joi from 'joi';
 import { AuthenticatedRequest } from '../../../_common/types/express';
 import { asString, asNumber } from '../../../_common/utils/queryParams';
+import User from '../../auth/models/User';
+import Subscription from '../../subscriptions/models/Subscription';
+import Usage from '../../subscriptions/models/Usage';
+import StoreConnection from '../../stores/models/StoreConnection';
+import Product from '../../products/models/Product';
+import { protect, requireSuperAdmin } from '../../../_common/middleware/auth';
 
 const router = express.Router();
 
-// Dynamic imports to avoid circular dependencies
-const getUserModel = async () => (await import('../../auth/models/User')).default;
-const getSubscriptionModel = async () => (await import('../../subscriptions/models/Subscription')).default;
-const getUsageModel = async () => (await import('../../subscriptions/models/Usage')).default;
-const getStoreConnectionModel = async () => (await import('../../stores/models/StoreConnection')).default;
-const getProductModel = async () => (await import('../../products/models/Product')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
-
 // Apply authentication and admin requirement to all routes
-router.use(async (req: AuthenticatedRequest, res: Response, next) => {
-  const { protect, requireSuperAdmin } = await getAuthMiddleware();
+router.use((req: AuthenticatedRequest, res: Response, next) => {
   protect(req, res, () => {
     requireSuperAdmin(req, res, next);
   });
@@ -75,11 +72,7 @@ router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
     const sortBy = asString(req.query.sortBy, 'createdAt');
     const sortOrder = asString(req.query.sortOrder, 'desc');
 
-    const User = await getUserModel();
-    const StoreConnection = await getStoreConnectionModel();
-    const Product = await getProductModel();
-    const Usage = await getUsageModel();
-
+                
     // Build query filter
     const filter: any = {};
     
@@ -193,12 +186,7 @@ router.get('/users/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
     
-    const User = await getUserModel();
-    const StoreConnection = await getStoreConnectionModel();
-    const Product = await getProductModel();
-    const Usage = await getUsageModel();
-    const Subscription = await getSubscriptionModel();
-    
+                        
     const user = await User.findById(id).select('-password');
     if (!user) {
       return res.status(404).json({
@@ -252,8 +240,7 @@ router.put('/users/:id/status', async (req: AuthenticatedRequest, res: Response)
     const { id } = req.params;
     const { isActive } = req.body;
 
-    const User = await getUserModel();
-    const user = await User.findById(id);
+        const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -308,8 +295,7 @@ router.put('/users/:id/role', async (req: AuthenticatedRequest, res: Response) =
     const { id } = req.params;
     const { role } = req.body;
 
-    const User = await getUserModel();
-    const user = await User.findById(id);
+        const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -364,8 +350,7 @@ router.put('/users/:id/subscription', async (req: AuthenticatedRequest, res: Res
     const { id } = req.params;
     const { subscriptionStatus, subscriptionPlan, trialEndsAt, subscriptionEndsAt } = req.body;
 
-    const User = await getUserModel();
-    const user = await User.findById(id);
+        const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -415,12 +400,7 @@ router.delete('/users/:id', async (req: AuthenticatedRequest, res: Response) => 
     const { id } = req.params;
     const { force = 'false' } = req.query;
 
-    const User = await getUserModel();
-    const StoreConnection = await getStoreConnectionModel();
-    const Product = await getProductModel();
-    const Usage = await getUsageModel();
-    const Subscription = await getSubscriptionModel();
-
+                    
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
@@ -507,8 +487,7 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
     const sortBy = asString(req.query.sortBy, 'createdAt');
     const sortOrder = asString(req.query.sortOrder, 'desc');
 
-    const Subscription = await getSubscriptionModel();
-
+    
     // Build query filter
     const pipeline: any[] = [
       // Join with users collection
@@ -680,11 +659,7 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const period = asString(req.query.period, '30d');
     
-    const User = await getUserModel();
-    const Usage = await getUsageModel();
-    const Product = await getProductModel();
-    const StoreConnection = await getStoreConnectionModel();
-    
+                    
     // Calculate date range
     const now = new Date();
     let startDate: Date;

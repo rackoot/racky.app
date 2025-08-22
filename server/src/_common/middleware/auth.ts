@@ -3,6 +3,8 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types/express';
 import User from '../../modules/auth/models/User';
 import Usage from '../../modules/subscriptions/models/Usage';
+// Note: This import may cause circular dependencies and should be handled carefully
+// import StoreConnection from '../../modules/stores/models/StoreConnection';
 
 const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<any> => {
   let token;
@@ -322,7 +324,8 @@ const checkSyncFrequency = () => {
       // Check last sync time for this connection
       const connectionId = req.params.connectionId;
       if (connectionId) {
-        const StoreConnection = (await import('../../modules/stores/models/StoreConnection')).default;
+        // Dynamic import to avoid circular dependency
+        const { default: StoreConnection } = await import('../../modules/stores/models/StoreConnection');
         const connection = await StoreConnection.findOne({
           _id: connectionId,
           userId: req.user._id
