@@ -25,6 +25,7 @@ import planRoutes from '@/subscriptions/routes/plans';
 import usageRoutes from '@/subscriptions/routes/usage';
 import billingRoutes from '@/subscriptions/routes/billing';
 import demoRoutes from '@/demo/routes/demo';
+import workspaceRoutes from './modules/workspaces/routes/workspaces';
 import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
 
 
@@ -57,6 +58,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/connections', connectionRoutes);
 app.use('/api/marketplaces', marketplaceRoutes);
 app.use('/api/products', productRoutes);

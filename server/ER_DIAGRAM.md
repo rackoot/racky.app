@@ -27,9 +27,35 @@ erDiagram
         Date updatedAt "Auto timestamp"
     }
 
+    Workspace {
+        ObjectId _id PK
+        String name "Required, trimmed, max 100 chars"
+        String description "Optional, max 500 chars"
+        String slug UK "Required, unique, lowercase, regex ^[a-z0-9-]+$, max 50 chars"
+        ObjectId ownerId FK "References User._id"
+        Object settings "IWorkspaceSettings: timezone, currency, language"
+        Boolean isActive "Default true"
+        Date createdAt "Auto timestamp"
+        Date updatedAt "Auto timestamp"
+    }
+
+    WorkspaceUser {
+        ObjectId _id PK
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id"
+        String role "ENUM: OWNER|ADMIN|OPERATOR|VIEWER"
+        ObjectId invitedBy FK "Optional, references User._id"
+        Date invitedAt "Optional"
+        Date joinedAt "Required, default Date.now"
+        Boolean isActive "Default true"
+        Date createdAt "Auto timestamp"
+        Date updatedAt "Auto timestamp"
+    }
+
     StoreConnection {
         ObjectId _id PK
-        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id, backward compatibility"
         String storeName "Required, trimmed"
         String marketplaceType "ENUM: shopify|vtex|mercadolibre|amazon|facebook_shop|google_shopping|woocommerce"
         Mixed credentials "Required, marketplace-specific"
@@ -42,7 +68,8 @@ erDiagram
 
     Product {
         ObjectId _id PK
-        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id, backward compatibility"
         ObjectId storeConnectionId FK "References StoreConnection._id"
         String title "Required"
         String description "Optional"
@@ -76,7 +103,8 @@ erDiagram
 
     Opportunity {
         ObjectId _id PK
-        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id, backward compatibility"
         ObjectId productId FK "References Product._id"
         String category "ENUM: pricing|description|images|seo|inventory|marketing|unconnected_marketplaces|shopify|vtex|mercadolibre|amazon|facebook_shop|google_shopping|woocommerce"
         String marketplace "Optional, ENUM: shopify|vtex|mercadolibre|amazon|facebook_shop|google_shopping|woocommerce"
@@ -97,7 +125,8 @@ erDiagram
 
     Suggestion {
         ObjectId _id PK
-        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id, backward compatibility"
         ObjectId productId FK "References Product._id"
         String platform "ENUM: shopify|amazon|vtex|mercadolibre|facebook_shop|google_shopping|woocommerce"
         String type "ENUM: description|title|tags|pricing|opportunity"
@@ -138,7 +167,8 @@ erDiagram
 
     Subscription {
         ObjectId _id PK
-        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id, backward compatibility"
         ObjectId planId FK "References Plan._id"
         String status "ENUM: ACTIVE|SUSPENDED|CANCELLED|EXPIRED, default ACTIVE"
         String stripeSubscriptionId UK "Optional, unique sparse index"
@@ -168,7 +198,8 @@ erDiagram
 
     Usage {
         ObjectId _id PK
-        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id, backward compatibility"
         Date date "Required, indexed"
         Number apiCalls "Default 0, min 0"
         Number productSyncs "Default 0, min 0"
@@ -187,7 +218,8 @@ erDiagram
 
     GeneralSuggestion {
         ObjectId _id PK
-        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId userId FK "References User._id, backward compatibility"
         String title "Required, trimmed"
         String description "Required"
         String priority "ENUM: high|medium|low"
@@ -214,13 +246,16 @@ erDiagram
     }
 
     %% Relationships
-    User ||--o{ StoreConnection : "owns (1:N)"
-    User ||--o{ Product : "owns (1:N)"
-    User ||--o{ Opportunity : "has (1:N)"
-    User ||--o{ Suggestion : "receives (1:N)"
-    User ||--o{ Subscription : "has (1:N)"
-    User ||--o{ Usage : "tracks (1:N)"
-    User ||--o{ GeneralSuggestion : "receives (1:N)"
+    User ||--o{ Workspace : "owns (1:N)"
+    User ||--o{ WorkspaceUser : "belongs to (1:N)"
+    Workspace ||--o{ WorkspaceUser : "has members (1:N)"
+    Workspace ||--o{ StoreConnection : "contains (1:N)"
+    Workspace ||--o{ Product : "manages (1:N)"
+    Workspace ||--o{ Opportunity : "has (1:N)"
+    Workspace ||--o{ Suggestion : "receives (1:N)"
+    Workspace ||--o{ Subscription : "has (1:N)"
+    Workspace ||--o{ Usage : "tracks (1:N)"
+    Workspace ||--o{ GeneralSuggestion : "receives (1:N)"
     
     StoreConnection ||--o{ Product : "contains (1:N)"
     
@@ -231,20 +266,44 @@ erDiagram
     
     %% Index Information
     %% User: email (unique), role, stripeCustomerId (sparse), createdAt, isActive
-    %% StoreConnection: userId + marketplaceType (unique compound)
-    %% Product: userId + marketplace + externalId (unique compound)
-    %% Opportunity: productId + userId + category, userId + status, expiresAt (TTL)
-    %% Suggestion: userId + productId + platform + type, userId + productId + status, userId + productId + createdAt
+    %% Workspace: slug (unique), ownerId, isActive, createdAt
+    %% WorkspaceUser: workspaceId + userId (unique compound), userId, workspaceId, role, isActive
+    %% StoreConnection: workspaceId + marketplaceType (unique compound), userId + marketplaceType (backward compatibility)
+    %% Product: workspaceId + marketplace + externalId (unique compound), userId + marketplace + externalId (backward compatibility)
+    %% Opportunity: productId + workspaceId + category, workspaceId + status, expiresAt (TTL)
+    %% Suggestion: workspaceId + productId + platform + type, workspaceId + productId + status, workspaceId + productId + createdAt
     %% Plan: name (unique), isActive + isPublic, sortOrder
-    %% Subscription: userId, planId, status, endsAt, stripeSubscriptionId (unique sparse), userId + status, status + endsAt
-    %% Usage: userId + billingPeriodStart (unique compound), billingPeriodStart, createdAt
-    %% GeneralSuggestion: userId + isActive + expiresAt
+    %% Subscription: workspaceId, planId, status, endsAt, stripeSubscriptionId (unique sparse), workspaceId + status, status + endsAt
+    %% Usage: workspaceId + billingPeriodStart (unique compound), userId + billingPeriodStart (backward compatibility), billingPeriodStart, createdAt
+    %% GeneralSuggestion: workspaceId + isActive + expiresAt
     %% OpportunityCategory: id (unique)
 ```
 
 ## Descripción de las Entidades
 
 ### Entidades Principales
+
+#### Workspace (Nueva)
+- **Propósito**: Entidad central de la nueva arquitectura multi-workspace que permite a los usuarios gestionar múltiples espacios de trabajo independientes
+- **Características**: 
+  - Aislamiento completo de datos por workspace
+  - Slug único para identificación URL-friendly
+  - Configuraciones independientes por workspace (zona horaria, moneda, idioma)
+  - Propiedad transferible entre usuarios
+  - Sistema de activación/desactivación
+- **Relaciones**: Entidad central con relaciones 1:N hacia todas las entidades de datos del sistema
+- **Índices**: slug (único), ownerId, isActive, createdAt
+
+#### WorkspaceUser (Nueva)
+- **Propósito**: Tabla de unión que gestiona la relación many-to-many entre usuarios y workspaces con roles específicos
+- **Características**: 
+  - Sistema de roles jerárquico: OWNER > ADMIN > OPERATOR > VIEWER
+  - Sistema de invitaciones con trazabilidad del invitador
+  - Control de membresías activas/inactivas
+  - Restricción única de un usuario por workspace
+  - Funciones de transferencia de propiedad
+- **Relaciones**: Conecta Users con Workspaces (N:M)
+- **Índices**: workspaceId + userId (compuesto único), userId, workspaceId, role, isActive
 
 #### User
 - **Propósito**: Entidad central del sistema, representa a los usuarios de la plataforma SaaS multi-tenant
@@ -376,9 +435,40 @@ erDiagram
 5. **Plan & Subscription** → Gestión completa de suscripciones SaaS con integración Stripe
 6. **Usage** → Seguimiento detallado de uso por usuario con límites por plan
 
+## Arquitectura Multi-Workspace
+
+### Migración de Arquitectura Single-User a Multi-Workspace
+La base de datos ha sido **rediseñada** para soportar múltiples workspaces por usuario, transformando la arquitectura de single-tenant-per-user a multi-workspace-per-user:
+
+**Cambios Principales:**
+- **workspaceId** agregado a todas las entidades de datos como nueva clave de aislamiento
+- **userId** mantenido temporalmente para compatibilidad durante la migración
+- **Workspace** y **WorkspaceUser** como nuevas entidades centrales
+- **Subscripciones independientes** por workspace (no por usuario)
+- **Billing separado** por workspace
+- **Data isolation** completa entre workspaces
+
+**Flujo de Migración:**
+1. Creación automática de workspace "Personal" para cada usuario existente
+2. Migración de todos los datos del usuario al workspace por defecto
+3. Actualización de relaciones y referencias
+4. Eventual eliminación de campos userId legacy
+
+**Beneficios de la Nueva Arquitectura:**
+- **Separación de facturación**: Cada workspace puede tener suscripción independiente
+- **Roles granulares**: Un usuario puede ser OWNER en un workspace y VIEWER en otro
+- **Escalabilidad empresarial**: Equipos pueden colaborar en workspaces compartidos
+- **Gestión flexible**: Transferencia de propiedad, invitaciones, gestión de permisos
+
 ## Características del Diseño
 
-### Arquitectura Multi-Tenant
+### Arquitectura Multi-Workspace (Nueva)
+- **Aislamiento completo** de datos por workspace mediante `workspaceId` en todas las entidades
+- **Sin contaminación cruzada** entre workspaces
+- **Índices optimizados** para consultas por workspace
+- **Backward compatibility** mantenida durante la migración con campos userId legacy
+
+### Arquitectura Multi-Tenant (Legacy)
 - **Aislamiento completo** de datos por usuario mediante `userId` en todas las entidades
 - **Sin contaminación cruzada** entre usuarios
 - **Índices optimizados** para consultas por usuario
@@ -443,10 +533,10 @@ erDiagram
 ## Última Actualización
 
 **Fecha**: 2025-08-22  
-**Entidades incluidas**: 10  
-**Relaciones mapeadas**: 12  
-**Índices documentados**: 25+  
-**Campos totales**: 150+
+**Entidades incluidas**: 12 (2 nuevas entidades de workspace)  
+**Relaciones mapeadas**: 15+ (rediseñadas para arquitectura multi-workspace)  
+**Índices documentados**: 30+ (incluyendo índices de workspace)  
+**Campos totales**: 170+ (incluyendo campos de workspace y compatibilidad)
 
 ---
 

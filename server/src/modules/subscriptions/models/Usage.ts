@@ -1,7 +1,8 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
 export interface IUsage extends Document {
-  userId: mongoose.Types.ObjectId;
+  workspaceId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId; // Keep for backward compatibility during migration
   date: Date;
   apiCalls: number;
   productSyncs: number;
@@ -36,11 +37,16 @@ export interface IUsageModel extends Model<IUsage> {
 }
 
 const usageSchema = new Schema<IUsage>({
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true,
+    index: true
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    index: true
+    required: false // Will be removed after migration
   },
   date: {
     type: Date,
@@ -323,7 +329,10 @@ usageSchema.statics.resetMonthlyUsage = async function(userId: string): Promise<
 };
 
 // Indexes for performance
-usageSchema.index({ userId: 1, billingPeriodStart: 1 }, { unique: true });
+// Update indexes for workspace-based access
+usageSchema.index({ workspaceId: 1, billingPeriodStart: 1 }, { unique: true });
+// Keep old index for backward compatibility during migration
+usageSchema.index({ userId: 1, billingPeriodStart: 1 });
 usageSchema.index({ billingPeriodStart: 1 });
 usageSchema.index({ createdAt: 1 });
 

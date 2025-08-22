@@ -8,7 +8,8 @@ export type SyncStatus = 'pending' | 'syncing' | 'completed' | 'failed';
 
 // Interface for StoreConnection document
 export interface IStoreConnection extends Document {
-  userId: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  userId: Types.ObjectId; // Keep for backward compatibility during migration
   storeName: string;
   marketplaceType: MarketplaceType;
   credentials: Record<string, any>;
@@ -21,10 +22,15 @@ export interface IStoreConnection extends Document {
 }
 
 const storeConnectionSchema = new Schema<IStoreConnection>({
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Will be removed after migration
   },
   storeName: {
     type: String,
@@ -57,7 +63,9 @@ const storeConnectionSchema = new Schema<IStoreConnection>({
   timestamps: true
 });
 
-// Compound index to ensure one connection per marketplace type per user
-storeConnectionSchema.index({ userId: 1, marketplaceType: 1 }, { unique: true });
+// Compound index to ensure one connection per marketplace type per workspace
+storeConnectionSchema.index({ workspaceId: 1, marketplaceType: 1 }, { unique: true });
+// Keep old index for backward compatibility during migration
+storeConnectionSchema.index({ userId: 1, marketplaceType: 1 });
 
 export default mongoose.model<IStoreConnection>('StoreConnection', storeConnectionSchema);
