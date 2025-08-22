@@ -58,7 +58,7 @@ const opportunityCategorySchema = new Schema<IOpportunityCategory>({
 
 // Static method to initialize default categories
 opportunityCategorySchema.statics.initializeDefaultCategories = async function(this: IOpportunityCategoryModel): Promise<void> {
-  const { OPPORTUNITY_CATEGORIES, getMarketplaceCategories } = await import('../../../_common/constants/marketplaces');
+  const { OPPORTUNITY_CATEGORIES, getMarketplaceCategories } = await import('@/common/constants/marketplaces');
   
   try {
     const existingCount = await this.countDocuments();

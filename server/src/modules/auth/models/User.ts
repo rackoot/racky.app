@@ -1,5 +1,10 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
+// Note: These imports may cause circular dependencies and should be handled carefully
+// import Subscription from '../../subscriptions/models/Subscription';
+// import Plan from '../../subscriptions/models/Plan';
+// import StoreConnection from '../../stores/models/StoreConnection';
+// import Product from '../../products/models/Product';
 
 export interface IUser extends Document {
   email: string;
@@ -133,7 +138,8 @@ userSchema.methods.isSuperAdmin = function(): boolean {
 
 // Get user's active subscription
 userSchema.methods.getActiveSubscription = async function() {
-  const Subscription = (await import('../../subscriptions/models/Subscription')).default;
+  // Dynamic import to avoid circular dependency
+  const { default: Subscription } = await import('../../subscriptions/models/Subscription');
   return await Subscription.findOne({
     userId: this._id,
     status: 'ACTIVE',
@@ -151,7 +157,8 @@ userSchema.methods.hasActiveSubscription = async function(): Promise<boolean> {
 userSchema.methods.getCurrentPlan = async function() {
   if (!this.subscriptionPlan) return null;
   
-  const Plan = (await import('../../subscriptions/models/Plan')).default;
+  // Dynamic import to avoid circular dependency
+  const { default: Plan } = await import('../../subscriptions/models/Plan');
   return await Plan.findByName(this.subscriptionPlan);
 };
 
@@ -160,7 +167,8 @@ userSchema.methods.hasReachedStoreLimit = async function(): Promise<boolean> {
   const plan = await this.getCurrentPlan();
   if (!plan) return true; // No subscription = no access
   
-  const StoreConnection = (await import('../../stores/models/StoreConnection')).default;
+  // Dynamic import to avoid circular dependency
+  const { default: StoreConnection } = await import('../../stores/models/StoreConnection');
   const storeCount = await StoreConnection.countDocuments({ 
     userId: this._id, 
     isActive: true 
@@ -172,7 +180,8 @@ userSchema.methods.hasReachedProductLimit = async function(): Promise<boolean> {
   const plan = await this.getCurrentPlan();
   if (!plan) return true; // No subscription = no access
   
-  const Product = (await import('../../products/models/Product')).default;
+  // Dynamic import to avoid circular dependency
+  const { default: Product } = await import('../../products/models/Product');
   const productCount = await Product.countDocuments({ userId: this._id });
   return productCount >= plan.limits.maxProducts;
 };

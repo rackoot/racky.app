@@ -1,4 +1,6 @@
 import mongoose, { Document, Model, Schema, Types } from 'mongoose';
+// Note: This import may cause circular dependencies and should be handled carefully
+// import Plan from './Plan';
 
 // Type for subscription status
 export type SubscriptionStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED';
@@ -278,7 +280,8 @@ subscriptionSchema.statics.findExpiredSubscriptions = function(this: ISubscripti
 };
 
 subscriptionSchema.statics.createSubscription = async function(this: ISubscriptionModel, userId: Types.ObjectId, planId: Types.ObjectId, interval: BillingInterval = 'month'): Promise<ISubscription> {
-  const Plan = (await import('./Plan')).default;
+  // Dynamic import to avoid circular dependency
+  const { default: Plan } = await import('./Plan');
   const plan = await Plan.findById(planId);
   
   if (!plan) {

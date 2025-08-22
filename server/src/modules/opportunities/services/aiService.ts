@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { SUPPORTED_MARKETPLACES, OPPORTUNITY_CATEGORIES } from '../../../_common/constants/marketplaces';
+import { SUPPORTED_MARKETPLACES, OPPORTUNITY_CATEGORIES } from '@/common/constants/marketplaces';
 
 // Type definitions for AI service
 export interface Product {

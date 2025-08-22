@@ -1,8 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types/express';
+import getEnv from '../config/env';
 import User from '../../modules/auth/models/User';
 import Usage from '../../modules/subscriptions/models/Usage';
+// Note: This import may cause circular dependencies and should be handled carefully
+// import StoreConnection from '../../modules/stores/models/StoreConnection';
 
 const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<any> => {
   let token;
@@ -10,7 +13,7 @@ const protect = async (req: AuthenticatedRequest, res: Response, next: NextFunct
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
+      const decoded = jwt.verify(token, getEnv().JWT_SECRET) as any;
       req.user = await User.findById(decoded.id).select('-password');
       
       if (!req.user) {
@@ -322,7 +325,8 @@ const checkSyncFrequency = () => {
       // Check last sync time for this connection
       const connectionId = req.params.connectionId;
       if (connectionId) {
-        const StoreConnection = (await import('../../modules/stores/models/StoreConnection')).default;
+        // Dynamic import to avoid circular dependency
+        const { default: StoreConnection } = await import('../../modules/stores/models/StoreConnection');
         const connection = await StoreConnection.findOne({
           _id: connectionId,
           userId: req.user._id
@@ -358,8 +362,9 @@ const checkSyncFrequency = () => {
 };
 
 const generateToken = (id: string): string => {
-  return jwt.sign({ id }, process.env.JWT_SECRET as string, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+  const env = getEnv();
+  return jwt.sign({ id }, env.JWT_SECRET, {
+    expiresIn: env.JWT_EXPIRES_IN
   } as jwt.SignOptions);
 };
 

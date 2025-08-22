@@ -1,14 +1,12 @@
 import express, { Response, Request } from 'express';
 import Stripe from 'stripe';
-import { AuthenticatedRequest } from '../../../_common/types/express';
+import { AuthenticatedRequest } from '@/common/types/express';
+import Plan from '../models/Plan';
+import User from '@/auth/models/User';
+import Subscription from '../models/Subscription';
+import { protect } from '@/common/middleware/auth';
 
 const router = express.Router();
-
-// Dynamic imports to avoid circular dependencies
-const getPlanModel = async () => (await import('../models/Plan')).default;
-const getUserModel = async () => (await import('../../auth/models/User')).default;
-const getSubscriptionModel = async () => (await import('../models/Subscription')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth')).protect;
 
 // Initialize Stripe only if API key is provided
 let stripe: Stripe | null = null;
@@ -20,10 +18,7 @@ if (process.env.STRIPE_SECRET_KEY) {
 
 // Apply authentication to all routes except webhook
 router.use('/webhook', (req, res, next) => next()); // Webhook needs raw body
-router.use(async (req: AuthenticatedRequest, res: Response, next) => {
-  const protect = await getAuthMiddleware();
-  protect(req, res, next);
-});
+router.use(protect);
 
 interface CreateCheckoutSessionBody {
   planName: string;
@@ -43,8 +38,7 @@ router.post('/create-checkout-session', async (req: AuthenticatedRequest, res: R
     }
 
     // Get the plan details
-    const Plan = await getPlanModel();
-    const plan = await Plan.findByName(planName);
+        const plan = await Plan.findByName(planName);
     if (!plan) {
       return res.status(404).json({
         success: false,
@@ -161,10 +155,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
   const userId = session.client_reference_id;
   if (!userId) return;
 
-  const User = await getUserModel();
-  const Plan = await getPlanModel();
-  const Subscription = await getSubscriptionModel();
-
+      
   const user = await User.findById(userId);
   
   if (!user) {
@@ -203,8 +194,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Promise<void> {
-  const User = await getUserModel();
-  const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
   if (user) {
     user.subscriptionStatus = subscription.status === 'active' ? 'ACTIVE' : 'SUSPENDED';
     await user.save();
@@ -212,8 +202,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription): Pro
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription): Promise<void> {
-  const User = await getUserModel();
-  const user = await User.findOne({ stripeSubscriptionId: subscription.id });
+    const user = await User.findOne({ stripeSubscriptionId: subscription.id });
   if (user) {
     user.subscriptionStatus = 'CANCELLED';
     await user.save();

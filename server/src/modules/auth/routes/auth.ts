@@ -1,15 +1,13 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
 import jwt from 'jsonwebtoken';
-import { AuthenticatedRequest } from '../../../_common/types/express';
+import { AuthenticatedRequest } from '@/common/types/express';
+import User from '../models/User';
+import Usage from '@/subscriptions/models/Usage';
+import { generateToken, protect } from '@/common/middleware/auth';
+import getEnv from '@/common/config/env';
 
 const router = express.Router();
-
-// Dynamic imports to avoid circular dependencies
-const getUserModel = async () => (await import('../models/User')).default;
-const getUsageModel = async () => (await import('../../subscriptions/models/Usage')).default;
-const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth')).generateToken;
-const getProtectMiddleware = async () => (await import('../../../_common/middleware/auth')).protect;
 
 const registerSchema = Joi.object({
   email: Joi.string().email().required(),
@@ -71,10 +69,7 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
 
     const { email, password, firstName, lastName, subscriptionPlan = 'BASIC' } = req.body;
 
-    const User = await getUserModel();
-    const Usage = await getUsageModel();
-    const generateToken = await getAuthMiddleware();
-
+            
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ 
@@ -136,9 +131,7 @@ router.post('/login', async (req: express.Request<{}, {}, LoginRequestBody>, res
 
     const { email, password } = req.body;
 
-    const User = await getUserModel();
-    const generateToken = await getAuthMiddleware();
-
+        
     const user = await User.findOne({ email });
     if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
@@ -185,9 +178,8 @@ router.get('/me', async (req: express.Request, res: Response) => {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
-      const User = await getUserModel();
-      const user = await User.findById(decoded.id).select('-password');
+      const decoded = jwt.verify(token, getEnv().JWT_SECRET) as any;
+            const user = await User.findById(decoded.id).select('-password');
       
       if (!user) {
         return res.status(401).json({
@@ -233,8 +225,7 @@ router.get('/me', async (req: express.Request, res: Response) => {
 // PUT /api/auth/profile - Update user profile
 router.put('/profile', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const protect = await getProtectMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { error } = updateProfileSchema.validate(req.body);
       if (error) {
         return res.status(400).json({
@@ -245,8 +236,7 @@ router.put('/profile', async (req: AuthenticatedRequest, res: Response) => {
 
       const { firstName, lastName, email } = req.body;
       
-      const User = await getUserModel();
-      
+            
       // Check if email is already taken by another user
       if (email !== req.user!.email) {
         const existingUser = await User.findOne({ email, _id: { $ne: req.user!._id } });
@@ -291,8 +281,7 @@ router.put('/profile', async (req: AuthenticatedRequest, res: Response) => {
 // PUT /api/auth/password - Update user password
 router.put('/password', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const protect = await getProtectMiddleware();
-    await protect(req, res, async () => {
+        await protect(req, res, async () => {
       const { error } = updatePasswordSchema.validate(req.body);
       if (error) {
         return res.status(400).json({
@@ -303,8 +292,7 @@ router.put('/password', async (req: AuthenticatedRequest, res: Response) => {
 
       const { currentPassword, newPassword } = req.body;
       
-      const User = await getUserModel();
-      
+            
       // Get user with password for verification
       const user = await User.findById(req.user!._id);
       if (!user) {
