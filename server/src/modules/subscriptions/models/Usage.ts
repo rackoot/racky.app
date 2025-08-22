@@ -135,8 +135,7 @@ usageSchema.statics.incrementUserUsage = async function(userId: string, metric: 
   // Find or create usage record for current month
   const filter = {
     userId: new mongoose.Types.ObjectId(userId),
-    billingPeriodStart: startOfMonth,
-    billingPeriodEnd: endOfMonth
+    billingPeriodStart: startOfMonth
   };
 
   const update: any = {
@@ -145,26 +144,73 @@ usageSchema.statics.incrementUserUsage = async function(userId: string, metric: 
       userId: new mongoose.Types.ObjectId(userId),
       date: currentDate,
       billingPeriodStart: startOfMonth,
-      billingPeriodEnd: endOfMonth
+      billingPeriodEnd: endOfMonth,
+      apiCalls: 0,
+      productSyncs: 0,
+      storeConnections: 0,
+      storageUsed: 0,
+      aiSuggestions: 0,
+      opportunityScans: 0,
+      bulkOperations: 0
     }
   };
 
   // Map metric names to schema fields
   const metricMap: { [key: string]: string } = {
+    'api_call': 'apiCalls',
     'api_calls': 'apiCalls',
+    'product_sync': 'productSyncs',
     'product_syncs': 'productSyncs',
+    'products_sync': 'productSyncs',
+    'store_connection': 'storeConnections',
     'store_connections': 'storeConnections',
-    'storage': 'storageUsed'
+    'store_created': 'storeConnections',
+    'marketplace_connected': 'storeConnections',
+    'storage': 'storageUsed',
+    'ai_suggestion': 'aiSuggestions',
+    'ai_suggestions': 'aiSuggestions',
+    'opportunity_scan': 'opportunityScans',
+    'opportunity_scans': 'opportunityScans',
+    'bulk_operation': 'bulkOperations',
+    'bulk_operations': 'bulkOperations'
   };
 
   const schemaField = metricMap[metric] || metric;
+  if (!schemaField) {
+    console.warn(`Unknown metric: ${metric}`);
+    return await this.findOne(filter) || await this.create({
+      ...filter,
+      date: currentDate,
+      billingPeriodEnd: endOfMonth,
+      apiCalls: 0,
+      productSyncs: 0,
+      storeConnections: 0,
+      storageUsed: 0,
+      aiSuggestions: 0,
+      opportunityScans: 0,
+      bulkOperations: 0
+    });
+  }
+
   update.$inc[schemaField] = amount;
 
-  return await this.findOneAndUpdate(filter, update, {
-    upsert: true,
-    new: true,
-    setDefaultsOnInsert: true
-  });
+  try {
+    return await this.findOneAndUpdate(filter, update, {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true
+    });
+  } catch (error: any) {
+    // Handle duplicate key error by trying to find existing record
+    if (error.code === 11000) {
+      console.warn('Duplicate key error, attempting to update existing record');
+      const existing = await this.findOne(filter);
+      if (existing) {
+        return await this.findByIdAndUpdate(existing._id, { $inc: update.$inc }, { new: true });
+      }
+    }
+    throw error;
+  }
 };
 
 // Get current month usage for a user

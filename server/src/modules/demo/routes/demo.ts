@@ -20,7 +20,7 @@ interface UpgradeSubscriptionBody {
 }
 
 // POST /api/demo/upgrade-subscription - Demo subscription upgrade
-router.post('/upgrade-subscription', async (req: AuthenticatedRequest<{}, {}, UpgradeSubscriptionBody>, res: Response) => {
+router.post('/upgrade-subscription', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { planName, billingCycle = 'monthly' } = req.body;
     

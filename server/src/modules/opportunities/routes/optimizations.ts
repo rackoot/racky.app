@@ -1,4 +1,5 @@
 import express, { Response } from 'express';
+import mongoose from 'mongoose';
 import OpenAI from 'openai';
 import axios from 'axios';
 import { AuthenticatedRequest } from '../../../_common/types/express';
@@ -169,7 +170,7 @@ async function generateOptimizedDescription(platform: string, product: any): Pro
 }
 
 // GET /api/products/:id/optimizations/description/:platform - Get or generate description suggestion
-router.get('/products/:id/description/:platform', async (req: AuthenticatedRequest<{ id: string; platform: string }>, res: Response) => {
+router.get('/products/:id/description/:platform', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -189,7 +190,7 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
 
       // Check for existing cached description
       const existingCachedDescription = product.cachedDescriptions?.find(
-        (cached: CachedDescription) => cached.platform === platform
+        (cached: any) => cached.platform === platform
       );
       
       if (existingCachedDescription) {
@@ -197,7 +198,7 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
           success: true,
           data: {
             suggestion: {
-              id: existingCachedDescription._id,
+              id: (existingCachedDescription as any)._id,
               originalContent: product.description,
               suggestedContent: existingCachedDescription.content,
               status: existingCachedDescription.status,
@@ -219,7 +220,7 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
       const aiResult = await generateOptimizedDescription(platform, product);
       
       // Add to cached descriptions
-      const newCachedDescription: CachedDescription = {
+      const newCachedDescription: any = {
         platform,
         content: aiResult.content,
         confidence: aiResult.confidence,
@@ -264,7 +265,7 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
 });
 
 // POST /api/products/:id/optimizations/description/:platform - Force regenerate description
-router.post('/products/:id/description/:platform', async (req: AuthenticatedRequest<{ id: string; platform: string }>, res: Response) => {
+router.post('/products/:id/description/:platform', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -288,11 +289,11 @@ router.post('/products/:id/description/:platform', async (req: AuthenticatedRequ
       // Remove existing cached description for this platform
       product.cachedDescriptions = product.cachedDescriptions || [];
       product.cachedDescriptions = product.cachedDescriptions.filter(
-        (cached: CachedDescription) => cached.platform !== platform
+        (cached: any) => cached.platform !== platform
       );
 
       // Add new cached description
-      const newCachedDescription: CachedDescription = {
+      const newCachedDescription: any = {
         platform,
         content: aiResult.content,
         confidence: aiResult.confidence,
@@ -336,7 +337,7 @@ router.post('/products/:id/description/:platform', async (req: AuthenticatedRequ
 });
 
 // PATCH /api/products/:id/optimizations/description/:platform - Update suggestion status
-router.patch('/products/:id/description/:platform', async (req: AuthenticatedRequest<{ id: string; platform: string }, {}, UpdateStatusBody>, res: Response) => {
+router.patch('/products/:id/description/:platform', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -364,7 +365,7 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
 
       // Find the cached description
       const cachedDescription = product.cachedDescriptions?.find(
-        (cached: CachedDescription) => cached._id?.toString() === suggestionId && cached.platform === platform
+        (cached: any) => cached._id?.toString() === suggestionId && cached.platform === platform
       );
 
       if (!cachedDescription) {
@@ -383,7 +384,7 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
         success: true,
         data: {
           suggestion: {
-            id: cachedDescription._id,
+            id: (cachedDescription as any)._id,
             status: cachedDescription.status,
             updatedAt: new Date()
           }
@@ -400,7 +401,7 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
 });
 
 // POST /api/products/:id/optimizations/description/:platform/apply - Apply accepted description to store
-router.post('/products/:id/description/:platform/apply', async (req: AuthenticatedRequest<{ id: string; platform: string }, {}, ApplyDescriptionBody>, res: Response) => {
+router.post('/products/:id/description/:platform/apply', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -421,7 +422,7 @@ router.post('/products/:id/description/:platform/apply', async (req: Authenticat
 
       // Find the cached description
       const cachedDescription = product.cachedDescriptions?.find(
-        (cached: CachedDescription) => cached._id?.toString() === suggestionId && cached.platform === platform
+        (cached: any) => cached._id?.toString() === suggestionId && cached.platform === platform
       );
 
       if (!cachedDescription) {
@@ -441,7 +442,7 @@ router.post('/products/:id/description/:platform/apply', async (req: Authenticat
       let storeUpdateResult = { success: false, message: 'No store connection found' };
 
       // Check if we have a store connection for this marketplace
-      if (product.storeConnectionId && product.storeConnectionId.marketplaceType === platform) {
+      if (product.storeConnectionId && (product.storeConnectionId as any).marketplaceType === platform) {
         try {
           // First, try to apply the description to the connected store
           storeUpdateResult = await updateProductDescriptionInStore(
@@ -702,12 +703,12 @@ async function updateFacebookShopProductDescription(product: any, newDescription
 }
 
 // GET /api/products/:id/suggestions - Get suggestion history
-router.get('/products/:id/suggestions', async (req: AuthenticatedRequest<{ id: string }, {}, {}, SuggestionsQuery>, res: Response) => {
+router.get('/products/:id/suggestions', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id: productId } = req.params;
-      const { platform, type } = req.query;
+      const { platform, type } = req.query as any;
       const userId = req.user!._id;
 
       const Product = await getProductModel();
@@ -722,7 +723,7 @@ router.get('/products/:id/suggestions', async (req: AuthenticatedRequest<{ id: s
         });
       }
 
-      const suggestions = await Suggestion.getSuggestionHistory(userId, productId, platform, type);
+      const suggestions = await Suggestion.getSuggestionHistory(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId), platform, type);
 
       res.json({
         success: true,

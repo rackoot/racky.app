@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../../../_common/types/express';
-import fetch from 'node-fetch';
 import axios from 'axios';
+import { PlatformType } from '../models/Product';
 
 const router = express.Router();
 
@@ -78,7 +78,7 @@ interface ApplyDescriptionBody {
 }
 
 // Get all products for a user with pagination, filtering, and sorting
-router.get('/', async (req: AuthenticatedRequest<{}, {}, {}, ProductQuery>, res: Response) => {
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect, trackUsage } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -92,7 +92,7 @@ router.get('/', async (req: AuthenticatedRequest<{}, {}, {}, ProductQuery>, res:
           sortBy = 'createdAt',
           sortOrder = 'desc',
           status = ''
-        } = req.query;
+        } = req.query as any;
 
         const Product = await getProductModel();
 
@@ -194,7 +194,7 @@ router.get('/', async (req: AuthenticatedRequest<{}, {}, {}, ProductQuery>, res:
 });
 
 // Get products for a specific store connection
-router.get('/store/:connectionId', async (req: AuthenticatedRequest<{ connectionId: string }>, res: Response) => {
+router.get('/store/:connectionId', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect, trackUsage } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -239,7 +239,7 @@ router.get('/store/:connectionId', async (req: AuthenticatedRequest<{ connection
 });
 
 // Get product count for a specific store connection
-router.get('/store/:connectionId/count', async (req: AuthenticatedRequest<{ connectionId: string }>, res: Response) => {
+router.get('/store/:connectionId/count', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect, trackUsage } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -287,7 +287,7 @@ router.get('/store/:connectionId/count', async (req: AuthenticatedRequest<{ conn
 });
 
 // Sync products from a marketplace
-router.post('/sync/:connectionId', async (req: AuthenticatedRequest<{ connectionId: string }, {}, SyncProductsBody>, res: Response) => {
+router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect, checkSubscriptionStatus, checkSyncFrequency, trackUsage } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -330,7 +330,7 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest<{ connection
               const result = await syncProductsFromMarketplace(
                 connection.marketplaceType,
                 connection.credentials,
-                req.user!._id,
+                req.user!._id.toString(),
                 connectionId,
                 force
               );
@@ -424,7 +424,7 @@ async function syncShopifyProducts(
 
     while (hasNextPage) {
       const response = await queryShopifyGraphQL(apiUrl, access_token, cursor);
-      const products = response.data.products.edges;
+      const products = (response as any).data.products.edges;
       
       console.log(`Retrieved ${products.length} products from Shopify`);
       
@@ -438,8 +438,8 @@ async function syncShopifyProducts(
         }
       }
 
-      hasNextPage = response.data.products.pageInfo.hasNextPage;
-      cursor = response.data.products.pageInfo.endCursor;
+      hasNextPage = (response as any).data.products.pageInfo.hasNextPage;
+      cursor = (response as any).data.products.pageInfo.endCursor;
       
       console.log(`Synced ${totalProducts} products so far...`);
     }
@@ -520,8 +520,8 @@ async function queryShopifyGraphQL(apiUrl: string, accessToken: string, cursor: 
 
   const data = await response.json();
   
-  if (data.errors) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+  if ((data as any).errors) {
+    throw new Error(`GraphQL errors: ${JSON.stringify((data as any).errors)}`);
   }
 
   return data;
@@ -542,7 +542,7 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, connectio
     });
 
     const shopifyPlatform = {
-      platform: 'shopify',
+      platform: 'shopify' as PlatformType,
       platformId: shopifyProduct.id,
       platformSku: shopifyProduct.handle,
       platformPrice: shopifyProduct.variants.edges[0]?.node.price ? parseFloat(shopifyProduct.variants.edges[0].node.price) : undefined,
@@ -637,7 +637,7 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, connectio
 }
 
 // Get single product by ID
-router.get('/:id', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
+router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect, trackUsage } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -696,7 +696,7 @@ router.get('/:id', async (req: AuthenticatedRequest<{ id: string }>, res: Respon
 });
 
 // PATCH /products/:id/description - Update product description
-router.patch('/:id/description', async (req: AuthenticatedRequest<{ id: string }, {}, UpdateDescriptionBody>, res: Response) => {
+router.patch('/:id/description', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -741,7 +741,7 @@ router.patch('/:id/description', async (req: AuthenticatedRequest<{ id: string }
 
 // POST /products/:id/description/apply-to-marketplace - Apply description to marketplace
 router.post('/:id/description/apply-to-marketplace', async (
-  req: AuthenticatedRequest<{ id: string }, {}, ApplyDescriptionBody>, 
+  req: AuthenticatedRequest, 
   res: Response
 ) => {
   try {
@@ -775,10 +775,10 @@ router.post('/:id/description/apply-to-marketplace', async (
                 });
               }
 
-              if (product.storeConnectionId.marketplaceType !== marketplace) {
+              if ((product.storeConnectionId as any).marketplaceType !== marketplace) {
                 return res.status(400).json({
                   success: false,
-                  message: `Product is connected to ${product.storeConnectionId.marketplaceType}, not ${marketplace}`
+                  message: `Product is connected to ${(product.storeConnectionId as any).marketplaceType}, not ${marketplace}`
                 });
               }
 

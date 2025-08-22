@@ -186,7 +186,7 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // GET /api/dashboard/suggestions - Get AI suggestions for store improvement
-router.get('/suggestions', async (req: AuthenticatedRequest<{}, {}, {}, SuggestionsQuery>, res: Response) => {
+router.get('/suggestions', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
@@ -202,7 +202,7 @@ router.get('/suggestions', async (req: AuthenticatedRequest<{}, {}, {}, Suggesti
 
       // Check if we have valid cached suggestions
       if (!forceRefresh) {
-        const cachedSuggestions = await GeneralSuggestion.findValidSuggestions(userId);
+        const cachedSuggestions = await GeneralSuggestion.findValidSuggestions(userId.toString() as any);
         
         if (cachedSuggestions.length > 0) {
           console.log(`Returning ${cachedSuggestions.length} cached suggestions for user ${userId}`);

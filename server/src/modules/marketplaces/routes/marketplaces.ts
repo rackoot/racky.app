@@ -81,7 +81,7 @@ router.get('/status', async (req: AuthenticatedRequest, res: Response) => {
     await trackUsage('api_call')(req, res, async () => {
       const { getUserMarketplaceStatus } = await getMarketplaceService();
       
-      const marketplaceStatus = await getUserMarketplaceStatus(req.user!._id);
+      const marketplaceStatus = await getUserMarketplaceStatus(req.user!._id.toString());
       res.json({
         success: true,
         data: marketplaceStatus
@@ -97,7 +97,7 @@ router.get('/status', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // POST /api/marketplaces/test - Test marketplace connection
-router.post('/test', async (req: AuthenticatedRequest<{}, {}, TestConnectionBody>, res: Response) => {
+router.post('/test', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
@@ -133,7 +133,7 @@ router.post('/test', async (req: AuthenticatedRequest<{}, {}, TestConnectionBody
 });
 
 // POST /api/marketplaces/connect - Connect marketplace (deprecated - use create-store instead)
-router.post('/connect', async (req: AuthenticatedRequest<{}, {}, ConnectMarketplaceBody>, res: Response) => {
+router.post('/connect', async (req: AuthenticatedRequest, res: Response) => {
   return res.status(400).json({
     success: false,
     message: 'This endpoint is deprecated. Use /create-store to create a new marketplace connection.'
@@ -141,7 +141,7 @@ router.post('/connect', async (req: AuthenticatedRequest<{}, {}, ConnectMarketpl
 });
 
 // POST /api/marketplaces/create-store - Create new store with marketplace connection
-router.post('/create-store', async (req: AuthenticatedRequest<{}, {}, CreateStoreWithMarketplaceBody>, res: Response) => {
+router.post('/create-store', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { checkSubscriptionStatus, checkUsageLimits, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
@@ -266,7 +266,7 @@ router.post('/create-store', async (req: AuthenticatedRequest<{}, {}, CreateStor
 });
 
 // PUT /api/marketplaces/:connectionId/test - Test existing marketplace connection
-router.put('/:connectionId/test', async (req: AuthenticatedRequest<{ connectionId: string }>, res: Response) => {
+router.put('/:connectionId/test', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { connectionId } = req.params;
     const StoreConnection = await getStoreConnectionModel();
@@ -310,7 +310,7 @@ router.put('/:connectionId/test', async (req: AuthenticatedRequest<{ connectionI
 });
 
 // PUT /api/marketplaces/:connectionId/toggle - Toggle marketplace active status
-router.put('/:connectionId/toggle', async (req: AuthenticatedRequest<{ connectionId: string }>, res: Response) => {
+router.put('/:connectionId/toggle', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { connectionId } = req.params;
     const StoreConnection = await getStoreConnectionModel();

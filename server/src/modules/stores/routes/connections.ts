@@ -95,7 +95,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // GET /api/connections/:id - Get specific connection
-router.get('/:id', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
+router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { trackUsage } = await getAuthMiddleware();
     await trackUsage('api_call')(req, res, async () => {
@@ -128,7 +128,7 @@ router.get('/:id', async (req: AuthenticatedRequest<{ id: string }>, res: Respon
 });
 
 // POST /api/connections - Create new connection
-router.post('/', async (req: AuthenticatedRequest<{}, {}, CreateConnectionBody>, res: Response) => {
+router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { checkSubscriptionStatus, checkUsageLimits, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
@@ -168,7 +168,7 @@ router.post('/', async (req: AuthenticatedRequest<{}, {}, CreateConnectionBody>,
 });
 
 // PUT /api/connections/:id - Update connection
-router.put('/:id', async (req: AuthenticatedRequest<{ id: string }, {}, UpdateConnectionBody>, res: Response) => {
+router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
@@ -214,7 +214,7 @@ router.put('/:id', async (req: AuthenticatedRequest<{ id: string }, {}, UpdateCo
 });
 
 // POST /api/connections/:id/marketplace - Add marketplace to connection
-router.post('/:id/marketplace', async (req: AuthenticatedRequest<{ id: string }, {}, AddMarketplaceBody>, res: Response) => {
+router.post('/:id/marketplace', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {
@@ -242,15 +242,27 @@ router.post('/:id/marketplace', async (req: AuthenticatedRequest<{ id: string },
             });
           }
 
-          const existingMarketplace = connection.marketplaces.find((m: any) => m.type === req.body.type);
-          if (existingMarketplace) {
+          // Check if this marketplace type is already connected for this user
+          const existingConnection = await StoreConnection.findOne({
+            userId: req.user!._id,
+            marketplaceType: (req.body as any).type
+          });
+          
+          if (existingConnection) {
             return res.status(400).json({ 
               success: false,
               message: 'Marketplace already connected' 
             });
           }
 
-          connection.marketplaces.push(req.body);
+          // This route should actually create a new store connection instead of modifying existing one
+          const newConnection = await StoreConnection.create({
+            userId: req.user!._id,
+            storeName: connection.storeName + ` - ${(req.body as any).type}`,
+            marketplaceType: (req.body as any).type,
+            credentials: (req.body as any).credentials,
+            isActive: true
+          });
           await connection.save();
 
           res.status(201).json({
@@ -270,7 +282,7 @@ router.post('/:id/marketplace', async (req: AuthenticatedRequest<{ id: string },
 });
 
 // DELETE /api/connections/:id - Delete entire marketplace connection
-router.delete('/:id', async (req: AuthenticatedRequest<{ id: string }, {}, {}, DeleteConnectionQuery>, res: Response) => {
+router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { checkSubscriptionStatus, trackUsage } = await getAuthMiddleware();
     await checkSubscriptionStatus(req, res, async () => {

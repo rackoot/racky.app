@@ -1,4 +1,5 @@
 import express, { Response } from 'express';
+import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../../_common/types/express';
 
 const router = express.Router();
@@ -9,21 +10,9 @@ const getOpportunityModel = async () => (await import('../models/Opportunity')).
 const getOpportunityCategoryModel = async () => (await import('../models/OpportunityCategory')).default;
 const getStoreConnectionModel = async () => (await import('../../stores/models/StoreConnection')).default;
 const getAiService = async () => (await import('../services/aiService'));
-const getMarketplaceConstants = async () => (await import('../../../_common/constants/marketplaces'));
 const getAuthMiddleware = async () => (await import('../../../_common/middleware/auth'));
 
-// Interface definitions
-interface GenerateOpportunitiesBody {
-  forceRefresh?: boolean;
-}
-
-interface UpdateOpportunityStatusBody {
-  status: 'open' | 'in_progress' | 'completed' | 'dismissed';
-}
-
-interface OpportunitiesQuery {
-  category?: string;
-}
+// Interface definitions are handled inline for better compatibility
 
 // GET /api/opportunities/categories - Get all available categories
 router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
@@ -52,13 +41,13 @@ router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // GET /api/opportunities/products/:id - Get cached opportunities for a product
-router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }, {}, {}, OpportunitiesQuery>, res: Response) => {
+router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id: productId } = req.params;
       const userId = req.user!._id;
-      const { category } = req.query;
+      const category = req.query.category as string;
 
       const Product = await getProductModel();
       const Opportunity = await getOpportunityModel();
@@ -79,9 +68,9 @@ router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }, {},
       // Get opportunities (filtered by category if specified)
       let opportunities: any[];
       if (category) {
-        opportunities = await Opportunity.findByCategory(userId, productId, category);
+        opportunities = await Opportunity.findByCategory(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId), category as any);
       } else {
-        opportunities = await Opportunity.findValidForProduct(userId, productId);
+        opportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId));
       }
 
       // Group opportunities by category for easier frontend handling
@@ -144,13 +133,13 @@ router.get('/products/:id', async (req: AuthenticatedRequest<{ id: string }, {},
 });
 
 // POST /api/opportunities/products/:id/generate - Generate new AI suggestions
-router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: string }, {}, GenerateOpportunitiesBody>, res: Response) => {
+router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id: productId } = req.params;
       const userId = req.user!._id;
-      const { forceRefresh = false } = req.body;
+      const forceRefresh = (req.body as any)?.forceRefresh || false;
 
       const Product = await getProductModel();
       const Opportunity = await getOpportunityModel();
@@ -170,7 +159,7 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
 
       // Check if we have recent opportunities (unless force refresh)
       if (!forceRefresh) {
-        const existingOpportunities = await Opportunity.findValidForProduct(userId, productId);
+        const existingOpportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId));
         if (existingOpportunities.length > 0) {
           return res.json({
             success: true,
@@ -201,8 +190,8 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
       // Generate new opportunities using AI
       console.log(`Generating opportunities for product ${productId} (user: ${userId})`);
       
-      const generatedOpportunities = await aiService.generateProductOpportunities(
-        product.toObject(), 
+      const generatedOpportunities = await aiService.default.generateProductOpportunities(
+        product.toObject() as any, 
         connectedMarketplaces
       );
 
@@ -210,7 +199,7 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
       const savedOpportunities = await Promise.all(
         generatedOpportunities.map(async (oppData: any) => {
           // Validate opportunity data
-          const validation = aiService.validateOpportunity(oppData);
+          const validation = aiService.default.validateOpportunity(oppData);
           if (!validation.valid) {
             console.warn('Invalid opportunity data:', validation.error, oppData);
             return null;
@@ -275,12 +264,12 @@ router.post('/products/:id/generate', async (req: AuthenticatedRequest<{ id: str
 });
 
 // PATCH /api/opportunities/:id/status - Update opportunity status
-router.patch('/:id/status', async (req: AuthenticatedRequest<{ id: string }, {}, UpdateOpportunityStatusBody>, res: Response) => {
+router.patch('/:id/status', async (req: AuthenticatedRequest<{ id: string }>, res: Response) => {
   try {
     const { protect } = await getAuthMiddleware();
     await protect(req, res, async () => {
       const { id } = req.params;
-      const { status } = req.body;
+      const status = (req.body as any)?.status;
       const userId = req.user!._id;
 
       if (!['open', 'in_progress', 'completed', 'dismissed'].includes(status)) {
@@ -340,7 +329,7 @@ router.get('/products/:id/summary', async (req: AuthenticatedRequest<{ id: strin
         });
       }
 
-      const opportunities = await Opportunity.findValidForProduct(userId, productId);
+      const opportunities = await Opportunity.findValidForProduct(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId));
 
       // Calculate summary stats
       const stats = {
