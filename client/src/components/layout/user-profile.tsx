@@ -84,11 +84,11 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
               <div className="truncate font-medium">{displayName}</div>
               <div className="flex items-center gap-2">
                 <div className="truncate text-xs text-sidebar-foreground/60">{user.email}</div>
-                {subscriptionStatus && (
+                {/* {subscriptionStatus && (
                   <Badge variant={subscriptionStatus.variant} className="text-xs px-1 py-0">
                     {subscriptionStatus.text}
                   </Badge>
-                )}
+                )} */}
               </div>
             </div>
           )}
@@ -104,12 +104,12 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
           <div className="text-sm font-medium">{displayName}</div>
           <div className="flex items-center gap-2">
             <div className="text-xs text-muted-foreground">{user.email}</div>
-            {subscriptionStatus && (
+            {/* {subscriptionStatus && (
               <Badge variant={subscriptionStatus.variant} className="text-xs px-1 py-0">
                 {subscriptionStatus.icon && <subscriptionStatus.icon className="w-3 h-3 mr-1" />}
                 {subscriptionStatus.text}
               </Badge>
-            )}
+            )} */}
           </div>
         </div>
         <DropdownMenuSeparator />
