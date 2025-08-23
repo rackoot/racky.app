@@ -3,9 +3,11 @@ import { MarketplaceCard } from "@/components/marketplace/marketplace-card"
 import { marketplaceService } from "@/services/marketplace"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import type { Marketplace } from "@/types/marketplace"
 
 export function Stores() {
+  const { currentWorkspace } = useWorkspace()
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -25,8 +27,11 @@ export function Stores() {
   }
 
   useEffect(() => {
-    loadMarketplaces()
-  }, [])
+    // Only load if we have a current workspace
+    if (currentWorkspace) {
+      loadMarketplaces()
+    }
+  }, [currentWorkspace])
 
 
   if (loading) {

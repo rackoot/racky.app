@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,6 +45,7 @@ const marketplaceIcons: Record<string, string> = {
 }
 
 export function Products() {
+  const { currentWorkspace } = useWorkspace()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [products, setProducts] = useState<Product[]>([])
@@ -81,8 +83,11 @@ export function Products() {
   }
 
   useEffect(() => {
-    loadProducts()
-  }, [query])
+    // Only load if we have a current workspace
+    if (currentWorkspace) {
+      loadProducts()
+    }
+  }, [query, currentWorkspace])
 
   const handleSearch = (search: string) => {
     setQuery(prev => ({ ...prev, search, page: 1 }))

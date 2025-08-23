@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { 
@@ -49,6 +50,7 @@ interface UsageData {
 }
 
 export function Usage() {
+  const { currentWorkspace } = useWorkspace()
   const [usageData, setUsageData] = useState<UsageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,8 +58,11 @@ export function Usage() {
   const user = getCurrentUser()
 
   useEffect(() => {
-    loadUsageData()
-  }, [])
+    // Only load if we have a current workspace
+    if (currentWorkspace) {
+      loadUsageData()
+    }
+  }, [currentWorkspace])
 
   const loadUsageData = async () => {
     try {
