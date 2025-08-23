@@ -34,8 +34,35 @@ cd server
 npm run dev          # Start development server with nodemon (http://localhost:5000)
 npm start           # Start production server
 npm test            # Run tests with Jest
+npm run test:watch   # Run tests in watch mode
+npm run test:coverage # Run tests with coverage report
 node scripts/createAdmin.js  # Creates admin@example.com / admin123 (legacy)
 node scripts/setup-saas.js   # Initialize SaaS platform with super admin and plans
+```
+
+### Testing Commands
+
+#### Backend Testing
+```bash
+cd server
+npm test                    # Run all tests
+npm run test:watch          # Run tests in watch mode
+npm run test:coverage       # Run tests with coverage report
+npm test auth.test.ts       # Run specific test file
+npm test -- --verbose      # Run tests with verbose output
+```
+
+#### Frontend Testing  
+```bash
+cd client
+npm test                    # Run unit tests with Vitest
+npm run test:ui             # Open Vitest UI
+npm run test:run            # Run tests once (CI mode)
+npm run test:coverage       # Run tests with coverage
+npm run e2e                 # Run E2E tests with Playwright
+npm run e2e:ui              # Open Playwright UI
+npm run e2e:debug          # Debug E2E tests
+npm run e2e:report         # View E2E test report
 ```
 
 ## Architecture Overview
@@ -410,3 +437,220 @@ When creating a new module:
 3. Update this CLAUDE.md file to document the new module
 4. Create module-specific interfaces in the `interfaces/` directory
 5. Keep module business logic in the `services/` directory
+
+## Testing Requirements & Guidelines
+
+### **🚨 MANDATORY TESTING POLICY**
+
+**ALL new API endpoints and components MUST include comprehensive tests before being merged.**
+
+#### **Backend Testing Requirements**
+
+**Test Coverage Thresholds:**
+- **Lines**: 80%
+- **Functions**: 80%
+- **Branches**: 80%
+- **Statements**: 80%
+
+**Required Tests for New Endpoints:**
+1. **Integration Tests** (Primary) - Test complete request/response cycle
+2. **Authentication & Authorization** - Verify proper access control  
+3. **Data Isolation** - Ensure workspace data scoping
+4. **Validation** - Test input validation and error handling
+5. **Subscription Limits** - Verify usage limits enforcement
+6. **Error Scenarios** - Test failure cases and error responses
+
+**Backend Test Structure:**
+```
+/server/src/__tests__/
+├── integration/           # API endpoint tests
+│   ├── auth.test.ts      # Authentication system
+│   ├── workspaces.test.ts # Workspace management  
+│   ├── subscriptions.test.ts # Plans & billing
+│   ├── stores.test.ts    # Store connections
+│   └── products.test.ts  # Product management
+├── setup/                # Test configuration
+│   ├── jest.setup.ts     # Global setup
+│   ├── testDb.ts         # Database utilities
+│   └── cleanup.ts        # Cleanup utilities
+├── helpers/              # Test utilities
+│   ├── testAuth.ts       # Auth helpers
+│   └── testData.ts       # Mock data
+└── fixtures/             # Test data
+    └── testData.ts       # Sample data
+```
+
+**Example Integration Test Pattern:**
+```typescript
+describe('API Endpoint Tests', () => {
+  beforeAll(async () => {
+    await setupTestDb()
+  })
+
+  afterAll(async () => {
+    await teardownTestDb()
+  })
+
+  beforeEach(async () => {
+    await clearTestDb()
+  })
+
+  it('should handle success case with authentication', async () => {
+    const { user, workspace } = await createTestUserWithWorkspace()
+    
+    const response = await request(app)
+      .get('/api/endpoint')
+      .set(getAuthHeaders(user.token, workspace._id.toString()))
+      .expect(200)
+
+    expect(response.body).toMatchObject({
+      success: true,
+      data: expect.any(Object)
+    })
+  })
+
+  it('should enforce workspace data isolation', async () => {
+    // Test that users can only access their workspace data
+  })
+
+  it('should require authentication', async () => {
+    await request(app)
+      .get('/api/endpoint')
+      .expect(401)
+  })
+})
+```
+
+#### **Frontend Testing Requirements**
+
+**Test Coverage Thresholds:**
+- **Lines**: 70%
+- **Functions**: 70%  
+- **Branches**: 70%
+- **Statements**: 70%
+
+**Required Tests for New Components:**
+1. **Unit Tests** - Component rendering and behavior
+2. **Integration Tests** - Component interactions with services
+3. **User Interaction** - Click, form submission, navigation
+4. **Accessibility** - Keyboard navigation, ARIA labels
+5. **Error Handling** - Error states and fallbacks
+6. **Loading States** - Skeleton screens, spinners
+7. **Mobile Responsiveness** - Various viewport sizes
+
+**Frontend Test Structure:**
+```
+/client/src/
+├── components/
+│   └── ui/__tests__/
+│       └── button.test.tsx
+├── services/__tests__/
+│   └── marketplace.test.ts
+├── e2e/
+│   ├── auth.spec.ts
+│   ├── dashboard.spec.ts
+│   └── products.spec.ts
+└── test/
+    ├── setup.ts
+    └── utils.tsx
+```
+
+**Component Test Example:**
+```typescript
+describe('Component Tests', () => {
+  it('renders correctly', () => {
+    render(<Component prop="value" />)
+    expect(screen.getByText('Expected Text')).toBeInTheDocument()
+  })
+
+  it('handles user interactions', async () => {
+    const user = userEvent.setup()
+    const handleClick = vi.fn()
+    
+    render(<Component onClick={handleClick} />)
+    await user.click(screen.getByRole('button'))
+    
+    expect(handleClick).toHaveBeenCalled()
+  })
+})
+```
+
+#### **E2E Testing Requirements**
+
+**Required E2E Test Coverage:**
+1. **Authentication Flow** - Login, registration, logout
+2. **Core User Journeys** - Store setup, product management
+3. **Workspace Switching** - Multi-tenant functionality
+4. **Mobile Experience** - Responsive design validation
+5. **Error Recovery** - Network failures, API errors
+
+**E2E Test Example:**
+```typescript
+test('should complete user journey', async ({ page }) => {
+  await page.goto('/auth/login')
+  
+  await page.getByLabel('Email').fill('test@example.com')
+  await page.getByLabel('Password').fill('password123')
+  await page.getByRole('button', { name: 'Sign In' }).click()
+  
+  await expect(page).toHaveURL('/dashboard')
+  await expect(page.getByText('Welcome')).toBeVisible()
+})
+```
+
+### **Testing Infrastructure**
+
+**Backend Technologies:**
+- **Jest** - Test framework with TypeScript support
+- **Supertest** - HTTP assertions for API testing
+- **MongoDB Memory Server** - Isolated database testing
+- **Test helpers** - Authentication, workspace, and data utilities
+
+**Frontend Technologies:**
+- **Vitest** - Fast unit testing with React support
+- **React Testing Library** - Component testing utilities
+- **Playwright** - Cross-browser E2E testing
+- **User Event** - Realistic user interaction simulation
+
+### **Testing Commands Reference**
+
+```bash
+# Backend Testing
+cd server
+npm test                    # Run all tests
+npm test auth.test.ts       # Run specific test
+npm run test:watch          # Watch mode
+npm run test:coverage       # Coverage report
+
+# Frontend Testing  
+cd client
+npm test                    # Unit tests
+npm run test:ui             # Interactive UI
+npm run e2e                 # E2E tests
+npm run e2e:ui              # E2E test UI
+npm run test:coverage       # Coverage report
+```
+
+### **Pre-Commit Requirements**
+
+Before committing code with new endpoints or components:
+
+1. ✅ **All tests pass** (`npm test` in both client and server)
+2. ✅ **Coverage thresholds met** (80% backend, 70% frontend)  
+3. ✅ **Integration tests included** for new API endpoints
+4. ✅ **Component tests included** for new UI components
+5. ✅ **E2E tests updated** for new user flows
+6. ✅ **Authentication tests** for protected endpoints
+7. ✅ **Workspace isolation tests** for multi-tenant features
+
+### **Testing Best Practices**
+
+1. **Test Data Isolation** - Each test should use fresh data
+2. **Realistic Test Data** - Use data that matches production patterns  
+3. **Error Scenarios** - Test failure cases, not just happy paths
+4. **Mock External APIs** - Don't make real API calls in tests
+5. **Test Descriptions** - Clear, descriptive test names
+6. **Async Handling** - Proper async/await usage in tests
+7. **Cleanup** - Clean up resources after tests complete
+
+**FAILURE TO TEST**: Any new endpoints or components without proper tests will be rejected. Testing is not optional - it's a fundamental requirement for code quality and system reliability.

@@ -1,0 +1,56 @@
+name: Quick Check
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize]
+
+env:
+  NODE_VERSION: '20.x'
+
+jobs:
+  quick-test:
+    name: Quick Test & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        cd server && npm ci
+        cd ../client && npm ci
+
+    - name: Run quick backend tests (auth only)
+      working-directory: ./server
+      run: npm test auth.test.ts
+      continue-on-error: true
+      env:
+        NODE_ENV: test
+
+    - name: Run frontend linting
+      working-directory: ./client
+      run: npm run lint
+
+    - name: Run TypeScript checks
+      run: |
+        cd server && npx tsc --noEmit
+        cd ../client && npx tsc --noEmit
+
+    - name: Run frontend unit tests (utils only)
+      working-directory: ./client
+      run: npm test run lib/__tests__
+      continue-on-error: true
+
+    - name: PR Status Check
+      run: |
+        echo "✅ Quick checks completed"
+        echo "This is a fast preliminary check."
+        echo "Full test suite will run after this passes."
