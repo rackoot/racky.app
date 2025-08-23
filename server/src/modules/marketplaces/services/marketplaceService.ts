@@ -325,13 +325,13 @@ const testMarketplaceConnection = async (marketplaceType: string, credentials: M
   }
 };
 
-const getUserMarketplaceStatus = async (userId: string): Promise<MarketplaceStatus[]> => {
+const getWorkspaceMarketplaceStatus = async (workspaceId: string): Promise<MarketplaceStatus[]> => {
   // Dynamic imports to avoid circular dependencies
   const { default: StoreConnection } = await import('../../stores/models/StoreConnection');
   const { default: Product } = await import('../../products/models/Product');
   
   try {
-    const connections = await StoreConnection.find({ userId });
+    const connections = await StoreConnection.find({ workspaceId });
     const connectedMarketplaces: { [key: string]: ConnectionInfo } = {};
     
     connections.forEach(connection => {
@@ -350,9 +350,9 @@ const getUserMarketplaceStatus = async (userId: string): Promise<MarketplaceStat
         let productsCount = 0;
         
         if (connectionInfo) {
-          // Count products for this marketplace and user
+          // Count products for this marketplace and workspace
           productsCount = await Product.countDocuments({
-            userId,
+            workspaceId,
             storeConnectionId: connectionInfo.connectionId
           });
           
@@ -380,6 +380,6 @@ const getUserMarketplaceStatus = async (userId: string): Promise<MarketplaceStat
 export {
   getAvailableMarketplaces,
   testMarketplaceConnection,
-  getUserMarketplaceStatus,
+  getWorkspaceMarketplaceStatus,
   SUPPORTED_MARKETPLACES
 };
