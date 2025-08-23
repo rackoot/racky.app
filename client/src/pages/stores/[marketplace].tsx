@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import { ConnectionForm } from "@/components/marketplace/connection-form"
 import { ConnectedMarketplaceDetail } from "@/components/marketplace/connected-marketplace-detail"
 import { ConnectedShopifyDetail } from "@/components/marketplace/connected-shopify-detail"
@@ -14,6 +15,7 @@ import { AlertCircle, ArrowLeft, Loader2, AlertTriangle, Trash2 } from "lucide-r
 import type { Marketplace } from "@/types/marketplace"
 
 export function MarketplacePage() {
+  const { currentWorkspace } = useWorkspace()
   const { marketplace: marketplaceId } = useParams<{ marketplace: string }>()
   const navigate = useNavigate()
   const [marketplace, setMarketplace] = useState<Marketplace | null>(null)
@@ -50,8 +52,10 @@ export function MarketplacePage() {
   }
 
   useEffect(() => {
-    loadMarketplace()
-  }, [marketplaceId])
+    if (currentWorkspace) {
+      loadMarketplace()
+    }
+  }, [marketplaceId, currentWorkspace])
 
   const handleConnectionSuccess = async () => {
     await loadMarketplace()

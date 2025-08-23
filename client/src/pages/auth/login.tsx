@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { refreshWorkspacesAfterLogin } from "@/components/workspace/workspace-context"
 
 export function Login() {
   const [email, setEmail] = useState("")
@@ -18,7 +19,7 @@ export function Login() {
     setError("")
     
     try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -32,6 +33,9 @@ export function Login() {
         localStorage.setItem('token', responseData.data.token)
         localStorage.setItem('user', JSON.stringify(responseData.data))
         console.log('Login successful, redirecting...')
+        
+        // Trigger workspace refresh after login
+        refreshWorkspacesAfterLogin()
         
         // Redirect SUPERADMIN users to admin panel, regular users to dashboard
         if (responseData.data.role === 'SUPERADMIN') {

@@ -52,7 +52,7 @@ export function EditableDescription({
 
     try {
       // First update the local product description
-      const updateResponse = await fetch(`http://localhost:5000/api/products/${productId}/description`, {
+      const updateResponse = await fetch(`/api/products/${productId}/description`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -69,7 +69,7 @@ export function EditableDescription({
       let marketplaceResult = null
       if (storeConnectionId) {
         try {
-          const marketplaceResponse = await fetch(`http://localhost:5000/api/products/${productId}/description/apply-to-marketplace`, {
+          const marketplaceResponse = await fetch(`/api/products/${productId}/description/apply-to-marketplace`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,

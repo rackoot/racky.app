@@ -83,10 +83,10 @@ export function Subscription() {
       setError(null)
 
       const [planResponse, usageResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/plans/user/current', {
+        fetch('/api/plans/user/current', {
           headers: getAuthHeaders()
         }),
-        fetch('http://localhost:5000/api/usage/current', {
+        fetch('/api/usage/current', {
           headers: getAuthHeaders()
         })
       ])
@@ -153,7 +153,7 @@ export function Subscription() {
     
     try {
       // Create Stripe billing portal session
-      const response = await fetch('http://localhost:5000/api/billing/portal', {
+      const response = await fetch('/api/billing/portal', {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),

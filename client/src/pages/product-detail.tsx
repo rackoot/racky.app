@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -112,6 +113,7 @@ const getMarketplaceProductUrl = (product: ProductDetail) => {
 }
 
 export function ProductDetail() {
+  const { currentWorkspace } = useWorkspace()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [product, setProduct] = useState<ProductDetail | null>(null)
@@ -120,10 +122,10 @@ export function ProductDetail() {
   const [activeTab, setActiveTab] = useState("details")
 
   useEffect(() => {
-    if (id) {
+    if (id && currentWorkspace) {
       loadProduct()
     }
-  }, [id])
+  }, [id, currentWorkspace])
 
   const loadProduct = async () => {
     if (!id) return

@@ -7,8 +7,11 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('token')
+  const workspaceId = localStorage.getItem('currentWorkspaceId')
   return {
     'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` })
+    'Cache-Control': 'no-cache',
+    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
   }
 }

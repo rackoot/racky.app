@@ -335,6 +335,73 @@ PORT=5000
   - Updating the description sections to reflect changes
   - Updating the "Última Actualización" section with current date and entity count
 - **Breaking Changes**: Document any API changes or breaking changes that affect client-server communication
+- **CRITICAL - Workspace Context Reactivity**: **MANDATORY** for all new frontend pages that display workspace-specific data. See "Frontend Workspace Context Requirements" section below.
+
+### Frontend Workspace Context Requirements
+
+**CRITICAL REQUIREMENT**: All new frontend pages that display or interact with workspace-specific data MUST implement proper workspace context reactivity to ensure seamless workspace switching behavior.
+
+#### **When This Applies:**
+- Any page that fetches data scoped to a workspace (products, stores, analytics, usage, etc.)
+- Any page that makes API calls to endpoints using `requireWorkspace` middleware
+- Any page displaying workspace-specific content that should refresh when switching workspaces
+
+#### **Implementation Requirements:**
+
+1. **Import Workspace Context:**
+   ```typescript
+   import { useWorkspace } from "@/components/workspace/workspace-context"
+   ```
+
+2. **Use Workspace Hook:**
+   ```typescript
+   export function YourPage() {
+     const { currentWorkspace } = useWorkspace()
+     // ... other state
+   }
+   ```
+
+3. **Include Workspace in useEffect Dependencies:**
+   ```typescript
+   useEffect(() => {
+     // Only load if we have a current workspace
+     if (currentWorkspace) {
+       loadYourData()
+     }
+   }, [currentWorkspace]) // Always include currentWorkspace as dependency
+   ```
+
+4. **For Pages with Multiple Dependencies:**
+   ```typescript
+   useEffect(() => {
+     if (currentWorkspace) {
+       loadYourData()
+     }
+   }, [query, filters, currentWorkspace]) // Include currentWorkspace alongside other dependencies
+   ```
+
+#### **Examples of Properly Implemented Pages:**
+- `/client/src/pages/dashboard.tsx`
+- `/client/src/pages/stores.tsx` 
+- `/client/src/pages/products.tsx`
+- `/client/src/pages/usage.tsx`
+- `/client/src/pages/product-detail.tsx`
+- `/client/src/pages/stores/[marketplace].tsx`
+
+#### **Why This Is Critical:**
+- **Data Isolation**: Ensures users see only data belonging to their current workspace
+- **User Experience**: Provides seamless workspace switching without manual page refreshes
+- **Multi-Tenant Security**: Prevents data leakage between workspaces
+- **Consistent Behavior**: All pages behave predictably when workspace changes
+
+#### **Testing Checklist for New Pages:**
+1. ✅ Page loads data when first visiting with a selected workspace
+2. ✅ Page content refreshes automatically when switching to a different workspace  
+3. ✅ Page shows appropriate loading state during workspace switch
+4. ✅ Page handles empty/new workspaces gracefully
+5. ✅ No cached data from previous workspace is shown
+
+**FAILURE TO IMPLEMENT**: Pages without proper workspace context will show stale data from previous workspaces, breaking the multi-tenant architecture and potentially exposing data across workspace boundaries.
 
 ### Module Creation Guidelines
 When creating a new module:

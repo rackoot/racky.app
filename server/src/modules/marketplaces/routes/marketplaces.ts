@@ -72,9 +72,9 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/status', async (req: AuthenticatedRequest, res: Response) => {
   try {
         await trackUsage('api_call')(req, res, async () => {
-      const { getUserMarketplaceStatus } = marketplaceService;
+      const { getWorkspaceMarketplaceStatus } = marketplaceService;
       
-      const marketplaceStatus = await getUserMarketplaceStatus(req.user!._id.toString());
+      const marketplaceStatus = await getWorkspaceMarketplaceStatus(req.workspace!._id.toString());
       res.json({
         success: true,
         data: marketplaceStatus
@@ -152,7 +152,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
                             
               // Check if user already has an ACTIVE marketplace type connected
               const existingActiveConnection = await StoreConnection.findOne({
-                userId: req.user!._id,
+                workspaceId: req.workspace!._id,
                 marketplaceType: type,
                 isActive: true
               });
@@ -166,7 +166,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
 
               // Check for existing inactive connection with products
               const existingInactiveConnection = await StoreConnection.findOne({
-                userId: req.user!._id,
+                workspaceId: req.workspace!._id,
                 marketplaceType: type,
                 isActive: false
               });
@@ -183,7 +183,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
 
               // Create new store connection
               const storeConnection = await StoreConnection.create({
-                userId: req.user!._id,
+                workspaceId: req.workspace!._id,
                 storeName,
                 marketplaceType: type,
                 credentials,
@@ -197,7 +197,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
                 console.log(`Found existing inactive ${type} connection ${existingInactiveConnection._id}, checking for orphaned products...`);
                 
                 const orphanedProducts = await Product.find({
-                  userId: req.user!._id,
+                  workspaceId: req.workspace!._id,
                   storeConnectionId: existingInactiveConnection._id,
                   marketplace: type
                 });
@@ -207,7 +207,7 @@ router.post('/create-store', async (req: AuthenticatedRequest, res: Response) =>
                   
                   const updateResult = await Product.updateMany(
                     {
-                      userId: req.user!._id,
+                      workspaceId: req.workspace!._id,
                       storeConnectionId: existingInactiveConnection._id,
                       marketplace: type
                     },
@@ -261,7 +261,7 @@ router.put('/:connectionId/test', async (req: AuthenticatedRequest, res: Respons
     
     const storeConnection = await StoreConnection.findOne({
       _id: connectionId,
-      userId: req.user!._id
+      workspaceId: req.workspace!._id
     });
 
     if (!storeConnection) {
@@ -304,7 +304,7 @@ router.put('/:connectionId/toggle', async (req: AuthenticatedRequest, res: Respo
     
     const storeConnection = await StoreConnection.findOne({
       _id: connectionId,
-      userId: req.user!._id
+      workspaceId: req.workspace!._id
     });
 
     if (!storeConnection) {

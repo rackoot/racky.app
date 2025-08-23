@@ -14,7 +14,7 @@ const registerSchema = Joi.object({
   password: Joi.string().min(6).required(),
   firstName: Joi.string().required(),
   lastName: Joi.string().required(),
-  subscriptionPlan: Joi.string().valid('BASIC', 'PRO', 'ENTERPRISE').optional()
+  // Subscription plans are now managed at workspace level
 });
 
 const loginSchema = Joi.object({
@@ -38,7 +38,7 @@ interface RegisterRequestBody {
   password: string;
   firstName: string;
   lastName: string;
-  subscriptionPlan?: 'BASIC' | 'PRO' | 'ENTERPRISE';
+  // subscriptionPlan removed - handled at workspace level
 }
 
 interface LoginRequestBody {
@@ -67,7 +67,7 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
       });
     }
 
-    const { email, password, firstName, lastName, subscriptionPlan = 'BASIC' } = req.body;
+    const { email, password, firstName, lastName } = req.body;
 
             
     const userExists = await User.findOne({ email });
@@ -78,14 +78,12 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
       });
     }
 
-    // Create user with subscription setup
+    // Create user - subscriptions are handled at workspace level
     const user = await User.create({
       email,
       password,
       firstName,
       lastName,
-      subscriptionPlan,
-      subscriptionStatus: 'TRIAL', // New users start with trial
       role: 'USER' // New users are regular users by default
     });
 
@@ -108,7 +106,7 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        subscriptionInfo: user.getSubscriptionInfo(),
+        // subscriptionInfo removed - handled at workspace level
         token
       }
     });
@@ -152,7 +150,7 @@ router.post('/login', async (req: express.Request<{}, {}, LoginRequestBody>, res
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        subscriptionInfo: await user.getSubscriptionInfo(),
+        // subscriptionInfo removed - handled at workspace level
         token
       }
     });
@@ -203,7 +201,7 @@ router.get('/me', async (req: express.Request, res: Response) => {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
-          subscriptionInfo: await user.getSubscriptionInfo()
+          // subscriptionInfo removed - handled at workspace level
         }
       });
     } catch (tokenError) {
@@ -264,7 +262,7 @@ router.put('/profile', async (req: AuthenticatedRequest, res: Response) => {
           firstName: updatedUser!.firstName,
           lastName: updatedUser!.lastName,
           role: updatedUser!.role,
-          subscriptionInfo: await updatedUser!.getSubscriptionInfo()
+          // subscriptionInfo removed - handled at workspace level
         }
       });
     });

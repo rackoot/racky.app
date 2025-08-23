@@ -31,7 +31,8 @@ export interface IAIMetadata {
 
 // Interface for Opportunity document
 export interface IOpportunity extends Document {
-  userId: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  userId: Types.ObjectId; // Keep for backward compatibility during migration
   productId: Types.ObjectId;
   category: OpportunityCategory;
   marketplace?: MarketplaceType | null;
@@ -66,10 +67,15 @@ export interface IOpportunityModel extends Model<IOpportunity> {
 }
 
 const opportunitySchema = new Schema<IOpportunity>({
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Will be removed after migration
   },
   productId: {
     type: Schema.Types.ObjectId,

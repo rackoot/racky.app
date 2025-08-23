@@ -1,6 +1,7 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/main-layout'
 import { AdminLayout } from '@/components/layout/admin-layout'
+import { WorkspaceProvider } from '@/components/workspace/workspace-context'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { RequireSuperAdmin } from '@/components/auth/require-role'
 import { RequireSubscription } from '@/components/auth/require-subscription'
@@ -14,17 +15,20 @@ import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
 import { Account } from '@/pages/account'
 import { Subscription } from '@/pages/subscription'
+import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
 import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
+import Workspaces from '@/pages/workspaces'
 
 function App() {
   return (
     <Router>
-      <Routes>
+      <WorkspaceProvider>
+        <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/pricing" element={<Pricing />} />
@@ -179,6 +183,16 @@ function App() {
           element={
             <ProtectedRoute>
               <MainLayout>
+                <WorkspaceSubscriptionPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/subscription-legacy"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
                 <Subscription />
               </MainLayout>
             </ProtectedRoute>
@@ -190,6 +204,16 @@ function App() {
             <ProtectedRoute>
               <MainLayout>
                 <Usage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspaces"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <Workspaces />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -279,7 +303,8 @@ function App() {
         />
         
         <Route path="/" element={<SmartRedirect />} />
-      </Routes>
+        </Routes>
+      </WorkspaceProvider>
     </Router>
   )
 }

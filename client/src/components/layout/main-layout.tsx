@@ -1,10 +1,10 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Menu, AlertTriangle, CreditCard } from "lucide-react"
 import { Link } from "react-router-dom"
 import { AppSidebar } from "./app-sidebar"
 import { UserProfile } from "./user-profile"
+import { WorkspaceSelector } from "@/components/workspace/workspace-selector"
 import { getCurrentUser } from "@/lib/auth"
 
 interface MainLayoutProps {
@@ -93,6 +93,15 @@ export function MainLayout({ children }: MainLayoutProps) {
             </h1>
             {!sidebarOpen && <div className="hidden md:block text-center text-sidebar-foreground font-bold">R</div>}
           </div>
+          
+          {/* Workspace Selector */}
+          <div className={`p-4 border-b border-sidebar-border ${!sidebarOpen ? 'md:px-2' : ''}`}>
+            <WorkspaceSelector 
+              showCreateButton={sidebarOpen}
+              className={!sidebarOpen ? 'md:justify-center' : ''}
+            />
+          </div>
+          
           <nav className="flex-1 p-4">
             <AppSidebar collapsed={!sidebarOpen} />
           </nav>

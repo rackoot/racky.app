@@ -38,7 +38,8 @@ export interface IOpportunityData {
 
 // Interface for Suggestion document
 export interface ISuggestion extends Document {
-  userId: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  userId: Types.ObjectId; // Keep for backward compatibility during migration
   productId: Types.ObjectId;
   platform: SuggestionPlatform;
   type: SuggestionType;
@@ -67,10 +68,15 @@ export interface ISuggestionModel extends Model<ISuggestion> {
 }
 
 const suggestionSchema = new Schema<ISuggestion>({
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Will be removed after migration
   },
   productId: {
     type: Schema.Types.ObjectId,

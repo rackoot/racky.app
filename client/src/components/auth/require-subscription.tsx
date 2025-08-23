@@ -32,7 +32,7 @@ export function RequireSubscription({ children, fallback = "/subscription" }: Re
 
     try {
       // Fetch fresh subscription data from API
-      const response = await fetch('http://localhost:5000/api/plans/user/current', {
+      const response = await fetch('/api/plans/user/current', {
         headers: getAuthHeaders()
       })
 

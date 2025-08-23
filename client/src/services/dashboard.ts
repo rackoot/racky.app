@@ -1,10 +1,11 @@
-const API_BASE_URL = 'http://localhost:5000/api';
-
 function getAuthHeaders() {
   const token = localStorage.getItem('token');
+  const workspaceId = localStorage.getItem('currentWorkspaceId');
   return {
     'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Bearer ${token}` })
+    'Cache-Control': 'no-cache',
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
   };
 }
 
@@ -53,7 +54,7 @@ export interface AISuggestionsResponse {
 
 export const dashboardService = {
   async getAnalytics(): Promise<DashboardAnalytics> {
-    const response = await fetch(`${API_BASE_URL}/dashboard/analytics`, {
+    const response = await fetch('/api/dashboard/analytics', {
       method: 'GET',
       headers: getAuthHeaders(),
     });
@@ -71,7 +72,7 @@ export const dashboardService = {
   },
 
   async getAISuggestions(forceRefresh = false): Promise<AISuggestionsResponse> {
-    const url = new URL(`${API_BASE_URL}/dashboard/suggestions`);
+    const url = new URL('/api/dashboard/suggestions', window.location.origin);
     if (forceRefresh) {
       url.searchParams.set('refresh', 'true');
     }

@@ -47,8 +47,8 @@ router.get('/current', async (req: AuthenticatedRequest, res: Response) => {
       // Calculate storage usage (mock calculation)
       const storageUsed = Math.floor(productCount * 0.5); // Estimate 0.5MB per product
 
-      // Get user plan limits
-      const userPlan = await req.user!.getCurrentPlan();
+      // Get workspace plan limits
+      const workspacePlan = await req.workspace!.getCurrentPlan();
 
       const usageData = {
         currentPeriod: {
@@ -62,11 +62,11 @@ router.get('/current', async (req: AuthenticatedRequest, res: Response) => {
             bulkOperations: currentUsage?.bulkOperations || 0
           }
         },
-        limits: userPlan ? {
-          maxStores: userPlan.limits.maxStores,
-          maxProducts: userPlan.limits.maxProducts,
-          maxMarketplaces: userPlan.limits.maxMarketplaces,
-          apiCallsPerMonth: userPlan.limits.apiCallsPerMonth
+        limits: workspacePlan ? {
+          maxStores: workspacePlan.limits.maxStores,
+          maxProducts: workspacePlan.limits.maxProducts,
+          maxMarketplaces: workspacePlan.limits.maxMarketplaces,
+          apiCallsPerMonth: workspacePlan.limits.apiCallsPerMonth
         } : {
           maxStores: 1,
           maxProducts: 100,
@@ -262,9 +262,9 @@ router.get('/limits', async (req: AuthenticatedRequest, res: Response) => {
         }
       });
 
-      // Get user plan
-      const userPlan = await req.user!.getCurrentPlan();
-      const limits = userPlan ? userPlan.limits : {
+      // Get workspace plan
+      const workspacePlan = await req.workspace!.getCurrentPlan();
+      const limits = workspacePlan ? workspacePlan.limits : {
         maxStores: 1,
         maxProducts: 100,
         maxMarketplaces: 1,

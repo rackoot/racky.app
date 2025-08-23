@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Package, Store, DollarSign, TrendingUp, PieChart, LineChart, Lightbulb, RefreshCw, AlertCircle, Loader2 } from "lucide-react"
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import { dashboardService, type DashboardAnalytics, type AISuggestionsResponse } from "@/services/dashboard"
 
 const priorityColors = {
@@ -22,6 +23,7 @@ const categoryIcons = {
 };
 
 export function Dashboard() {
+  const { currentWorkspace } = useWorkspace()
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
   const [suggestions, setSuggestions] = useState<AISuggestionsResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -56,9 +58,12 @@ export function Dashboard() {
   }
 
   useEffect(() => {
-    loadAnalytics()
-    loadSuggestions()
-  }, [])
+    // Only load if we have a current workspace
+    if (currentWorkspace) {
+      loadAnalytics()
+      loadSuggestions()
+    }
+  }, [currentWorkspace])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -89,7 +94,7 @@ export function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard 🔥 Hot Reload Test</h1>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">
             Overview of your marketplace performance
           </p>

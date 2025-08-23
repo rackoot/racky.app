@@ -1,7 +1,8 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 
 export interface IUsage extends Document {
-  userId: mongoose.Types.ObjectId;
+  workspaceId: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId; // Keep for backward compatibility during migration
   date: Date;
   apiCalls: number;
   productSyncs: number;
@@ -36,11 +37,16 @@ export interface IUsageModel extends Model<IUsage> {
 }
 
 const usageSchema = new Schema<IUsage>({
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true,
+    index: true
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
-    index: true
+    required: false // Will be removed after migration
   },
   date: {
     type: Date,
@@ -138,23 +144,6 @@ usageSchema.statics.incrementUserUsage = async function(userId: string, metric: 
     billingPeriodStart: startOfMonth
   };
 
-  const update: any = {
-    $inc: {},
-    $setOnInsert: {
-      userId: new mongoose.Types.ObjectId(userId),
-      date: currentDate,
-      billingPeriodStart: startOfMonth,
-      billingPeriodEnd: endOfMonth,
-      apiCalls: 0,
-      productSyncs: 0,
-      storeConnections: 0,
-      storageUsed: 0,
-      aiSuggestions: 0,
-      opportunityScans: 0,
-      bulkOperations: 0
-    }
-  };
-
   // Map metric names to schema fields
   const metricMap: { [key: string]: string } = {
     'api_call': 'apiCalls',
@@ -192,7 +181,28 @@ usageSchema.statics.incrementUserUsage = async function(userId: string, metric: 
     });
   }
 
-  update.$inc[schemaField] = amount;
+  // Create setOnInsert object without the field being incremented to avoid conflict
+  const setOnInsert: any = {
+    userId: new mongoose.Types.ObjectId(userId),
+    date: currentDate,
+    billingPeriodStart: startOfMonth,
+    billingPeriodEnd: endOfMonth,
+    apiCalls: 0,
+    productSyncs: 0,
+    storeConnections: 0,
+    storageUsed: 0,
+    aiSuggestions: 0,
+    opportunityScans: 0,
+    bulkOperations: 0
+  };
+
+  // Remove the field being incremented from setOnInsert to avoid conflict
+  delete setOnInsert[schemaField];
+
+  const update: any = {
+    $inc: { [schemaField]: amount },
+    $setOnInsert: setOnInsert
+  };
 
   try {
     return await this.findOneAndUpdate(filter, update, {
@@ -323,7 +333,10 @@ usageSchema.statics.resetMonthlyUsage = async function(userId: string): Promise<
 };
 
 // Indexes for performance
-usageSchema.index({ userId: 1, billingPeriodStart: 1 }, { unique: true });
+// Update indexes for workspace-based access
+usageSchema.index({ workspaceId: 1, billingPeriodStart: 1 }, { unique: true });
+// Keep old index for backward compatibility during migration
+usageSchema.index({ userId: 1, billingPeriodStart: 1 });
 usageSchema.index({ billingPeriodStart: 1 });
 usageSchema.index({ createdAt: 1 });
 

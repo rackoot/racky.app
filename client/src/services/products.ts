@@ -1,9 +1,13 @@
-const API_BASE = 'http://localhost:5000/api';
-
-const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-  'Content-Type': 'application/json',
-});
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  const workspaceId = localStorage.getItem('currentWorkspaceId');
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
+  };
+};
 
 export interface Product {
   id?: string
@@ -70,7 +74,7 @@ export const productsService = {
       }
     });
     
-    const response = await fetch(`${API_BASE}/products?${searchParams.toString()}`, {
+    const response = await fetch(`/api/products?${searchParams.toString()}`, {
       headers: getAuthHeaders(),
     });
     
@@ -84,7 +88,7 @@ export const productsService = {
 
   // Get products for a specific store connection
   async getStoreProducts(connectionId: string): Promise<Product[]> {
-    const response = await fetch(`${API_BASE}/products/store/${connectionId}`, {
+    const response = await fetch(`/api/products/store/${connectionId}`, {
       headers: getAuthHeaders(),
     });
     
@@ -98,7 +102,7 @@ export const productsService = {
 
   // Sync products from a marketplace
   async syncProducts(connectionId: string, force: boolean = false): Promise<any> {
-    const response = await fetch(`${API_BASE}/products/sync/${connectionId}`, {
+    const response = await fetch(`/api/products/sync/${connectionId}`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ force }),
@@ -114,7 +118,7 @@ export const productsService = {
 
   // Check if products exist for a connection
   async hasProducts(connectionId: string): Promise<{ hasProducts: boolean; count: number }> {
-    const response = await fetch(`${API_BASE}/products/store/${connectionId}/count`, {
+    const response = await fetch(`/api/products/store/${connectionId}/count`, {
       headers: getAuthHeaders(),
     });
     
@@ -128,7 +132,7 @@ export const productsService = {
 
   // Get single product by ID
   async getProductById(id: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/products/${id}`, {
+    const response = await fetch(`/api/products/${id}`, {
       method: 'GET',
       headers: getAuthHeaders(),
     });

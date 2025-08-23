@@ -10,7 +10,8 @@ export type BillingInterval = 'month' | 'year';
 
 // Interface for Subscription document
 export interface ISubscription extends Document {
-  userId: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  userId: Types.ObjectId; // Keep for backward compatibility during migration
   planId: Types.ObjectId;
   status: SubscriptionStatus;
   // Stripe Integration
@@ -70,10 +71,15 @@ export interface ISubscriptionModel extends Model<ISubscription> {
 }
 
 const subscriptionSchema = new Schema<ISubscription>({
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Will be removed after migration
   },
   planId: {
     type: Schema.Types.ObjectId,

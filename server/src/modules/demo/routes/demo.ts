@@ -36,18 +36,34 @@ router.post('/upgrade-subscription', async (req: AuthenticatedRequest, res: Resp
       });
     }
 
-    console.log(`Demo: Upgrading user ${req.user!.email} to ${planName} plan`);
+    console.log(`Demo: Upgrading workspace for user ${req.user!.email} to ${planName} plan`);
     
-    // Update user subscription directly (demo mode)
-    req.user!.subscriptionPlan = planName as any;
-    req.user!.subscriptionStatus = 'ACTIVE';
+    if (!req.workspace) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workspace context required for demo subscription upgrade'
+      });
+    }
+
+    // Create or update workspace subscription (demo mode)
+    const { default: Subscription } = await import('../../subscriptions/models/Subscription');
     
     // Set subscription end date (30 days from now)
     const subscriptionEndDate = new Date();
     subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + 1);
-    req.user!.subscriptionEndsAt = subscriptionEndDate;
     
-    await req.user!.save();
+    await Subscription.findOneAndUpdate(
+      { workspaceId: req.workspace._id },
+      {
+        workspaceId: req.workspace._id,
+        planId: plan._id,
+        status: 'ACTIVE',
+        startedAt: new Date(),
+        endsAt: subscriptionEndDate,
+        isDemo: true
+      },
+      { upsert: true }
+    );
     
     res.json({
       success: true,

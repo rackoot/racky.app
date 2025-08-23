@@ -186,11 +186,11 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
   try {
         await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
       
       // Verify product ownership
-      const product = await Product.findOne({ _id: productId, userId });
+      const product = await Product.findOne({ _id: productId, workspaceId });
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -279,11 +279,11 @@ router.post('/products/:id/description/:platform', async (req: AuthenticatedRequ
   try {
         await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
       
       // Verify product ownership
-      const product = await Product.findOne({ _id: productId, userId });
+      const product = await Product.findOne({ _id: productId, workspaceId });
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -350,7 +350,7 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
         await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
       const { status, suggestionId } = req.body;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
       if (!['pending', 'accepted', 'rejected'].includes(status)) {
         return res.status(400).json({
@@ -361,7 +361,7 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
 
       
       // Verify product ownership
-      const product = await Product.findOne({ _id: productId, userId });
+      const product = await Product.findOne({ _id: productId, workspaceId });
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -412,11 +412,11 @@ router.post('/products/:id/description/:platform/apply', async (req: Authenticat
         await protect(req, res, async () => {
       const { id: productId, platform } = req.params;
       const { suggestionId } = req.body;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
       
       // Verify product ownership and populate store connection info
-      const product = await Product.findOne({ _id: productId, userId }).populate('storeConnectionId');
+      const product = await Product.findOne({ _id: productId, workspaceId }).populate('storeConnectionId');
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -712,11 +712,11 @@ router.get('/products/:id/suggestions', async (req: AuthenticatedRequest, res: R
         await protect(req, res, async () => {
       const { id: productId } = req.params;
       const { platform, type } = req.query as any;
-      const userId = req.user!._id;
+      const workspaceId = req.workspace!._id;
 
             
       // Verify product ownership
-      const product = await Product.findOne({ _id: productId, userId });
+      const product = await Product.findOne({ _id: productId, workspaceId });
       if (!product) {
         return res.status(404).json({
           success: false,
@@ -724,7 +724,7 @@ router.get('/products/:id/suggestions', async (req: AuthenticatedRequest, res: R
         });
       }
 
-      const suggestions = await Suggestion.getSuggestionHistory(new mongoose.Types.ObjectId(userId.toString()), new mongoose.Types.ObjectId(productId), platform, type);
+      const suggestions = await Suggestion.getSuggestionHistory(new mongoose.Types.ObjectId(workspaceId.toString()), new mongoose.Types.ObjectId(productId), platform, type);
 
       res.json({
         success: true,

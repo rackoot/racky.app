@@ -23,12 +23,7 @@ const updateUserStatusSchema = Joi.object({
   isActive: Joi.boolean().required()
 });
 
-const updateUserSubscriptionSchema = Joi.object({
-  subscriptionStatus: Joi.string().valid('TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED').required(),
-  subscriptionPlan: Joi.string().valid('BASIC', 'PRO', 'ENTERPRISE').optional(),
-  trialEndsAt: Joi.date().optional(),
-  subscriptionEndsAt: Joi.date().optional()
-});
+// updateUserSubscriptionSchema removed - subscriptions moved to workspace level
 
 const updateUserRoleSchema = Joi.object({
   role: Joi.string().valid('USER', 'SUPERADMIN').required()
@@ -144,8 +139,8 @@ router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
             storeCount,
             productCount,
             currentUsage: usage || {}
-          },
-          subscriptionInfo: user.getSubscriptionInfo()
+          }
+          // subscriptionInfo moved to workspace level
         };
       })
     );
@@ -208,8 +203,8 @@ router.get('/users/:id', async (req: AuthenticatedRequest, res: Response) => {
       storeConnections,
       recentProducts: products,
       usageHistory,
-      subscription,
-      subscriptionInfo: user.getSubscriptionInfo()
+      subscription
+      // subscriptionInfo moved to workspace level
     };
 
     res.json({
@@ -336,62 +331,19 @@ router.put('/users/:id/role', async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-// PUT /api/admin/users/:id/subscription - Update user subscription
+// PUT /api/admin/users/:id/subscription - DEPRECATED: Subscriptions moved to workspace level
 router.put('/users/:id/subscription', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { error } = updateUserSubscriptionSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
+  res.status(410).json({
+    success: false,
+    message: 'This endpoint is deprecated. Subscriptions are now managed at the workspace level.',
+    deprecated: true,
+    migrationInfo: {
+      newEndpoints: [
+        'GET /api/workspaces/:workspaceId/subscription',
+        'PUT /api/workspaces/:workspaceId/subscription'
+      ]
     }
-
-    const { id } = req.params;
-    const { subscriptionStatus, subscriptionPlan, trialEndsAt, subscriptionEndsAt } = req.body;
-
-        const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    // Update subscription fields
-    user.subscriptionStatus = subscriptionStatus;
-    
-    if (subscriptionPlan) {
-      user.subscriptionPlan = subscriptionPlan;
-    }
-    
-    if (trialEndsAt) {
-      user.trialEndsAt = new Date(trialEndsAt);
-    }
-    
-    if (subscriptionEndsAt) {
-      user.subscriptionEndsAt = new Date(subscriptionEndsAt);
-    }
-
-    await user.save();
-
-    res.json({
-      success: true,
-      message: 'User subscription updated successfully',
-      data: {
-        userId: user._id,
-        email: user.email,
-        subscriptionInfo: user.getSubscriptionInfo()
-      }
-    });
-  } catch (error: any) {
-    console.error('Error updating user subscription:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update user subscription',
-      error: error.message
-    });
-  }
+  });
 });
 
 // DELETE /api/admin/users/:id - Delete user account (with cascading)

@@ -64,7 +64,8 @@ export interface ICachedDescription {
 
 // Interface for Product document
 export interface IProduct extends Document {
-  userId: Types.ObjectId;
+  workspaceId: Types.ObjectId;
+  userId: Types.ObjectId; // Keep for backward compatibility during migration
   storeConnectionId: Types.ObjectId;
   title: string;
   description?: string;
@@ -137,10 +138,15 @@ const ProductPlatformSchema = new Schema<IProductPlatform>({
 });
 
 const productSchema = new Schema<IProduct>({
+  workspaceId: {
+    type: Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true
+  },
   userId: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false // Will be removed after migration
   },
   storeConnectionId: {
     type: Schema.Types.ObjectId,
@@ -205,6 +211,9 @@ const productSchema = new Schema<IProduct>({
   timestamps: true
 });
 
-productSchema.index({ userId: 1, marketplace: 1, externalId: 1 }, { unique: true });
+// Update indexes for workspace-based access
+productSchema.index({ workspaceId: 1, marketplace: 1, externalId: 1 }, { unique: true });
+// Keep old index for backward compatibility during migration
+productSchema.index({ userId: 1, marketplace: 1, externalId: 1 });
 
 export default mongoose.model<IProduct>('Product', productSchema);
