@@ -66,13 +66,13 @@ export function Usage() {
 
       // Fetch real usage data from backend
       const [currentResponse, trendsResponse, historyResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/usage/current', {
+        fetch('/api/usage/current', {
           headers: getAuthHeaders()
         }),
-        fetch('http://localhost:5000/api/usage/trends', {
+        fetch('/api/usage/trends', {
           headers: getAuthHeaders()
         }),
-        fetch('http://localhost:5000/api/usage/history?days=7', {
+        fetch('/api/usage/history?days=7', {
           headers: getAuthHeaders()
         })
       ])
