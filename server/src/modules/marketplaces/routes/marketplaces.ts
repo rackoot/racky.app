@@ -72,9 +72,9 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/status', async (req: AuthenticatedRequest, res: Response) => {
   try {
         await trackUsage('api_call')(req, res, async () => {
-      const { getUserMarketplaceStatus } = marketplaceService;
+      const { getWorkspaceMarketplaceStatus } = marketplaceService;
       
-      const marketplaceStatus = await getUserMarketplaceStatus(req.user!._id.toString());
+      const marketplaceStatus = await getWorkspaceMarketplaceStatus(req.workspace!._id.toString());
       res.json({
         success: true,
         data: marketplaceStatus
