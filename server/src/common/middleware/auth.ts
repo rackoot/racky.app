@@ -76,10 +76,10 @@ const requireSuperAdmin = async (req: AuthenticatedRequest, res: Response, next:
 
 const checkSubscriptionStatus = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<any> => {
   try {
-    if (!req.user) {
+    if (!req.user || !req.workspace) {
       return res.status(401).json({
         success: false,
-        message: 'Authentication required'
+        message: 'Authentication and workspace context required'
       });
     }
 
@@ -88,13 +88,13 @@ const checkSubscriptionStatus = async (req: AuthenticatedRequest, res: Response,
       return next();
     }
 
-    // Check if user has active subscription
-    const hasActiveSubscription = await req.user.hasActiveSubscription();
+    // Check if workspace has active subscription
+    const hasActiveSubscription = await req.workspace.hasActiveSubscription();
     if (!hasActiveSubscription) {
-      const subscriptionInfo = await req.user.getSubscriptionInfo();
+      const subscriptionInfo = await req.workspace.getSubscriptionInfo();
       return res.status(402).json({
         success: false,
-        message: 'Active subscription required. Please subscribe to access this feature.',
+        message: 'Active subscription required for this workspace. Please subscribe to access this feature.',
         subscriptionInfo
       });
     }
@@ -112,10 +112,10 @@ const checkSubscriptionStatus = async (req: AuthenticatedRequest, res: Response,
 const checkUsageLimits = (limitType: 'stores' | 'products') => {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<any> => {
     try {
-      if (!req.user) {
+      if (!req.user || !req.workspace) {
         return res.status(401).json({
           success: false,
-          message: 'Authentication required'
+          message: 'Authentication and workspace context required'
         });
       }
 
@@ -125,7 +125,7 @@ const checkUsageLimits = (limitType: 'stores' | 'products') => {
       }
 
       // Get current plan
-      const currentPlan = await req.user.getCurrentPlan();
+      const currentPlan = await req.workspace.getCurrentPlan();
       if (!currentPlan) {
         return res.status(402).json({
           success: false,
@@ -138,11 +138,11 @@ const checkUsageLimits = (limitType: 'stores' | 'products') => {
 
       switch (limitType) {
         case 'stores':
-          hasReachedLimit = await req.user.hasReachedStoreLimit();
+          hasReachedLimit = await req.workspace.hasReachedStoreLimit();
           limitMessage = `Store limit reached (${currentPlan.limits.maxStores} stores maximum for ${currentPlan.name} plan)`;
           break;
         case 'products':
-          hasReachedLimit = await req.user.hasReachedProductLimit();
+          hasReachedLimit = await req.workspace.hasReachedProductLimit();
           limitMessage = `Product limit reached (${currentPlan.limits.maxProducts} products maximum for ${currentPlan.name} plan)`;
           break;
         default:
@@ -150,7 +150,7 @@ const checkUsageLimits = (limitType: 'stores' | 'products') => {
       }
 
       if (hasReachedLimit) {
-        const subscriptionInfo = await req.user.getSubscriptionInfo();
+        const subscriptionInfo = await req.workspace.getSubscriptionInfo();
         return res.status(429).json({
           success: false,
           message: limitMessage,
@@ -202,24 +202,31 @@ const requireFeature = (featureName: string) => {
         return next();
       }
 
-      // Get user's current plan
-      const userPlan = await req.user.getCurrentPlan();
-      if (!userPlan) {
+      // This middleware should only be used with workspace context now
+      if (!req.workspace) {
+        return res.status(401).json({
+          success: false,
+          message: 'Workspace context required for feature access'
+        });
+      }
+
+      // Get workspace's current plan
+      const workspacePlan = await req.workspace.getCurrentPlan();
+      if (!workspacePlan) {
         return res.status(402).json({
           success: false,
-          message: 'No active subscription plan found',
-          subscriptionInfo: req.user.getSubscriptionInfo()
+          message: 'No active subscription plan found for this workspace'
         });
       }
 
       // Check if feature is enabled in current plan
-      const feature = userPlan.features.find((f: any) => f.name === featureName);
+      const feature = workspacePlan.features.find((f: any) => f.name === featureName);
       if (!feature || !feature.enabled) {
         return res.status(403).json({
           success: false,
           message: `Feature '${featureName}' is not available in your current plan`,
-          requiredPlan: getMinimumPlanForFeature(featureName),
-          subscriptionInfo: req.user.getSubscriptionInfo()
+          requiredPlan: getMinimumPlanForFeature(featureName)
+          // subscriptionInfo now handled at workspace level
         });
       }
 
@@ -254,11 +261,18 @@ const checkApiRateLimit = () => {
         return next();
       }
 
+      if (!req.workspace) {
+        return res.status(401).json({
+          success: false,
+          message: 'Workspace context required'
+        });
+      }
+
       // Get current month usage
       const currentDate = new Date();
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const currentUsage = await Usage.findOne({
-        userId: req.user._id,
+        workspaceId: req.workspace._id,
         date: {
           $gte: startOfMonth,
           $lt: new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 1)
@@ -266,19 +280,19 @@ const checkApiRateLimit = () => {
       });
 
       const apiCallsThisMonth = currentUsage?.apiCalls || 0;
-      const userPlan = await req.user.getCurrentPlan();
+      const workspacePlan = await req.workspace.getCurrentPlan();
       
-      if (!userPlan) {
+      if (!workspacePlan) {
         return res.status(402).json({
           success: false,
           message: 'Active subscription required to access API'
         });
       }
       
-      const monthlyLimit = userPlan.limits.apiCallsPerMonth;
+      const monthlyLimit = workspacePlan.limits.apiCallsPerMonth;
 
       if (apiCallsThisMonth >= monthlyLimit) {
-        const subscriptionInfo = await req.user.getSubscriptionInfo();
+        const subscriptionInfo = await req.workspace.getSubscriptionInfo();
         return res.status(429).json({
           success: false,
           message: `Monthly API limit exceeded (${monthlyLimit} calls)`,
@@ -315,15 +329,22 @@ const checkSyncFrequency = () => {
         return next();
       }
 
-      const userPlan = await req.user.getCurrentPlan();
-      if (!userPlan) {
+      if (!req.workspace) {
+        return res.status(401).json({
+          success: false,
+          message: 'Workspace context required for sync operations'
+        });
+      }
+
+      const workspacePlan = await req.workspace.getCurrentPlan();
+      if (!workspacePlan) {
         return res.status(402).json({
           success: false,
           message: 'Active subscription required to sync data'
         });
       }
       
-      const minSyncInterval = userPlan.limits.maxSyncFrequency; // hours
+      const minSyncInterval = workspacePlan.limits.maxSyncFrequency; // hours
 
       // Check last sync time for this connection
       const connectionId = req.params.connectionId;
@@ -346,8 +367,8 @@ const checkSyncFrequency = () => {
               syncLimits: {
                 minInterval: minSyncInterval,
                 hoursRemaining
-              },
-              subscriptionInfo: req.user.getSubscriptionInfo()
+              }
+              // subscriptionInfo now handled at workspace level
             });
           }
         }

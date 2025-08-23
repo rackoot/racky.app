@@ -15,6 +15,7 @@ import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
 import { Account } from '@/pages/account'
 import { Subscription } from '@/pages/subscription'
+import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
 import { DemoCheckout } from '@/pages/demo-checkout'
@@ -179,6 +180,16 @@ function App() {
         />
         <Route
           path="/subscription"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <WorkspaceSubscriptionPage />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/subscription-legacy"
           element={
             <ProtectedRoute>
               <MainLayout>

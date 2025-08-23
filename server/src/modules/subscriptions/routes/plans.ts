@@ -51,36 +51,34 @@ router.get('/:name', async (req: Request<{ name: string }>, res: Response) => {
   }
 });
 
-// GET /api/plans/user/current - Get current user's plan (requires auth)
+// GET /api/plans/user/current - Get current workspace's plan (requires auth and workspace)
 router.get('/user/current', async (req: AuthenticatedRequest, res: Response) => {
   try {
-        await protect(req, res, async () => {
-      if (!req.user!.subscriptionPlan) {
-        return res.status(400).json({
-          success: false,
-          message: 'User has no subscription plan assigned'
-        });
-      }
-
-            const userPlan = await Plan.findByName(req.user!.subscriptionPlan);
-      
-      if (!userPlan) {
-        return res.status(404).json({
-          success: false,
-          message: `Plan '${req.user!.subscriptionPlan}' not found`
-        });
-      }
-
-      res.json({
-        success: true,
-        data: {
-          plan: userPlan,
-          userSubscription: await req.user!.getSubscriptionInfo()
-        }
+    if (!req.workspace) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workspace context required'
       });
+    }
+
+    const subscription = await req.workspace.getActiveSubscription();
+    
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        message: 'No active subscription found for this workspace'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        plan: subscription.planId,
+        userSubscription: await req.workspace.getSubscriptionInfo()
+      }
     });
   } catch (error: any) {
-    console.error('Error fetching user plan:', error);
+    console.error('Error fetching workspace plan:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch user plan',

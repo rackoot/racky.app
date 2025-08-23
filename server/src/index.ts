@@ -61,13 +61,12 @@ app.use(express.urlencoded({ extended: true }));
 // Routes that don't require workspace context
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/plans', planRoutes);
-app.use('/api/demo', demoRoutes);
 
 // Workspace management routes (protected but don't require workspace context)
 app.use('/api/workspaces', protect, workspaceRoutes);
 
 // Routes that require workspace context
+app.use('/api/plans', protect, requireWorkspace, planRoutes);
 app.use('/api/connections', protect, requireWorkspace, connectionRoutes);
 app.use('/api/marketplaces', protect, requireWorkspace, marketplaceRoutes);
 app.use('/api/products', protect, requireWorkspace, productRoutes);
@@ -76,6 +75,7 @@ app.use('/api/optimizations', protect, requireWorkspace, optimizationRoutes);
 app.use('/api/opportunities', protect, requireWorkspace, opportunityRoutes);
 app.use('/api/usage', protect, requireWorkspace, usageRoutes);
 app.use('/api/billing', protect, requireWorkspace, billingRoutes);
+app.use('/api/demo', protect, requireWorkspace, demoRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', message: 'Racky API is running with hot reload!' });

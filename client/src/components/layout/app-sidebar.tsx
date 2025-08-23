@@ -55,7 +55,7 @@ const items = [
     icon: Users,
   },
   {
-    title: "Subscription",
+    title: "Workspace Subscription",
     url: "/subscription",
     icon: CreditCard,
   },

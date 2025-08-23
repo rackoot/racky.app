@@ -16,6 +16,19 @@ export interface IWorkspace extends Document {
   isOwner(userId: Types.ObjectId): boolean;
   getMemberCount(): Promise<number>;
   getActiveSubscription(): Promise<any>;
+  hasActiveSubscription(): Promise<boolean>;
+  getCurrentPlan(): Promise<any>;
+  hasReachedStoreLimit(): Promise<boolean>;
+  hasReachedProductLimit(): Promise<boolean>;
+  getSubscriptionInfo(): Promise<{
+    status: string;
+    plan: string | null;
+    hasActiveSubscription: boolean;
+    endsAt: Date | null;
+    trialEndsAt?: Date | null;
+    isTrialExpired?: boolean;
+    planLimits: any;
+  }>;
 }
 
 // Interface for Workspace model with static methods
@@ -184,6 +197,81 @@ workspaceSchema.statics.generateUniqueSlug = async function(
   }
 
   return slug;
+};
+
+// Get workspace's active subscription
+workspaceSchema.methods.getActiveSubscription = async function() {
+  // Dynamic import to avoid circular dependency
+  const { default: Subscription } = await import('../../subscriptions/models/Subscription');
+  return await Subscription.findOne({
+    workspaceId: this._id,
+    status: 'ACTIVE',
+    endsAt: { $gt: new Date() }
+  }).populate('planId');
+};
+
+// Check if workspace has an active subscription
+workspaceSchema.methods.hasActiveSubscription = async function(): Promise<boolean> {
+  const subscription = await this.getActiveSubscription();
+  return subscription !== null;
+};
+
+// Get workspace's current plan
+workspaceSchema.methods.getCurrentPlan = async function() {
+  const subscription = await this.getActiveSubscription();
+  return subscription ? subscription.planId : null;
+};
+
+// Check if workspace has reached store limit
+workspaceSchema.methods.hasReachedStoreLimit = async function(): Promise<boolean> {
+  const plan = await this.getCurrentPlan();
+  if (!plan) return true; // No subscription = no access
+  
+  // Dynamic import to avoid circular dependency
+  const { default: StoreConnection } = await import('../../stores/models/StoreConnection');
+  const storeCount = await StoreConnection.countDocuments({ 
+    workspaceId: this._id, 
+    isActive: true 
+  });
+  return storeCount >= plan.limits.maxStores;
+};
+
+// Check if workspace has reached product limit
+workspaceSchema.methods.hasReachedProductLimit = async function(): Promise<boolean> {
+  const plan = await this.getCurrentPlan();
+  if (!plan) return true; // No subscription = no access
+  
+  // Dynamic import to avoid circular dependency
+  const { default: Product } = await import('../../products/models/Product');
+  const productCount = await Product.countDocuments({ workspaceId: this._id });
+  return productCount >= plan.limits.maxProducts;
+};
+
+// Get workspace's subscription info
+workspaceSchema.methods.getSubscriptionInfo = async function() {
+  const subscription = await this.getActiveSubscription();
+  
+  if (!subscription) {
+    return {
+      status: 'NONE',
+      plan: null,
+      hasActiveSubscription: false,
+      endsAt: null,
+      planLimits: null
+    };
+  }
+
+  // Check if subscription is expired
+  const now = new Date();
+  const isExpired = now > subscription.endsAt;
+
+  return {
+    status: subscription.status,
+    plan: subscription.planId ? subscription.planId.name : null,
+    hasActiveSubscription: !isExpired && subscription.status === 'ACTIVE',
+    endsAt: subscription.endsAt,
+    planLimits: subscription.planId ? subscription.planId.limits : null
+  };
 };
 
 // Indexes
