@@ -9,14 +9,22 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     css: true,
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/e2e/**', // Exclude E2E tests (handled by Playwright)
+      '**/*.spec.ts', // Exclude Playwright spec files
+    ],
     coverage: {
       reporter: ['text', 'json', 'html'],
       exclude: [
         'node_modules/',
         'src/test/',
+        'src/e2e/',
         '**/*.d.ts',
         '**/*.config.*',
         '**/vite-env.d.ts',
+        '**/*.spec.ts',
       ],
       thresholds: {
         global: {
