@@ -1,16 +1,20 @@
 import type { Marketplace, TestConnectionResponse, ConnectMarketplaceRequest, MarketplaceCredentials } from '@/types/marketplace';
 
-const API_BASE = 'http://localhost:5000/api';
-
-const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-  'Content-Type': 'application/json',
-});
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  const workspaceId = localStorage.getItem('currentWorkspaceId');
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
+  };
+};
 
 export const marketplaceService = {
   // Get all available marketplaces
   async getMarketplaces(): Promise<Marketplace[]> {
-    const response = await fetch(`${API_BASE}/marketplaces`, {
+    const response = await fetch(`/api/marketplaces`, {
       headers: getAuthHeaders(),
     });
     
@@ -24,7 +28,7 @@ export const marketplaceService = {
 
   // Get marketplace status (connected/disconnected)
   async getMarketplaceStatus(): Promise<Marketplace[]> {
-    const response = await fetch(`${API_BASE}/marketplaces/status`, {
+    const response = await fetch(`/api/marketplaces/status`, {
       headers: getAuthHeaders(),
     });
     
@@ -40,9 +44,9 @@ export const marketplaceService = {
   async testConnection(type: string, credentials: MarketplaceCredentials): Promise<TestConnectionResponse> {
     const headers = getAuthHeaders();
     console.log('Testing connection with headers:', headers);
-    console.log('Request URL:', `${API_BASE}/marketplaces/test`);
+    console.log('Request URL:', `/api/marketplaces/test`);
     
-    const response = await fetch(`${API_BASE}/marketplaces/test`, {
+    const response = await fetch(`/api/marketplaces/test`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ type, credentials }),
@@ -61,7 +65,7 @@ export const marketplaceService = {
 
   // Connect marketplace to existing store
   async connectToStore(request: ConnectMarketplaceRequest): Promise<any> {
-    const response = await fetch(`${API_BASE}/marketplaces/connect`, {
+    const response = await fetch(`/api/marketplaces/connect`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
@@ -77,7 +81,7 @@ export const marketplaceService = {
 
   // Create new store with marketplace
   async createStoreWithMarketplace(request: ConnectMarketplaceRequest): Promise<any> {
-    const response = await fetch(`${API_BASE}/marketplaces/create-store`, {
+    const response = await fetch(`/api/marketplaces/create-store`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify(request),
@@ -93,7 +97,7 @@ export const marketplaceService = {
 
   // Test existing marketplace connection
   async testExistingConnection(connectionId: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/marketplaces/${connectionId}/test`, {
+    const response = await fetch(`/api/marketplaces/${connectionId}/test`, {
       method: 'PUT',
       headers: getAuthHeaders(),
     });
@@ -108,7 +112,7 @@ export const marketplaceService = {
 
   // Toggle marketplace status
   async toggleMarketplaceStatus(connectionId: string): Promise<any> {
-    const response = await fetch(`${API_BASE}/marketplaces/${connectionId}/toggle`, {
+    const response = await fetch(`/api/marketplaces/${connectionId}/toggle`, {
       method: 'PUT',
       headers: getAuthHeaders(),
     });
@@ -123,7 +127,7 @@ export const marketplaceService = {
 
   // Disconnect marketplace from store
   async disconnectMarketplace(connectionId: string, deleteProducts: boolean = false): Promise<any> {
-    const response = await fetch(`${API_BASE}/connections/${connectionId}?deleteProducts=${deleteProducts}`, {
+    const response = await fetch(`/api/connections/${connectionId}?deleteProducts=${deleteProducts}`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });

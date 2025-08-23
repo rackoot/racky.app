@@ -93,12 +93,6 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const data = await response.json();
       if (data.success) {
         setWorkspaces(data.data);
-        
-        // If no current workspace is set, use the first one
-        if (!currentWorkspace && data.data.length > 0) {
-          setCurrentWorkspace(data.data[0]);
-          localStorage.setItem('currentWorkspaceId', data.data[0]._id);
-        }
       } else {
         throw new Error(data.message || 'Failed to load workspaces');
       }
@@ -225,23 +219,43 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const token = localStorage.getItem('token');
       if (!token) {
         setIsLoading(false);
+        setWorkspaces([]);
+        setCurrentWorkspace(null);
         return;
       }
 
       await refreshWorkspaces();
-      
-      // Try to restore current workspace from localStorage
+    };
+
+    loadInitialData();
+
+    // Also listen for storage events to detect login/logout from other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'token') {
+        loadInitialData();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Restore current workspace from localStorage when workspaces are loaded
+  useEffect(() => {
+    if (workspaces.length > 0 && !currentWorkspace) {
       const savedWorkspaceId = localStorage.getItem('currentWorkspaceId');
       if (savedWorkspaceId) {
         const savedWorkspace = workspaces.find(w => w._id === savedWorkspaceId);
         if (savedWorkspace) {
           setCurrentWorkspace(savedWorkspace);
+          return;
         }
       }
-    };
-
-    loadInitialData();
-  }, []);
+      // If no saved workspace or saved workspace not found, use the first one
+      setCurrentWorkspace(workspaces[0]);
+      localStorage.setItem('currentWorkspaceId', workspaces[0]._id);
+    }
+  }, [workspaces]);
 
   const value: WorkspaceContextType = {
     currentWorkspace,
@@ -269,5 +283,15 @@ export function useWorkspace() {
   }
   return context;
 }
+
+// Helper function to trigger workspace refresh from outside the context
+export const refreshWorkspacesAfterLogin = () => {
+  // This will trigger the storage event listener
+  window.dispatchEvent(new StorageEvent('storage', {
+    key: 'token',
+    newValue: localStorage.getItem('token'),
+    oldValue: null
+  }));
+};
 
 export type { Workspace, CreateWorkspaceData, UpdateWorkspaceData };

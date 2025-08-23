@@ -1,9 +1,13 @@
-const API_BASE = 'http://localhost:5000/api';
-
-const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-  'Content-Type': 'application/json',
-});
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  const workspaceId = localStorage.getItem('currentWorkspaceId');
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
+  };
+};
 
 export interface OptimizationSuggestion {
   id: string;
@@ -45,7 +49,7 @@ export const optimizationsService = {
     suggestion: OptimizationSuggestion;
     cached: boolean;
   }> {
-    const response = await fetch(`${API_BASE}/optimizations/products/${productId}/description/${platform}`, {
+    const response = await fetch(`/api/optimizations/products/${productId}/description/${platform}`, {
       method: 'GET',
       headers: getAuthHeaders(),
     });
@@ -67,7 +71,7 @@ export const optimizationsService = {
     suggestion: OptimizationSuggestion;
     cached: boolean;
   }> {
-    const response = await fetch(`${API_BASE}/optimizations/products/${productId}/description/${platform}`, {
+    const response = await fetch(`/api/optimizations/products/${productId}/description/${platform}`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
@@ -91,7 +95,7 @@ export const optimizationsService = {
     suggestionId: string, 
     status: 'accepted' | 'rejected'
   ): Promise<void> {
-    const response = await fetch(`${API_BASE}/optimizations/products/${productId}/description/${platform}`, {
+    const response = await fetch(`/api/optimizations/products/${productId}/description/${platform}`, {
       method: 'PATCH',
       headers: getAuthHeaders(),
       body: JSON.stringify({ status, suggestionId }),
@@ -113,7 +117,7 @@ export const optimizationsService = {
     platform: string, 
     suggestionId: string
   ): Promise<{ success: boolean; message: string; storeUpdateResult?: any }> {
-    const response = await fetch(`${API_BASE}/optimizations/products/${productId}/description/${platform}/apply`, {
+    const response = await fetch(`/api/optimizations/products/${productId}/description/${platform}/apply`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ suggestionId }),
@@ -142,7 +146,7 @@ export const optimizationsService = {
     if (type) params.append('type', type);
 
     const response = await fetch(
-      `${API_BASE}/optimizations/products/${productId}/suggestions?${params.toString()}`,
+      `/api/optimizations/products/${productId}/suggestions?${params.toString()}`,
       {
         method: 'GET',
         headers: getAuthHeaders(),

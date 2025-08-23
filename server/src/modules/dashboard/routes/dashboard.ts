@@ -306,7 +306,7 @@ Focus on practical improvements like marketplace expansion, pricing optimization
       const savedSuggestions = await Promise.all(
         suggestions.map((suggestion: Suggestion) => 
           new GeneralSuggestion({
-            workspaceId,
+            userId: workspaceId,
             title: suggestion.title,
             description: suggestion.description,
             priority: suggestion.priority,

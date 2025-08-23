@@ -1,9 +1,13 @@
-const BASE_URL = 'http://localhost:5000/api/opportunities';
-
-const getAuthHeaders = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-  'Content-Type': 'application/json',
-});
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  const workspaceId = localStorage.getItem('currentWorkspaceId');
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
+  };
+};
 
 export interface OpportunityCategory {
   _id: string;
@@ -81,7 +85,7 @@ export interface OpportunitySummary {
 
 class OpportunitiesService {
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const response = await fetch(`${`/api/opportunities`}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
