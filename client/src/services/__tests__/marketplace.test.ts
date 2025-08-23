@@ -1,21 +1,26 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createMockFetch, mockApiResponse, mockApiError } from '@/test/utils'
-import * as marketplaceService from '../marketplace'
+import { marketplaceService } from '../marketplace'
 
-// Mock the auth module
-vi.mock('@/lib/auth', () => ({
-  getAuthHeaders: () => ({
-    'Authorization': 'Bearer test-token',
-    'Content-Type': 'application/json',
-    'X-Workspace-ID': 'test-workspace-id',
-  }),
-}))
+// Mock localStorage for auth tokens
+beforeEach(() => {
+  vi.clearAllMocks()
+  global.fetch = vi.fn()
+  
+  // Mock localStorage
+  Object.defineProperty(window, 'localStorage', {
+    value: {
+      getItem: vi.fn().mockImplementation((key) => {
+        if (key === 'token') return 'test-token'
+        if (key === 'currentWorkspaceId') return 'test-workspace-id'
+        return null
+      }),
+    },
+    writable: true
+  })
+})
 
 describe('Marketplace Service', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    global.fetch = vi.fn()
-  })
 
   describe('getMarketplaceStatus', () => {
     it('fetches marketplace status successfully', async () => {
@@ -41,9 +46,8 @@ describe('Marketplace Service', () => {
       const result = await marketplaceService.getMarketplaceStatus()
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:5000/api/marketplaces/status',
+        '/api/marketplaces/status',
         expect.objectContaining({
-          method: 'GET',
           headers: expect.objectContaining({
             'Authorization': 'Bearer test-token',
             'X-Workspace-ID': 'test-workspace-id',
@@ -67,7 +71,7 @@ describe('Marketplace Service', () => {
     })
   })
 
-  describe('testMarketplaceConnection', () => {
+  describe('testConnection', () => {
     it('tests marketplace connection successfully', async () => {
       const mockCredentials = {
         storeDomain: 'test-store.myshopify.com',
@@ -89,26 +93,30 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.testMarketplaceConnection(
+      const result = await marketplaceService.testConnection(
         'shopify',
         mockCredentials
       )
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:5000/api/marketplaces/test',
+        '/api/marketplaces/test',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({
+            'Authorization': 'Bearer test-token',
             'Content-Type': 'application/json',
           }),
           body: JSON.stringify({
-            marketplaceType: 'shopify',
+            type: 'shopify',
             credentials: mockCredentials,
           }),
         })
       )
 
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual({
+        success: true,
+        data: mockResponse
+      })
     })
 
     it('handles test failures', async () => {
@@ -128,7 +136,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockErrorResponse))
 
-      const result = await marketplaceService.testMarketplaceConnection(
+      const result = await marketplaceService.testConnection(
         'shopify',
         mockCredentials
       )
@@ -137,7 +145,7 @@ describe('Marketplace Service', () => {
     })
   })
 
-  describe('createStoreConnection', () => {
+  describe('createStoreWithMarketplace', () => {
     it('creates store connection successfully', async () => {
       const connectionData = {
         storeName: 'My Test Store',
@@ -158,10 +166,10 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.createStoreConnection(connectionData)
+      const result = await marketplaceService.createStoreWithMarketplace(connectionData)
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:5000/api/connections',
+        '/api/marketplaces/create-store',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(connectionData),
@@ -183,12 +191,12 @@ describe('Marketplace Service', () => {
       )
 
       await expect(
-        marketplaceService.createStoreConnection(invalidData)
+        marketplaceService.createStoreWithMarketplace(invalidData)
       ).rejects.toThrow('Validation error: storeName is required')
     })
   })
 
-  describe('getStoreConnections', () => {
+  describe('getMarketplaces', () => {
     it('fetches store connections successfully', async () => {
       const mockConnections = [
         {
@@ -209,12 +217,14 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockConnections))
 
-      const result = await marketplaceService.getStoreConnections()
+      const result = await marketplaceService.getMarketplaces()
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:5000/api/connections',
+        '/api/marketplaces',
         expect.objectContaining({
-          method: 'GET',
+          headers: expect.objectContaining({
+            'Authorization': 'Bearer test-token',
+          }),
         })
       )
 
@@ -224,13 +234,13 @@ describe('Marketplace Service', () => {
     it('handles empty connections list', async () => {
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse([]))
 
-      const result = await marketplaceService.getStoreConnections()
+      const result = await marketplaceService.getMarketplaces()
 
       expect(result).toEqual([])
     })
   })
 
-  describe('updateStoreConnection', () => {
+  describe('testExistingConnection', () => {
     it('updates store connection successfully', async () => {
       const connectionId = 'connection-123'
       const updateData = {
@@ -247,13 +257,12 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.updateStoreConnection(
-        connectionId,
-        updateData
+      const result = await marketplaceService.testExistingConnection(
+        connectionId
       )
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/connections/${connectionId}`,
+        `/api/connections/${connectionId}`,
         expect.objectContaining({
           method: 'PUT',
           body: JSON.stringify(updateData),
@@ -272,12 +281,12 @@ describe('Marketplace Service', () => {
       )
 
       await expect(
-        marketplaceService.updateStoreConnection(connectionId, updateData)
+        marketplaceService.testExistingConnection(connectionId)
       ).rejects.toThrow('Connection not found')
     })
   })
 
-  describe('deleteStoreConnection', () => {
+  describe('disconnectMarketplace', () => {
     it('deletes store connection successfully', async () => {
       const connectionId = 'connection-123'
 
@@ -289,13 +298,13 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.deleteStoreConnection(
+      const result = await marketplaceService.disconnectMarketplace(
         connectionId,
         true // deleteProducts
       )
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/connections/${connectionId}?deleteProducts=true`,
+        `/api/connections/${connectionId}?deleteProducts=true`,
         expect.objectContaining({
           method: 'DELETE',
         })
@@ -315,13 +324,13 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.deleteStoreConnection(
+      const result = await marketplaceService.disconnectMarketplace(
         connectionId,
         false // deleteProducts
       )
 
       expect(global.fetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/connections/${connectionId}?deleteProducts=false`,
+        `/api/connections/${connectionId}?deleteProducts=false`,
         expect.objectContaining({
           method: 'DELETE',
         })
