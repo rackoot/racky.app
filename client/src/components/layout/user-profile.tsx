@@ -1,9 +1,8 @@
 import { useState } from "react"
-import { User, Settings, LogOut, Shield, CreditCard, AlertTriangle } from "lucide-react"
+import { Settings, LogOut, Shield, CreditCard, AlertTriangle } from "lucide-react"
 import { useNavigate, Link } from "react-router-dom"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { getCurrentUser, getUserDisplayName, getUserInitials, getRandomColorForUser, logout } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
@@ -33,6 +32,7 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
     logout()
   }
 
+  /* 
   const getSubscriptionStatus = () => {
     // SUPERADMIN users don't need subscriptions
     if (user?.role === 'SUPERADMIN') {
@@ -57,8 +57,9 @@ export function UserProfile({ collapsed = false }: UserProfileProps) {
     
     return { text: 'Unknown', variant: 'outline' as const, icon: null }
   }
+  */
 
-  const subscriptionStatus = getSubscriptionStatus()
+  // const subscriptionStatus = getSubscriptionStatus()
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>

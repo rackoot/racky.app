@@ -1,7 +1,8 @@
-import React, { ReactElement } from 'react'
-import { render, RenderOptions } from '@testing-library/react'
+import React, { type ReactElement } from 'react'
+import { render, type RenderOptions } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
-import { WorkspaceProvider } from '@/components/workspace/workspace-context'
+import { vi } from 'vitest'
+import { WorkspaceContext } from '@/components/workspace/workspace-context'
 
 // Mock workspace context data
 const mockWorkspaceContextValue = {
@@ -30,7 +31,7 @@ const mockWorkspaceContextValue = {
   setCurrentWorkspace: () => {},
   refreshWorkspaces: async () => {},
   isLoading: false,
-  hasWorkspaceAccess: (permission: string) => true,
+  hasWorkspaceAccess: () => true,
 }
 
 // Mock user context data
@@ -44,28 +45,24 @@ const mockUser = {
 
 // Create a custom render function that includes providers
 interface CustomRenderOptions extends Omit<RenderOptions, 'wrapper'> {
-  initialEntries?: string[]
-  user?: typeof mockUser
   workspace?: typeof mockWorkspaceContextValue.currentWorkspace
 }
 
 const AllTheProviders = ({ 
   children, 
-  initialEntries = ['/'],
   workspace = mockWorkspaceContextValue.currentWorkspace 
 }: { 
   children: React.ReactNode
-  initialEntries?: string[]
   workspace?: typeof mockWorkspaceContextValue.currentWorkspace
 }) => {
   return (
     <BrowserRouter>
-      <WorkspaceProvider value={{
+      <WorkspaceContext.Provider value={{
         ...mockWorkspaceContextValue,
         currentWorkspace: workspace,
       }}>
         {children}
-      </WorkspaceProvider>
+      </WorkspaceContext.Provider>
     </BrowserRouter>
   )
 }
@@ -74,11 +71,10 @@ const customRender = (
   ui: ReactElement,
   options: CustomRenderOptions = {}
 ) => {
-  const { initialEntries, user, workspace, ...renderOptions } = options
+  const { workspace, ...renderOptions } = options
   
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <AllTheProviders 
-      initialEntries={initialEntries} 
       workspace={workspace}
     >
       {children}
@@ -89,7 +85,7 @@ const customRender = (
 }
 
 // Mock API responses
-export const mockApiResponse = (data: any, status = 200) => ({
+export const mockApiResponse = (data: unknown, status = 200) => ({
   ok: status >= 200 && status < 300,
   status,
   statusText: status === 200 ? 'OK' : 'Error',
@@ -108,7 +104,7 @@ export const mockApiError = (message: string, status = 400) => ({
 })
 
 // Create mock functions for common API calls
-export const createMockFetch = (responses: Record<string, any>) => {
+export const createMockFetch = (responses: Record<string, unknown>) => {
   return vi.fn().mockImplementation((url: string) => {
     const endpoint = url.replace('http://localhost:5000/api', '')
     if (responses[endpoint]) {

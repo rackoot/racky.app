@@ -32,6 +32,16 @@ export interface Product {
   marketplace?: string
   isMarketplaceConnected?: boolean
   marketplaceUrl?: string
+  variants?: Array<{
+    id: string;
+    title: string;
+    price: number;
+    compareAtPrice?: number;
+    sku?: string;
+    inventory: number;
+    weight?: number;
+    weightUnit?: string;
+  }>;
 }
 
 export interface ProductsResponse {

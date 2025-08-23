@@ -54,7 +54,7 @@ interface UpdateWorkspaceData {
   };
 }
 
-const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
+export const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
 interface WorkspaceProviderProps {
   children: ReactNode;

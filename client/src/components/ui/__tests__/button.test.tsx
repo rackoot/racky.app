@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import React from 'react'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, userEvent } from '@/test/utils'
 import { Button } from '../button'
 

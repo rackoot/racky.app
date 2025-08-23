@@ -88,7 +88,6 @@ class OpportunitiesService {
     const response = await fetch(`${`/api/opportunities`}${endpoint}`, {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
         ...getAuthHeaders(),
         ...options.headers,
       },

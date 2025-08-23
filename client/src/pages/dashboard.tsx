@@ -289,7 +289,7 @@ export function Dashboard() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={loadSuggestions}
+                    onClick={() => loadSuggestions()}
                     className="mt-2"
                   >
                     Generate Suggestions

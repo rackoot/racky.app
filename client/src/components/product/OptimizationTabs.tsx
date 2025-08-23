@@ -38,7 +38,7 @@ const platformNames = {
 
 // Get platforms available for this product
 const getAvailablePlatforms = (product: ProductDetail) => {
-  const availablePlatforms = []
+  const availablePlatforms: string[] = []
   
   // Add the primary marketplace
   if (product.marketplace) {

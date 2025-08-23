@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createMockFetch, mockApiResponse, mockApiError } from '@/test/utils'
+import { mockApiResponse, mockApiError } from '@/test/utils'
 import { marketplaceService } from '../marketplace'
 
 // Mock localStorage for auth tokens
@@ -274,7 +274,6 @@ describe('Marketplace Service', () => {
 
     it('handles not found errors', async () => {
       const connectionId = 'nonexistent-id'
-      const updateData = { storeName: 'Updated Name' }
 
       global.fetch = vi.fn().mockResolvedValue(
         mockApiError('Connection not found', 404)

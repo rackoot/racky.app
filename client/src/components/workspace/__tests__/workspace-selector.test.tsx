@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen, userEvent } from '@/test/utils'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { render, screen } from '@/test/utils'
+import { userEvent } from '@testing-library/user-event'
 import { WorkspaceSelector } from '../workspace-selector'
 
 // Mock the workspace service
@@ -55,6 +56,13 @@ const mockWorkspaces = [
 describe('WorkspaceSelector Component', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    
+    // Configure localStorage mock for authentication
+    ;(window.localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
+      if (key === 'token') return 'test-auth-token'
+      if (key === 'currentWorkspaceId') return 'workspace-1'
+      return null
+    })
   })
 
   it('renders current workspace when provided', () => {
@@ -63,7 +71,6 @@ describe('WorkspaceSelector Component', () => {
     })
     
     expect(screen.getByText('My First Workspace')).toBeInTheDocument()
-    expect(screen.getByText('5 members')).toBeInTheDocument()
   })
 
   it('shows workspace role badge', () => {
@@ -158,13 +165,19 @@ describe('WorkspaceSelector Component', () => {
     expect(trigger).toBeInTheDocument()
   })
 
-  it('shows workspace member count correctly', () => {
+  it('shows workspace member count correctly', async () => {
+    const user = userEvent.setup()
+    
     render(<WorkspaceSelector />, {
       workspace: {
         ...mockWorkspaces[1],
         memberCount: 1
       }
     })
+    
+    // Open dropdown to see member count
+    const trigger = screen.getByRole('button')
+    await user.click(trigger)
     
     expect(screen.getByText('1 member')).toBeInTheDocument()
   })

@@ -50,10 +50,28 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 }))
 
+// Mock localStorage globally
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+}
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true
+})
+
 // Clean up after each test
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  // Reset localStorage mock
+  localStorageMock.getItem.mockReset()
+  localStorageMock.setItem.mockReset()
+  localStorageMock.removeItem.mockReset()
+  localStorageMock.clear.mockReset()
 })
 
 // Global test setup

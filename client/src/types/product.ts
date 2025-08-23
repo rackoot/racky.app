@@ -41,6 +41,7 @@ export interface ProductDetail {
   marketplace: string;
   externalId?: string;
   marketplaceUrl?: string;
+  handle?: string;
   createdAt: string;
   updatedAt: string;
   storeConnectionId?: {
@@ -50,6 +51,7 @@ export interface ProductDetail {
     credentials?: {
       shop_url?: string;
       account_name?: string;
+      site_url?: string;
       [key: string]: any;
     };
   };
