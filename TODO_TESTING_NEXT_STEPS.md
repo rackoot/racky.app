@@ -115,6 +115,12 @@ This file contains the remaining tasks to complete the comprehensive testing str
 
 ## 🔧 **Current Issues to Fix**
 
+### **CI/CD Issues**
+1. **GitHub Actions Caching (FIXED ✅):**
+   - Problem: Node.js cache setup failing due to monorepo structure
+   - Solution: Updated cache-dependency-path to use proper subdirectory paths
+   - Status: Fixed in workflow files
+
 ### **Backend Test Issues**
 1. **Store Connection Tests (`stores.test.ts`):**
    - Problem: API expects `marketplaceType` but test sends `marketplaces` array
