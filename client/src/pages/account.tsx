@@ -51,12 +51,9 @@ export function Account() {
     setProfileSuccess('')
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/profile', {
+      const response = await fetch('/api/auth/profile', {
         method: 'PUT',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(profileData)
       })
 
@@ -100,12 +97,9 @@ export function Account() {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/password', {
+      const response = await fetch('/api/auth/password', {
         method: 'PUT',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           currentPassword: passwordData.currentPassword,
           newPassword: passwordData.newPassword
