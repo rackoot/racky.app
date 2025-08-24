@@ -137,7 +137,7 @@ export const testProducts = {
     externalId: 'test-product-123',
     sku: 'TEST-SKU-001',
     status: 'active' as const,
-    images: ['https://example.com/image1.jpg'],
+    images: [{ url: 'https://example.com/image1.jpg', altText: 'Test product image' }],
     categories: ['Electronics', 'Gadgets'],
   },
 };
