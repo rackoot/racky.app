@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, ChevronsUpDown, Plus, Building } from 'lucide-react';
+import { Check, ChevronsUpDown, Plus, Building, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -145,6 +145,15 @@ export function WorkspaceSelector({
           {showCreateButton && (
             <>
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  window.location.href = '/workspaces';
+                }}
+                className="cursor-pointer"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                View all workspaces
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
                   window.location.href = '/workspaces';

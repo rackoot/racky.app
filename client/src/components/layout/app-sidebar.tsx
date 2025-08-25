@@ -12,57 +12,77 @@ import {
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
+import { useWorkspace } from "@/components/workspace/workspace-context"
+import { getCurrentUser } from "@/lib/auth"
 
-const items = [
+interface NavigationItem {
+  title: string
+  url: string
+  icon: any
+  requiresSubscription?: boolean
+  showForSuperAdmin?: boolean
+}
+
+const items: NavigationItem[] = [
   {
     title: "Dashboard",
     url: "/dashboard",
     icon: Home,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Stores/Marketplaces",
     url: "/stores",
     icon: Store,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Products",
     url: "/products",
     icon: Package,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Orders",
     url: "/orders",
     icon: ShoppingCart,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Analytics",
     url: "/analytics",
     icon: BarChart3,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Usage Dashboard",
     url: "/usage",
     icon: Activity,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Performance",
     url: "/performance",
     icon: TrendingUp,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Customers",
     url: "/customers",
     icon: Users,
+    requiresSubscription: true, // Requires active subscription
   },
   {
     title: "Workspace Subscription",
     url: "/subscription",
     icon: CreditCard,
+    requiresSubscription: false, // Always available for subscription management
   },
   {
     title: "Settings",
     url: "/settings",
     icon: Settings,
+    requiresSubscription: true, // Requires active subscription
   },
 ]
 
@@ -72,10 +92,45 @@ interface AppSidebarProps {
 
 export function AppSidebar({ collapsed = false }: AppSidebarProps) {
   const location = useLocation()
+  const { currentWorkspace } = useWorkspace()
+  const user = getCurrentUser()
+
+  // Helper function to check if user has active subscription
+  const hasActiveSubscription = (): boolean => {
+    // SUPERADMIN users bypass subscription requirements
+    if (user?.role === 'SUPERADMIN') {
+      return true
+    }
+
+    // Check workspace subscription first (primary)
+    if (currentWorkspace?.subscription) {
+      const { status } = currentWorkspace.subscription
+      return status === 'ACTIVE'
+    }
+
+    // Fallback to user subscription info (legacy/backup)
+    if (user?.subscriptionInfo) {
+      return user.subscriptionInfo.hasActiveSubscription && 
+             user.subscriptionInfo.status === 'ACTIVE'
+    }
+
+    return false
+  }
+
+  // Filter items based on subscription status
+  const visibleItems = items.filter((item) => {
+    // If item doesn't require subscription, always show it
+    if (!item.requiresSubscription) {
+      return true
+    }
+
+    // If item requires subscription, check if user has active subscription
+    return hasActiveSubscription()
+  })
 
   return (
     <nav className="space-y-2">
-      {items.map((item) => {
+      {visibleItems.map((item) => {
         const isActive = location.pathname === item.url
         return (
           <Link
