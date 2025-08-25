@@ -54,7 +54,6 @@ const workspaceSchema = new Schema<IWorkspace>({
   slug: {
     type: String,
     required: true,
-    unique: true,
     lowercase: true,
     trim: true,
     match: /^[a-z0-9-]+$/,

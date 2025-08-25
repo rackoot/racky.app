@@ -32,8 +32,6 @@ import { protect, requireWorkspace } from '@/common/middleware/auth';
 
 const app = express();
 
-connectDB();
-
 // Initialize notification scheduler after database connection
 let notificationCleanup: (() => void) | undefined;
 
@@ -83,35 +81,42 @@ app.get('/api/health', (_req, res) => {
 
 app.use(errorHandler);
 
-const PORT = getEnv().PORT;
-const server = app.listen(PORT, () => {
-  console.log(`Racky server running on port ${PORT}`);
-  
-  // Initialize notification scheduler after server starts
-  setTimeout(() => {
-    notificationCleanup = initializeNotificationScheduler();
-  }, 2000); // Wait 2 seconds for database to be fully ready
-});
+// Start server only after database connection
+const startServer = async () => {
+  try {
+    // Connect to database first
+    await connectDB();
+    
+    const PORT = getEnv().PORT;
+    const server = app.listen(PORT, () => {
+      console.log(`🚀 Racky server running on port ${PORT}`);
+      
+      // Initialize notification scheduler after server starts
+      setTimeout(() => {
+        notificationCleanup = initializeNotificationScheduler();
+      }, 1000);
+    });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
-  if (notificationCleanup) {
-    notificationCleanup();
-  }
-  server.close(() => {
-    console.log('Server closed.');
-    process.exit(0);
-  });
-});
+    // Graceful shutdown handlers
+    const gracefulShutdown = () => {
+      console.log('Shutting down gracefully...');
+      if (notificationCleanup) {
+        notificationCleanup();
+      }
+      server.close(() => {
+        console.log('Server closed.');
+        process.exit(0);
+      });
+    };
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  if (notificationCleanup) {
-    notificationCleanup();
+    process.on('SIGTERM', gracefulShutdown);
+    process.on('SIGINT', gracefulShutdown);
+
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
   }
-  server.close(() => {
-    console.log('Server closed.');
-    process.exit(0);
-  });
-});
+};
+
+// Start the server
+startServer();

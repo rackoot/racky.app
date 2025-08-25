@@ -59,7 +59,6 @@ const planSchema = new Schema<IPlan>({
   name: {
     type: String,
     required: true,
-    unique: true,
     enum: ['BASIC', 'PRO', 'ENTERPRISE']
   },
   displayName: {

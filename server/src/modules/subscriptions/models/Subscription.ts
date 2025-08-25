@@ -94,13 +94,10 @@ const subscriptionSchema = new Schema<ISubscription>({
   },
   // Stripe Integration
   stripeSubscriptionId: {
-    type: String,
-    sparse: true,
-    unique: true
+    type: String
   },
   stripeCustomerId: {
-    type: String,
-    sparse: true
+    type: String
   },
   // Pricing information
   amount: {
@@ -314,8 +311,6 @@ subscriptionSchema.index({ userId: 1 });
 subscriptionSchema.index({ planId: 1 });
 subscriptionSchema.index({ status: 1 });
 subscriptionSchema.index({ endsAt: 1 });
-subscriptionSchema.index({ stripeSubscriptionId: 1 }, { sparse: true, unique: true });
-subscriptionSchema.index({ stripeCustomerId: 1 }, { sparse: true });
 subscriptionSchema.index({ nextBillingDate: 1 });
 subscriptionSchema.index({ createdAt: 1 });
 
