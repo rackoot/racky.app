@@ -128,10 +128,46 @@ const testVtexConnection = async (credentials: VtexCredentials): Promise<Marketp
   try {
     const { account_name, app_key, app_token } = credentials;
     
-    const response = await axios.get(`https://${account_name}.vtexcommercestable.com.br/api/catalog_system/pvt/collection/search`, {
+    // Validate required credentials
+    if (!account_name || !app_key || !app_token) {
+      return {
+        success: false,
+        message: 'Missing required VTEX credentials: account_name, app_key, and app_token are all required'
+      };
+    }
+    
+    // Validate and clean account_name format
+    let cleanAccountName = account_name.trim();
+    
+    // Remove protocol if present
+    cleanAccountName = cleanAccountName.replace(/^https?:\/\//, '');
+    
+    // Extract account name from full VTEX URLs
+    if (cleanAccountName.includes('.vtexcommercestable.com.br') || 
+        cleanAccountName.includes('.vtex.com.br') ||
+        cleanAccountName.includes('.vtexcommerce.com.br')) {
+      cleanAccountName = cleanAccountName.split('.')[0];
+    }
+    
+    // Remove any remaining slashes or paths
+    cleanAccountName = cleanAccountName.replace(/\//g, '').trim();
+    
+    if (!cleanAccountName) {
+      return {
+        success: false,
+        message: 'Invalid account_name format. Please provide only the account name (e.g., "mystore" not "https://mystore.vtexcommercestable.com.br")'
+      };
+    }
+    
+    const vtexUrl = `https://${cleanAccountName}.vtexcommercestable.com.br/api/catalog_system/pvt/collection/search`;
+    console.log(`[VTEX] Testing connection to: ${vtexUrl}`);
+    
+    const response = await axios.get(vtexUrl, {
       headers: {
         'X-VTEX-API-AppKey': app_key,
-        'X-VTEX-API-AppToken': app_token
+        'X-VTEX-API-AppToken': app_token,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       timeout: 10000
     });
@@ -140,11 +176,13 @@ const testVtexConnection = async (credentials: VtexCredentials): Promise<Marketp
       success: true,
       message: 'VTEX connection successful',
       data: {
-        account_name: account_name,
-        collections_count: response.data?.length || 0
+        account_name: cleanAccountName,
+        collections_count: response.data?.length || 0,
+        url_tested: vtexUrl
       }
     };
   } catch (error: any) {
+    console.error('[VTEX] Connection error:', error.message);
     return {
       success: false,
       message: error.response?.data?.message || error.message || 'VTEX connection failed'
