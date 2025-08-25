@@ -12,8 +12,12 @@ Racky is a **multi-tenant SaaS marketplace management platform** that allows use
 **SaaS Features:**
 - Multi-tenant architecture with complete user data isolation
 - Role-based access control (USER, SUPERADMIN)
-- Subscription management with three tiers (BASIC, PRO, ENTERPRISE)
-- Usage tracking and limits enforcement
+- **Contributor-based subscription model** with three contributor types:
+  - **Junior Contributors** ($29/month each): 1K actions/contributor, up to 5 contributors
+  - **Senior Contributors** ($79/month each): 5K actions/contributor, up to 5 contributors, AI assistance
+  - **Executive Contributors** (Contact Sales): Unlimited actions, up to 50 contributors, premium features
+- Action-based usage tracking and limits enforcement per contributor
+- Scalable contributor hiring with quantity selector (1-5 contributors for most plans)
 - 14-day free trial for new users
 - Admin panel for user and subscription management
 
@@ -36,8 +40,9 @@ npm start           # Start production server
 npm test            # Run tests with Jest
 npm run test:watch   # Run tests in watch mode
 npm run test:coverage # Run tests with coverage report
-node scripts/createAdmin.js  # Creates admin@example.com / admin123 (legacy)
-node scripts/setup-saas.js   # Initialize SaaS platform with super admin and plans
+node scripts/setup.js        # 🚀 Complete setup for contributor-based platform
+node scripts/create-admin.js # Create super admin only (admin@racky.app / admin123!)
+node scripts/create-plans.js # Create contributor plans only
 ```
 
 ### Testing Commands

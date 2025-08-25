@@ -14,11 +14,14 @@ export interface ISubscription extends Document {
   userId: Types.ObjectId; // Keep for backward compatibility during migration
   planId: Types.ObjectId;
   status: SubscriptionStatus;
+  // Contributor-based fields
+  contributorCount: number; // Number of contributors hired (1-5 for most plans)
+  totalMonthlyActions: number; // Computed: contributorCount * plan.actionsPerContributor
   // Stripe Integration
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
   // Pricing information
-  amount: number; // Amount in cents
+  amount: number; // Total amount in cents (contributorCount * plan price)
   currency: string;
   interval: BillingInterval;
   // Subscription periods
@@ -59,6 +62,10 @@ export interface ISubscription extends Document {
   suspend(reason?: string): Promise<ISubscription>;
   reactivate(): Promise<ISubscription>;
   renew(months?: number): Promise<ISubscription>;
+  // Contributor-based methods
+  updateContributorCount(newCount: number): Promise<ISubscription>;
+  getActionsPerContributor(): number;
+  getContributorUtilization(usedActions: number): number;
 }
 
 // Interface for Subscription model with static methods
@@ -67,7 +74,7 @@ export interface ISubscriptionModel extends Model<ISubscription> {
   findByStripeId(stripeSubscriptionId: string): Promise<ISubscription | null>;
   findExpiringSubscriptions(days?: number): Promise<ISubscription[]>;
   findExpiredSubscriptions(): Promise<ISubscription[]>;
-  createSubscription(userId: Types.ObjectId, planId: Types.ObjectId, interval?: BillingInterval): Promise<ISubscription>;
+  createSubscription(userId: Types.ObjectId, planId: Types.ObjectId, interval?: BillingInterval, contributorCount?: number): Promise<ISubscription>;
 }
 
 const subscriptionSchema = new Schema<ISubscription>({
@@ -91,6 +98,19 @@ const subscriptionSchema = new Schema<ISubscription>({
     enum: ['ACTIVE', 'SUSPENDED', 'CANCELLED', 'EXPIRED'],
     required: true,
     default: 'ACTIVE'
+  },
+  // Contributor-based fields
+  contributorCount: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 50,
+    default: 1
+  },
+  totalMonthlyActions: {
+    type: Number,
+    required: true,
+    min: 0
   },
   // Stripe Integration
   stripeSubscriptionId: {
@@ -248,6 +268,38 @@ subscriptionSchema.methods.renew = async function(this: ISubscription, months: n
   return await this.save();
 };
 
+// Contributor-based methods
+subscriptionSchema.methods.updateContributorCount = async function(this: ISubscription, newCount: number): Promise<ISubscription> {
+  // Dynamic import to avoid circular dependency
+  const { default: Plan } = await import('./Plan');
+  const plan = await Plan.findById(this.planId);
+  
+  if (!plan) {
+    throw new Error('Plan not found');
+  }
+  
+  if (newCount > plan.maxContributorsPerWorkspace) {
+    throw new Error(`Maximum ${plan.maxContributorsPerWorkspace} contributors allowed for this plan`);
+  }
+  
+  this.contributorCount = newCount;
+  this.totalMonthlyActions = plan.getTotalActionsPerMonth(newCount);
+  this.amount = this.interval === 'year' ? 
+    plan.getTotalYearlyPrice(newCount) : 
+    plan.getTotalMonthlyPrice(newCount);
+  
+  return await this.save();
+};
+
+subscriptionSchema.methods.getActionsPerContributor = function(this: ISubscription): number {
+  return Math.floor(this.totalMonthlyActions / this.contributorCount);
+};
+
+subscriptionSchema.methods.getContributorUtilization = function(this: ISubscription, usedActions: number): number {
+  if (this.totalMonthlyActions === 0) return 0;
+  return Math.min((usedActions / this.totalMonthlyActions) * 100, 100);
+};
+
 // Static Methods
 subscriptionSchema.statics.findActiveByUser = function(this: ISubscriptionModel, userId: Types.ObjectId): Promise<ISubscription | null> {
   return this.findOne({
@@ -282,7 +334,7 @@ subscriptionSchema.statics.findExpiredSubscriptions = function(this: ISubscripti
   }).populate('userId planId');
 };
 
-subscriptionSchema.statics.createSubscription = async function(this: ISubscriptionModel, userId: Types.ObjectId, planId: Types.ObjectId, interval: BillingInterval = 'month'): Promise<ISubscription> {
+subscriptionSchema.statics.createSubscription = async function(this: ISubscriptionModel, userId: Types.ObjectId, planId: Types.ObjectId, interval: BillingInterval = 'month', contributorCount: number = 1): Promise<ISubscription> {
   // Dynamic import to avoid circular dependency
   const { default: Plan } = await import('./Plan');
   const plan = await Plan.findById(planId);
@@ -291,7 +343,14 @@ subscriptionSchema.statics.createSubscription = async function(this: ISubscripti
     throw new Error('Plan not found');
   }
   
-  const amount = interval === 'year' ? plan.yearlyPrice : plan.monthlyPrice;
+  if (contributorCount > plan.maxContributorsPerWorkspace) {
+    throw new Error(`Maximum ${plan.maxContributorsPerWorkspace} contributors allowed for this plan`);
+  }
+  
+  const amount = interval === 'year' ? 
+    plan.getTotalYearlyPrice(contributorCount) : 
+    plan.getTotalMonthlyPrice(contributorCount);
+  const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
   const durationMonths = interval === 'year' ? 12 : 1;
   const endsAt = new Date();
   endsAt.setMonth(endsAt.getMonth() + durationMonths);
@@ -299,6 +358,8 @@ subscriptionSchema.statics.createSubscription = async function(this: ISubscripti
   return await this.create({
     userId,
     planId,
+    contributorCount,
+    totalMonthlyActions,
     amount,
     interval,
     endsAt,

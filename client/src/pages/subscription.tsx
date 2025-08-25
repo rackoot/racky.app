@@ -13,7 +13,10 @@ import {
   Activity,
   CheckCircle,
   AlertTriangle,
-  Crown
+  Crown,
+  UserCheck,
+  Zap,
+  Users
 } from "lucide-react"
 import { getCurrentUser } from "@/lib/auth"
 import { getAuthHeaders } from "@/lib/utils"
@@ -23,6 +26,10 @@ interface Plan {
   name: string
   displayName: string
   description: string
+  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
+  actionsPerContributor: number
+  maxContributorsPerWorkspace: number
+  isContactSalesOnly: boolean
   monthlyPrice: number
   yearlyPrice: number
   limits: {
@@ -46,6 +53,8 @@ interface UserPlan {
     plan: string
     hasActiveSubscription: boolean
     subscriptionEndsAt?: string
+    contributorCount: number
+    totalMonthlyActions: number
     maxStores: number
     maxProducts: number
   }
@@ -120,6 +129,32 @@ export function Subscription() {
 
   const formatPrice = (cents: number) => {
     return (cents / 100).toFixed(2)
+  }
+
+  const getContributorIcon = (contributorType?: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE') => {
+    switch (contributorType) {
+      case 'JUNIOR':
+        return <Zap className="w-5 h-5 text-blue-600" />
+      case 'SENIOR':
+        return <UserCheck className="w-5 h-5 text-green-600" />
+      case 'EXECUTIVE':
+        return <Crown className="w-5 h-5 text-purple-600" />
+      default:
+        return <Users className="w-5 h-5 text-gray-600" />
+    }
+  }
+
+  const getContributorTypeColor = (contributorType?: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE') => {
+    switch (contributorType) {
+      case 'JUNIOR':
+        return 'text-blue-600 bg-blue-50 dark:bg-blue-950/50'
+      case 'SENIOR':
+        return 'text-green-600 bg-green-50 dark:bg-green-950/50'
+      case 'EXECUTIVE':
+        return 'text-purple-600 bg-purple-50 dark:bg-purple-950/50'
+      default:
+        return 'text-gray-600 bg-gray-50 dark:bg-gray-950/50'
+    }
   }
 
   const getStatusBadge = (subscription: UserPlan['userSubscription']) => {
@@ -221,42 +256,66 @@ export function Subscription() {
         <p className="text-muted-foreground">Manage your plan and view usage</p>
       </div>
 
-      {/* Current Plan */}
+      {/* Current Contributors */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Crown className="w-5 h-5 text-yellow-500" />
-            Current Plan
+            <Users className="w-5 h-5 text-primary" />
+            Your Contributors
           </CardTitle>
-          <CardDescription>Your active subscription details</CardDescription>
+          <CardDescription>Your hired AI contributors and their capabilities</CardDescription>
         </CardHeader>
         <CardContent>
           {!userPlan ? (
             <div className="text-center py-8">
-              <Crown className="w-16 h-16 mx-auto mb-4 text-yellow-500 opacity-50" />
-              <h3 className="text-xl font-semibold mb-2">No Active Subscription</h3>
+              <Users className="w-16 h-16 mx-auto mb-4 text-primary opacity-50" />
+              <h3 className="text-xl font-semibold mb-2">No Contributors Hired</h3>
               <p className="text-muted-foreground mb-6">
-                You need an active subscription to access Racky features.
+                You need to hire AI contributors to automate your marketplace operations.
               </p>
               <Button size="lg" asChild>
-                <a href="/pricing">Choose a Plan</a>
+                <a href="/pricing">Hire Contributors</a>
               </Button>
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-xl font-semibold">{userPlan.plan.displayName}</h3>
-                    {getStatusBadge(userPlan.userSubscription)}
+              {/* Contributor Type and Count Header */}
+              <div className={`flex items-center gap-4 p-4 rounded-lg ${getContributorTypeColor(userPlan.plan.contributorType)}`}>
+                <div className="flex items-center gap-3">
+                  {getContributorIcon(userPlan.plan.contributorType)}
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-xl font-semibold">{userPlan.userSubscription.contributorCount}x {userPlan.plan.displayName}</h3>
+                      {getStatusBadge(userPlan.userSubscription)}
+                    </div>
+                    <p className="text-sm opacity-80">{userPlan.plan.description}</p>
                   </div>
-                  <p className="text-muted-foreground mb-4">{userPlan.plan.description}</p>
-                  <div className="text-2xl font-bold">
-                    ${formatPrice(userPlan.plan.monthlyPrice)}/month
+                </div>
+              </div>
+
+              {/* Pricing and Actions Summary */}
+              <div className="flex items-start justify-between">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <div className="text-2xl font-bold">
+                      ${formatPrice(userPlan.plan.monthlyPrice * userPlan.userSubscription.contributorCount)}/month
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      ${formatPrice(userPlan.plan.monthlyPrice)} per contributor
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">
+                      {userPlan.plan.actionsPerContributor === -1 ? 'Unlimited' : 
+                       userPlan.userSubscription.totalMonthlyActions.toLocaleString()}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Total monthly actions
+                    </div>
                   </div>
                 </div>
                 <Button onClick={handleUpgradePlan} disabled={upgrading}>
-                  {upgrading ? 'Loading...' : 'Upgrade Plan'}
+                  {upgrading ? 'Loading...' : 'Manage Contributors'}
                 </Button>
               </div>
 
@@ -296,31 +355,59 @@ export function Subscription() {
         </CardContent>
       </Card>
 
-      {/* Usage Statistics */}
+      {/* Contributor Performance */}
       {userPlan && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-green-600" />
-              Current Usage
+              Contributor Performance
             </CardTitle>
-            <CardDescription>Your usage this month</CardDescription>
+            <CardDescription>How your contributors are performing this month</CardDescription>
           </CardHeader>
           <CardContent>
             {usage && (
             <div className="space-y-6">
-              {/* API Calls */}
+              {/* Total Actions Used */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium">API Calls</span>
+                  <span className="font-medium">Actions Used This Month</span>
                   <span className="text-sm text-muted-foreground">
-                    {usage.apiCalls.toLocaleString()} / {userPlan.plan.limits.apiCallsPerMonth.toLocaleString()}
+                    {usage.apiCalls.toLocaleString()} / {userPlan.userSubscription.totalMonthlyActions === -1 ? 'Unlimited' : userPlan.userSubscription.totalMonthlyActions.toLocaleString()}
                   </span>
                 </div>
-                <Progress 
-                  value={getUsagePercentage(usage.apiCalls, userPlan.plan.limits.apiCallsPerMonth)}
-                  className="h-2"
-                />
+                {userPlan.userSubscription.totalMonthlyActions !== -1 && (
+                  <Progress 
+                    value={getUsagePercentage(usage.apiCalls, userPlan.userSubscription.totalMonthlyActions)}
+                    className="h-2"
+                  />
+                )}
+                <div className="text-xs text-muted-foreground mt-1">
+                  Average per contributor: {Math.floor(usage.apiCalls / userPlan.userSubscription.contributorCount).toLocaleString()} actions
+                </div>
+              </div>
+
+              {/* Actions per Contributor Breakdown */}
+              <div className="bg-muted/50 rounded-lg p-4">
+                <h4 className="font-medium mb-3">Per-Contributor Performance</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {Array.from({ length: userPlan.userSubscription.contributorCount }, (_, i) => (
+                    <div key={i} className="text-center p-3 bg-background rounded border">
+                      <div className="flex justify-center mb-2">
+                        {getContributorIcon(userPlan.plan.contributorType)}
+                      </div>
+                      <div className="font-medium text-sm">Contributor {i + 1}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {Math.floor(usage.apiCalls / userPlan.userSubscription.contributorCount).toLocaleString()} actions
+                      </div>
+                      <div className="text-xs text-green-600 mt-1">
+                        {userPlan.plan.actionsPerContributor === -1 ? 'Unlimited capacity' : 
+                         `${((Math.floor(usage.apiCalls / userPlan.userSubscription.contributorCount) / userPlan.plan.actionsPerContributor) * 100).toFixed(0)}% utilized`
+                        }
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Stores */}

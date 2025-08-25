@@ -21,14 +21,19 @@ export interface IPlan extends Document {
   name: 'BASIC' | 'PRO' | 'ENTERPRISE';
   displayName: string;
   description: string;
-  // Pricing
-  monthlyPrice: number; // Price in cents
-  yearlyPrice: number; // Price in cents (usually discounted)
+  // Contributor-based model
+  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE';
+  actionsPerContributor: number; // Actions per month per contributor
+  maxContributorsPerWorkspace: number; // Max contributors allowed per workspace
+  isContactSalesOnly: boolean; // True for Executive plan
+  // Pricing (per contributor)
+  monthlyPrice: number; // Price in cents PER CONTRIBUTOR
+  yearlyPrice: number; // Price in cents PER CONTRIBUTOR (usually discounted)
   currency: string;
   // Stripe integration
   stripeMonthlyPriceId: string;
   stripeYearlyPriceId: string;
-  // Plan limits
+  // Plan limits (legacy, will be computed based on contributor count)
   limits: IPlanLimits;
   // Features
   features: IPlanFeature[];
@@ -47,6 +52,11 @@ export interface IPlan extends Document {
   getYearlyPriceFormatted(): string;
   getYearlySavings(): number;
   hasFeature(featureName: string): boolean;
+  // Contributor-based methods
+  getTotalMonthlyPrice(contributorCount: number): number;
+  getTotalYearlyPrice(contributorCount: number): number;
+  getTotalActionsPerMonth(contributorCount: number): number;
+  getContributorIcon(): string;
 }
 
 // Interface for Plan model with static methods
@@ -68,6 +78,27 @@ const planSchema = new Schema<IPlan>({
   description: {
     type: String,
     required: true
+  },
+  // Contributor-based fields
+  contributorType: {
+    type: String,
+    required: true,
+    enum: ['JUNIOR', 'SENIOR', 'EXECUTIVE']
+  },
+  actionsPerContributor: {
+    type: Number,
+    required: true,
+    min: 0
+  },
+  maxContributorsPerWorkspace: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 50 // Reasonable upper limit
+  },
+  isContactSalesOnly: {
+    type: Boolean,
+    default: false
   },
   // Pricing
   monthlyPrice: {
@@ -169,6 +200,32 @@ planSchema.methods.hasFeature = function(this: IPlan, featureName: string): bool
   return this.features.some(feature => 
     feature.name === featureName && feature.enabled
   );
+};
+
+// Contributor-based methods
+planSchema.methods.getTotalMonthlyPrice = function(this: IPlan, contributorCount: number): number {
+  return this.monthlyPrice * contributorCount;
+};
+
+planSchema.methods.getTotalYearlyPrice = function(this: IPlan, contributorCount: number): number {
+  return this.yearlyPrice * contributorCount;
+};
+
+planSchema.methods.getTotalActionsPerMonth = function(this: IPlan, contributorCount: number): number {
+  return this.actionsPerContributor * contributorCount;
+};
+
+planSchema.methods.getContributorIcon = function(this: IPlan): string {
+  switch (this.contributorType) {
+    case 'JUNIOR':
+      return 'user-code';
+    case 'SENIOR':
+      return 'user-check';
+    case 'EXECUTIVE':
+      return 'crown';
+    default:
+      return 'user';
+  }
 };
 
 // Statics
