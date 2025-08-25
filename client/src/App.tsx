@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/components/auth/protected-route'
 import { RequireSuperAdmin } from '@/components/auth/require-role'
 import { RequireSubscription } from '@/components/auth/require-subscription'
 import { SmartRedirect } from '@/components/auth/smart-redirect'
+import { SubscriptionRedirect } from '@/components/auth/subscription-redirect'
 import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
@@ -18,6 +19,7 @@ import { Subscription } from '@/pages/subscription'
 import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
+import { InternalPricing } from '@/pages/internal-pricing'
 import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
@@ -33,6 +35,18 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/demo-checkout" element={<DemoCheckout />} />
+        
+        {/* Internal pricing page for authenticated users without subscription */}
+        <Route
+          path="/pricing-internal"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <InternalPricing />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/dashboard"
           element={
@@ -178,13 +192,28 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Subscription management for users WITH active subscription */}
+        <Route
+          path="/subscription-manage"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <WorkspaceSubscriptionPage />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Legacy subscription route - redirect to appropriate page */}
         <Route
           path="/subscription"
           element={
             <ProtectedRoute>
-              <MainLayout>
-                <WorkspaceSubscriptionPage />
-              </MainLayout>
+              <SubscriptionRedirect>
+                <></>
+              </SubscriptionRedirect>
             </ProtectedRoute>
           }
         />

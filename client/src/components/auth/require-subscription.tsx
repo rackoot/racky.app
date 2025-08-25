@@ -2,20 +2,22 @@ import { useEffect, useState } from "react"
 import { getCurrentUser } from "@/lib/auth"
 import { Navigate } from "react-router-dom"
 import { getAuthHeaders } from "@/lib/utils"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 
 interface RequireSubscriptionProps {
   children: React.ReactNode
   fallback?: string
 }
 
-export function RequireSubscription({ children, fallback = "/subscription" }: RequireSubscriptionProps) {
+export function RequireSubscription({ children, fallback = "/pricing-internal" }: RequireSubscriptionProps) {
   const [loading, setLoading] = useState(true)
   const [hasSubscription, setHasSubscription] = useState(false)
   const user = getCurrentUser()
+  const { currentWorkspace } = useWorkspace()
 
   useEffect(() => {
     checkSubscription()
-  }, [])
+  }, [currentWorkspace])
 
   const checkSubscription = async () => {
     if (!user) {
@@ -30,8 +32,23 @@ export function RequireSubscription({ children, fallback = "/subscription" }: Re
       return
     }
 
+    // If no current workspace is selected, no subscription
+    if (!currentWorkspace) {
+      setHasSubscription(false)
+      setLoading(false)
+      return
+    }
+
     try {
-      // Fetch fresh subscription data from API
+      // Check workspace subscription first (primary)
+      if (currentWorkspace.subscription) {
+        const { status } = currentWorkspace.subscription
+        setHasSubscription(status === 'ACTIVE')
+        setLoading(false)
+        return
+      }
+
+      // Fallback: Fetch fresh subscription data from API
       const response = await fetch('/api/plans/user/current', {
         headers: getAuthHeaders()
       })

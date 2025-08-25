@@ -9,6 +9,7 @@ import {
   TrendingUp,
   CreditCard,
   Activity,
+  DollarSign,
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
@@ -20,6 +21,7 @@ interface NavigationItem {
   url: string
   icon: any
   requiresSubscription?: boolean
+  requiresNoSubscription?: boolean
   showForSuperAdmin?: boolean
 }
 
@@ -73,10 +75,16 @@ const items: NavigationItem[] = [
     requiresSubscription: true, // Requires active subscription
   },
   {
-    title: "Workspace Subscription",
-    url: "/subscription",
+    title: "Pricing",
+    url: "/pricing-internal",
+    icon: DollarSign,
+    requiresNoSubscription: true, // Only show when no active subscription
+  },
+  {
+    title: "Manage Subscription",
+    url: "/subscription-manage",
     icon: CreditCard,
-    requiresSubscription: false, // Always available for subscription management
+    requiresSubscription: true, // Only show when has active subscription
   },
   {
     title: "Settings",
@@ -119,7 +127,12 @@ export function AppSidebar({ collapsed = false }: AppSidebarProps) {
 
   // Filter items based on subscription status
   const visibleItems = items.filter((item) => {
-    // If item doesn't require subscription, always show it
+    // If item requires no subscription (only show when no subscription), check inverse
+    if (item.requiresNoSubscription) {
+      return !hasActiveSubscription()
+    }
+
+    // If item doesn't require subscription and doesn't require no subscription, always show it
     if (!item.requiresSubscription) {
       return true
     }
