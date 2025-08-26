@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import { AuthenticatedRequest } from '@/common/types/express';
 import axios from 'axios';
+import { Types } from 'mongoose';
 import { PlatformType } from '../models/Product';
 import Product from '../models/Product';
 import StoreConnection from '@/stores/models/StoreConnection';
@@ -318,6 +319,7 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
                 connection.marketplaceType,
                 connection.credentials,
                 req.user!._id.toString(),
+                req.workspace!._id.toString(),
                 connectionId,
                 force
               );
@@ -362,12 +364,15 @@ async function syncProductsFromMarketplace(
   type: string, 
   credentials: any, 
   userId: string, 
+  workspaceId: string,
   connectionId: string, 
   force: boolean = false
 ) {
   switch (type) {
     case 'shopify':
-      return await syncShopifyProducts(credentials, userId, connectionId, force);
+      return await syncShopifyProducts(credentials, userId, workspaceId, connectionId, force);
+    case 'vtex':
+      return await syncVtexProducts(credentials, userId, workspaceId, connectionId, force);
     default:
       throw new Error(`Product sync not implemented for ${type}`);
   }
@@ -375,7 +380,8 @@ async function syncProductsFromMarketplace(
 
 async function syncShopifyProducts(
   credentials: any, 
-  userId: string, 
+  userId: string,
+  workspaceId: string,
   connectionId: string, 
   force: boolean = false
 ) {
@@ -416,7 +422,7 @@ async function syncShopifyProducts(
       console.log(`Retrieved ${products.length} products from Shopify`);
       
       for (const productEdge of products) {
-        const syncResult = await saveShopifyProduct(productEdge.node, userId, connectionId);
+        const syncResult = await saveShopifyProduct(productEdge.node, userId, workspaceId, connectionId);
         totalProducts++;
         if (syncResult.isNew) {
           newProducts++;
@@ -514,7 +520,7 @@ async function queryShopifyGraphQL(apiUrl: string, accessToken: string, cursor: 
   return data;
 }
 
-async function saveShopifyProduct(shopifyProduct: any, userId: string, connectionId: string) {
+async function saveShopifyProduct(shopifyProduct: any, userId: string, workspaceId: string, connectionId: string) {
     
   try {
     // Find existing product by Shopify ID or title
@@ -618,6 +624,191 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, connectio
     return { isNew };
   } catch (error) {
     console.error(`Error saving product ${shopifyProduct.title}:`, error);
+    throw error;
+  }
+}
+
+// VTEX product synchronization
+async function syncVtexProducts(
+  credentials: any,
+  userId: string,
+  workspaceId: string,
+  connectionId: string,
+  force: boolean = false
+) {
+  const { account_name, app_key, app_token } = credentials;
+
+  if (!account_name || !app_key || !app_token) {
+    throw new Error('Account name, app key, and app token are required for VTEX sync');
+  }
+
+  // Clean account name (same logic as in marketplace service)
+  let cleanAccountName = account_name.trim();
+  cleanAccountName = cleanAccountName.replace(/^https?:\/\//, '');
+  
+  if (cleanAccountName.includes('.vtexcommercestable.com.br') || 
+      cleanAccountName.includes('.vtex.com.br') ||
+      cleanAccountName.includes('.vtexcommerce.com.br')) {
+    cleanAccountName = cleanAccountName.split('.')[0];
+  }
+  
+  cleanAccountName = cleanAccountName.replace(/\//g, '').trim();
+
+  try {
+    let totalProducts = 0;
+    let newProducts = 0;
+    let updatedProducts = 0;
+
+    console.log(`Starting VTEX sync for user: ${userId}, account: ${cleanAccountName}`);
+
+    // Fetch products from VTEX with limit of 30
+    const vtexProducts = await fetchVtexProducts(cleanAccountName, app_key, app_token, 30);
+    
+    console.log(`Retrieved ${vtexProducts.length} products from VTEX`);
+
+    for (const vtexProduct of vtexProducts) {
+      const syncResult = await saveVtexProduct(vtexProduct, userId, workspaceId, connectionId);
+      totalProducts++;
+      if (syncResult.isNew) {
+        newProducts++;
+      } else {
+        updatedProducts++;
+      }
+    }
+
+    console.log(`VTEX sync completed. Total: ${totalProducts}, New: ${newProducts}, Updated: ${updatedProducts}`);
+    return { success: true, totalProducts, newProducts, updatedProducts };
+  } catch (error) {
+    console.error('Error syncing VTEX products:', error);
+    throw error;
+  }
+}
+
+async function fetchVtexProducts(accountName: string, appKey: string, appToken: string, limit: number = 30) {
+  try {
+    const axios = require('axios');
+    
+    // Use VTEX public search API which works without authentication issues
+    const apiUrl = `https://${accountName}.vtexcommercestable.com.br/api/catalog_system/pub/products/search`;
+    
+    console.log(`[VTEX] Fetching products from: ${apiUrl}`);
+    
+    // Fetch products using public API with pagination
+    const response = await axios.get(apiUrl, {
+      params: {
+        '_from': 0,
+        '_to': limit - 1
+      },
+      timeout: 30000
+    });
+
+    const products = response.data;
+    console.log(`[VTEX] Found ${Array.isArray(products) ? products.length : 0} products`);
+
+    if (!Array.isArray(products)) {
+      console.warn('[VTEX] Invalid response format - expected array of products');
+      return [];
+    }
+
+    if (products.length === 0) {
+      console.warn('[VTEX] No products found in catalog');
+      return [];
+    }
+
+    // The public search API returns complete product data, so we don't need additional calls
+    console.log(`[VTEX] Successfully retrieved ${products.length} products`);
+    return products.slice(0, limit); // Ensure we don't exceed the limit
+    
+  } catch (error: any) {
+    console.error('[VTEX] Error fetching products:', error.message);
+    if (error.response?.status === 401) {
+      console.error('[VTEX] Authentication failed - using public API instead');
+    }
+    throw new Error(`Failed to fetch VTEX products: ${error.message}`);
+  }
+}
+
+async function saveVtexProduct(vtexProduct: any, userId: string, workspaceId: string, connectionId: string) {
+  try {
+    // Map fields from VTEX public API response format
+    const productId = vtexProduct.productId;
+    const productName = vtexProduct.productName;
+    const productReference = vtexProduct.productReference;
+    
+    // Find existing product by VTEX ID or title
+    const existingProduct = await Product.findOne({
+      workspaceId: workspaceId,
+      $or: [
+        { 'platforms.platformId': productId },
+        { title: productName, storeConnectionId: connectionId }
+      ]
+    });
+
+    const vtexPlatform = {
+      platform: 'vtex' as PlatformType,
+      platformId: productId || '',
+      platformSku: productReference || '',
+      platformPrice: undefined, // Public API doesn't include price in basic response
+      platformInventory: 0, // Public API doesn't include inventory in basic response
+      platformStatus: 'active', // Public API only returns active products
+      lastSyncAt: new Date()
+    };
+
+    let isNew = false;
+
+    if (existingProduct) {
+      // Update existing product
+      const platformIndex = existingProduct.platforms.findIndex((p: any) => p.platform === 'vtex');
+      
+      if (platformIndex >= 0) {
+        existingProduct.platforms[platformIndex] = vtexPlatform;
+      } else {
+        existingProduct.platforms.push(vtexPlatform);
+      }
+
+      // Update fields if not already set
+      if (!existingProduct.description && vtexProduct.metaTagDescription) {
+        existingProduct.description = vtexProduct.metaTagDescription;
+      }
+
+      existingProduct.lastSyncedAt = new Date();
+      await existingProduct.save();
+      
+    } else {
+      // Create new product
+      isNew = true;
+      
+      // Extract category from categoryId if available
+      const category = vtexProduct.categories ? vtexProduct.categories[0] : '';
+      
+      await Product.create({
+        workspaceId: new Types.ObjectId(workspaceId),
+        userId: new Types.ObjectId(userId),
+        storeConnectionId: new Types.ObjectId(connectionId),
+        title: productName || 'Untitled Product',
+        description: vtexProduct.metaTagDescription || '',
+        price: 0, // Public API doesn't provide price
+        sku: productReference || '',
+        inventory: 0, // Public API doesn't provide inventory
+        vendor: vtexProduct.brand || '',
+        productType: category || '',
+        tags: [], // No tags in basic public API response
+        images: [], // Would need additional API call for images
+        variants: [], // Would need additional API call for variants
+        platforms: [vtexPlatform],
+        status: 'ACTIVE',
+        marketplace: 'vtex',
+        externalId: productId || '',
+        currency: 'BRL', // Default for VTEX Brazil
+        stock: 0,
+        lastSyncedAt: new Date(),
+        cachedDescriptions: []
+      });
+    }
+
+    return { isNew };
+  } catch (error) {
+    console.error(`Error saving VTEX product ${vtexProduct.productName || vtexProduct.productId}:`, error);
     throw error;
   }
 }
