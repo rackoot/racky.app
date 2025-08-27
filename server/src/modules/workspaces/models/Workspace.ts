@@ -8,6 +8,7 @@ export interface IWorkspace extends Document {
   ownerId: Types.ObjectId;
   settings: IWorkspaceSettings;
   isActive: boolean;
+  stripeCustomerId?: string;
   createdAt: Date;
   updatedAt: Date;
 
@@ -81,6 +82,10 @@ const workspaceSchema = new Schema<IWorkspace>({
   isActive: {
     type: Boolean,
     default: true
+  },
+  stripeCustomerId: {
+    type: String,
+    sparse: true
   }
 }, {
   timestamps: true

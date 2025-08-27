@@ -26,7 +26,7 @@ const planSchema = new Schema({
   actionsPerContributor: {
     type: Number,
     required: true,
-    min: 0
+    min: -1
   },
   maxContributorsPerWorkspace: {
     type: Number,
@@ -97,10 +97,10 @@ const createPlans = async () => {
         actionsPerContributor: 1000,
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
-        monthlyPrice: 2900, // $29.00 per contributor
-        yearlyPrice: 29000, // $290.00 per contributor (save 17%)
-        stripeMonthlyPriceId: 'price_junior_monthly',
-        stripeYearlyPriceId: 'price_junior_yearly',
+        monthlyPrice: 50, // $29.00 per contributor
+        yearlyPrice: 500, // $290.00 per contributor (save 17%)
+        stripeMonthlyPriceId: 'price_1RoS28C0dRh4ObHWOlCINkwn',
+        stripeYearlyPriceId: 'price_1S0i9AC0dRh4ObHW05zDSbp8',
         limits: {
           maxStores: 2,
           maxProducts: 1000,
@@ -126,10 +126,10 @@ const createPlans = async () => {
         actionsPerContributor: 5000,
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
-        monthlyPrice: 7900, // $79.00 per contributor
-        yearlyPrice: 79000, // $790.00 per contributor (save 17%)
-        stripeMonthlyPriceId: 'price_senior_monthly',
-        stripeYearlyPriceId: 'price_senior_yearly',
+        monthlyPrice: 99, 
+        yearlyPrice: 999, 
+        stripeMonthlyPriceId: 'price_1RoS2UC0dRh4ObHWIVQporSy',
+        stripeYearlyPriceId: 'price_1S0i8aC0dRh4ObHWZ8M2BufQ',
         limits: {
           maxStores: 5,
           maxProducts: 10000,

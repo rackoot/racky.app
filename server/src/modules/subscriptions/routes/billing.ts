@@ -3,13 +3,21 @@ import { AuthenticatedRequest } from '@/common/types/express';
 import { protect } from '@/common/middleware/auth';
 import Plan from '../models/Plan';
 import Subscription from '../models/Subscription';
+import { 
+  createEmbeddedCheckoutSession, 
+  createCheckoutSession, 
+  verifyWebhookSignature, 
+  handleSuccessfulPayment,
+  isStripeConfigured 
+} from '@/common/services/stripeService';
+import Stripe from 'stripe';
 
 const router = express.Router();
 
 // POST /api/billing/create-checkout-session - Create checkout session for contributor-based plans
 router.post('/create-checkout-session', protect, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { planName, contributorCount = 1, billingCycle = 'monthly' } = req.body;
+    const { planName, contributorCount = 1, billingCycle = 'monthly', embedded = true } = req.body;
 
     if (!planName) {
       return res.status(400).json({
@@ -25,53 +33,75 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
       });
     }
 
-    // Find the plan
-    const plan = await Plan.findByName(planName);
-    if (!plan) {
-      return res.status(404).json({
-        success: false,
-        message: 'Plan not found'
-      });
-    }
+    // Check if Stripe is configured
+    if (!isStripeConfigured()) {
+      // Fallback to mock for development/testing
+      const plan = await Plan.findByName(planName);
+      if (!plan) {
+        return res.status(404).json({
+          success: false,
+          message: 'Plan not found'
+        });
+      }
 
-    // Check if Executive plan (contact sales only)
-    if (plan.isContactSalesOnly) {
-      return res.status(400).json({
-        success: false,
-        message: 'This plan requires contacting sales',
+      if (plan.isContactSalesOnly) {
+        return res.status(400).json({
+          success: false,
+          message: 'This plan requires contacting sales',
+          data: {
+            contactFormUrl: 'https://forms.monday.com/forms/226e77aa9d94bc45ae4ec3dd8518b5c0?r=use1',
+            planType: plan.displayName
+          }
+        });
+      }
+
+      const count = Math.max(1, Math.min(contributorCount, plan.maxContributorsPerWorkspace));
+      const totalAmount = billingCycle === 'yearly' ? 
+        plan.getTotalYearlyPrice(count) : 
+        plan.getTotalMonthlyPrice(count);
+      const totalActions = plan.getTotalActionsPerMonth(count);
+
+      return res.json({
+        success: true,
+        message: 'Checkout session created (mock mode)',
         data: {
-          contactFormUrl: 'https://forms.monday.com/forms/226e77aa9d94bc45ae4ec3dd8518b5c0?r=use1',
-          planType: plan.displayName
+          sessionId: 'mock_session_id',
+          url: `/subscription?plan=${planName}&contributors=${count}&cycle=${billingCycle}`,
+          planName: plan.name,
+          planDisplayName: plan.displayName,
+          contributorType: plan.contributorType,
+          contributorCount: count,
+          totalAmount,
+          totalActions: totalActions === -1 ? 'Unlimited' : totalActions,
+          billingCycle,
+          pricePerContributor: billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice,
+          isProduction: false
         }
       });
     }
 
-    // Validate contributor count
-    const count = Math.max(1, Math.min(contributorCount, plan.maxContributorsPerWorkspace));
-    
-    // Calculate pricing
-    const totalAmount = billingCycle === 'yearly' ? 
-      plan.getTotalYearlyPrice(count) : 
-      plan.getTotalMonthlyPrice(count);
+    // Create real Stripe checkout session
+    const checkoutParams = {
+      planName,
+      contributorCount,
+      billingCycle,
+      workspace: req.workspace,
+      userId: req.user._id.toString()
+    };
 
-    const totalActions = plan.getTotalActionsPerMonth(count);
+    const checkoutResult = embedded 
+      ? await createEmbeddedCheckoutSession(checkoutParams)
+      : await createCheckoutSession(checkoutParams);
 
-    // For now, return pricing information instead of actual Stripe session
-    // This would be replaced with actual Stripe integration
     res.json({
       success: true,
       message: 'Checkout session created successfully',
       data: {
-        // Mock checkout URL - replace with actual Stripe session URL
-        url: `/subscription?plan=${planName}&contributors=${count}&cycle=${billingCycle}`,
-        planName: plan.name,
-        planDisplayName: plan.displayName,
-        contributorType: plan.contributorType,
-        contributorCount: count,
-        totalAmount,
-        totalActions: totalActions === -1 ? 'Unlimited' : totalActions,
-        billingCycle,
-        pricePerContributor: billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
+        sessionId: checkoutResult.sessionId,
+        clientSecret: checkoutResult.clientSecret,
+        url: checkoutResult.url,
+        embedded: embedded,
+        isProduction: true
       }
     });
 
@@ -138,9 +168,77 @@ router.post('/update-contributors', protect, async (req: AuthenticatedRequest, r
   }
 });
 
-router.post('/stripe/webhook', (req: express.Request, res: Response) => {
-  // Acknowledge webhook but don't process during migration
-  res.status(200).send('Webhook acknowledged - system under maintenance');
+// POST /api/billing/stripe/webhook - Handle Stripe webhook events
+router.post('/stripe/webhook', express.raw({ type: 'application/json' }), async (req: express.Request, res: Response) => {
+  try {
+    if (!isStripeConfigured()) {
+      console.log('Stripe not configured, webhook ignored');
+      return res.status(200).send('Webhook acknowledged - Stripe not configured');
+    }
+
+    const signature = req.headers['stripe-signature'] as string;
+    
+    if (!signature) {
+      console.error('No Stripe signature found');
+      return res.status(400).send('No signature found');
+    }
+
+    // Verify webhook signature
+    const event = verifyWebhookSignature(req.body, signature);
+    
+    console.log('Received Stripe webhook:', event.type);
+
+    // Handle different event types
+    switch (event.type) {
+      case 'checkout.session.completed':
+        console.log('Checkout session completed:', event.data.object.id);
+        // The subscription is created automatically by Stripe
+        break;
+        
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log('Subscription event:', subscription.id, subscription.status);
+        await handleSuccessfulPayment(subscription);
+        break;
+        
+      case 'customer.subscription.deleted':
+        const deletedSubscription = event.data.object as Stripe.Subscription;
+        console.log('Subscription deleted:', deletedSubscription.id);
+        
+        // Mark subscription as cancelled in our database
+        const existingSubscription = await Subscription.findByStripeId(deletedSubscription.id);
+        if (existingSubscription) {
+          existingSubscription.status = 'CANCELLED';
+          await existingSubscription.save();
+        }
+        break;
+        
+      case 'invoice.payment_succeeded':
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log('Payment succeeded for invoice:', invoice.id);
+        break;
+        
+      case 'invoice.payment_failed':
+        const failedInvoice = event.data.object as Stripe.Invoice;
+        console.log('Payment failed for invoice:', failedInvoice.id);
+        break;
+        
+      default:
+        console.log('Unhandled event type:', event.type);
+    }
+
+    res.status(200).send('Webhook processed successfully');
+    
+  } catch (error: any) {
+    console.error('Webhook error:', error);
+    
+    if (error.message.includes('signature')) {
+      return res.status(400).send('Invalid signature');
+    }
+    
+    return res.status(500).send('Webhook processing failed');
+  }
 });
 
 router.get('/subscription', (req: AuthenticatedRequest, res: Response) => {
