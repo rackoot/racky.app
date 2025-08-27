@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react"
 import { loadStripe } from "@stripe/stripe-js"
-import { Elements, EmbeddedCheckout } from "@stripe/react-stripe-js"
+import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, CreditCard, ArrowLeft, Loader2 } from "lucide-react"
 import { getAuthHeaders } from "@/lib/utils"
+import { billingApi } from "@/api"
 
 interface EmbeddedCheckoutProps {
   planName: string
@@ -38,33 +39,27 @@ export function EmbeddedCheckoutWrapper({
     setError("")
     
     try {
-      const response = await fetch('http://localhost:5000/api/billing/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          planName,
-          contributorCount,
-          billingCycle,
-          embedded: true
-        })
+      const data = await billingApi.createCheckoutSession({
+        planName,
+        contributorCount: contributorCount,
+        billingCycle: billingCycle,
+        successUrl: window.location.origin + '/workspace-subscription?session_id={CHECKOUT_SESSION_ID}',
+        cancelUrl: window.location.origin + '/pricing'
       })
-
-      const data = await response.json()
       
-      if (data.success) {
-        setIsProduction(data.data.isProduction || false)
-        
-        if (data.data.clientSecret) {
-          setClientSecret(data.data.clientSecret)
-        } else {
-          // Fallback for mock mode
-          setError("Stripe is not configured. This is a demo environment.")
-        }
+      // Check if this is a production response with real Stripe data
+      const isProductionResponse = data.isProduction === true
+      setIsProduction(isProductionResponse)
+      
+      if (data.url) {
+        // For both Stripe URLs and development internal URLs, redirect
+        window.location.href = data.url
+      } else if (data.clientSecret) {
+        // For embedded checkout, use the client secret
+        setClientSecret(data.clientSecret)
       } else {
-        setError(data.message || 'Failed to create checkout session')
+        // Only set error if we don't have URL or clientSecret
+        setError("Failed to create checkout session")
       }
     } catch (error) {
       console.error('Error creating checkout session:', error)
@@ -74,23 +69,11 @@ export function EmbeddedCheckoutWrapper({
     }
   }
 
-  const options = {
+  const embeddedOptions = {
     clientSecret,
     onComplete: () => {
       console.log('Payment completed successfully!')
       onSuccess?.()
-    },
-    appearance: {
-      theme: 'stripe',
-      variables: {
-        colorPrimary: 'hsl(262.1 83.3% 57.8%)',
-        colorBackground: 'hsl(0 0% 100%)',
-        colorText: 'hsl(224 71.4% 4.1%)',
-        colorDanger: 'hsl(0 84.2% 60.2%)',
-        fontFamily: 'system-ui, sans-serif',
-        spacingUnit: '4px',
-        borderRadius: '8px',
-      }
     }
   }
 
@@ -239,9 +222,9 @@ export function EmbeddedCheckoutWrapper({
           </Button>
         </div>
 
-        <Elements stripe={stripePromise} options={options}>
+        <EmbeddedCheckoutProvider stripe={stripePromise} options={embeddedOptions}>
           <EmbeddedCheckout />
-        </Elements>
+        </EmbeddedCheckoutProvider>
 
         <p className="text-xs text-center text-muted-foreground">
           🔒 Your payment is secured with 256-bit SSL encryption

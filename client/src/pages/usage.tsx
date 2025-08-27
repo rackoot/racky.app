@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { usageApi } from '@/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { Progress } from "@/components/ui/progress"
@@ -69,41 +70,36 @@ export function Usage() {
       setLoading(true)
       setError(null)
 
-      // Fetch real usage data from backend
-      const [currentResponse, trendsResponse, historyResponse] = await Promise.all([
-        fetch('/api/usage/current', {
-          headers: getAuthHeaders()
-        }),
-        fetch('/api/usage/trends', {
-          headers: getAuthHeaders()
-        }),
-        fetch('/api/usage/history?days=7', {
-          headers: getAuthHeaders()
-        })
+      // Fetch real usage data from backend using centralized API
+      const [currentData, trendsData, historyData] = await Promise.all([
+        usageApi.getCurrentUsage(),
+        usageApi.getUsageTrends(),
+        usageApi.getUsageHistory(7)
       ])
 
-      if (currentResponse.ok && trendsResponse.ok && historyResponse.ok) {
-        const [currentData, trendsData, historyData] = await Promise.all([
-          currentResponse.json(),
-          trendsResponse.json(),
-          historyResponse.json()
-        ])
-
-        if (currentData.success && trendsData.success && historyData.success) {
-          const usageData: UsageData = {
-            currentPeriod: currentData.data.currentPeriod,
-            limits: currentData.data.limits,
-            trends: trendsData.data.trends,
-            history: historyData.data
+      const usageData: UsageData = {
+        currentPeriod: {
+          month: new Date().toISOString().substring(0, 7), // Current month
+          apiCalls: currentData.apiCalls || 0,
+          productSyncs: currentData.productSyncs || 0,
+          storesConnected: currentData.storeConnections || 0,
+          totalProducts: 0, // May need to be added to API
+          features: {
+            aiSuggestions: 0,
+            opportunityScans: 0,
+            bulkOperations: 0
           }
-          
-          setUsageData(usageData)
-        } else {
-          throw new Error('Failed to fetch usage data')
-        }
-      } else {
-        throw new Error('Failed to fetch usage data')
+        },
+        limits: currentData.limit || {
+          apiCalls: 1000,
+          productSyncs: 100,
+          storeConnections: 1
+        },
+        trends: trendsData || [],
+        history: historyData || []
       }
+      
+      setUsageData(usageData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load usage data')
     } finally {

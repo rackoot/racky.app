@@ -1,13 +1,4 @@
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
-  const workspaceId = localStorage.getItem('currentWorkspaceId');
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache',
-    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
-  };
-};
+import { opportunitiesApi } from '@/api'
 
 export interface OptimizationSuggestion {
   id: string;

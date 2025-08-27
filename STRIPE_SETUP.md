@@ -84,6 +84,13 @@ const products = [
    - `invoice.payment_succeeded`
    - `invoice.payment_failed`
 
+**✅ Nota Importante - Webhook Configuración**
+El webhook `/api/billing/stripe/webhook` está configurado especialmente para evitar problemas de autenticación:
+- **NO requiere token JWT** - Stripe no puede enviar tokens de autorización
+- **Validación por firma** - Usa `stripe-signature` header para autenticación
+- **Raw body required** - El endpoint está configurado antes del middleware JSON parser
+- **Sin middleware de workspace** - Acceso directo sin restricciones de workspace
+
 ### 5. Variables de Entorno
 ```bash
 # Backend (.env)

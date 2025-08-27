@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { plansApi, usageApi, billingApi } from '@/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -91,34 +92,24 @@ export function Subscription() {
       setLoading(true)
       setError(null)
 
-      const [planResponse, usageResponse] = await Promise.all([
-        fetch('/api/plans/user/current', {
-          headers: getAuthHeaders()
-        }),
-        fetch('/api/usage/current', {
-          headers: getAuthHeaders()
-        })
+      const [planData, usageData] = await Promise.all([
+        plansApi.getUserCurrentPlan(),
+        usageApi.getCurrentUsage()
       ])
 
-      if (planResponse.ok) {
-        const planData = await planResponse.json()
-        if (planData.success) {
-          setUserPlan(planData.data)
+      setUserPlan(planData)
+      
+      setUsage({
+        apiCalls: usageData.apiCalls || 0,
+        productsSync: usageData.productSyncs || 0,
+        storesConnected: usageData.storeConnections || 0,
+        storageUsed: 0, // May need to add this to the API
+        features: {
+          aiSuggestions: 0,
+          opportunityScans: 0,
+          bulkOperations: 0
         }
-      }
-
-      if (usageResponse.ok) {
-        const usageData = await usageResponse.json()
-        if (usageData.success) {
-          setUsage({
-            apiCalls: usageData.data.currentPeriod.apiCalls,
-            productsSync: usageData.data.currentPeriod.productsSync,
-            storesConnected: usageData.data.currentPeriod.storesConnected,
-            storageUsed: usageData.data.currentPeriod.storageUsed,
-            features: usageData.data.currentPeriod.features
-          })
-        }
-      }
+      })
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load subscription data')

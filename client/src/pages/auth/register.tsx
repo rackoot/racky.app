@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { authApi } from "@/api"
 
 export function Register() {
   const [formData, setFormData] = useState({
@@ -27,27 +28,19 @@ export function Register() {
     setIsLoading(true)
     
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      })
-
-      if (response.ok) {
-        const responseData = await response.json()
-        if (responseData.success && responseData.data) {
-          localStorage.setItem('token', responseData.data.token)
-          localStorage.setItem('user', JSON.stringify(responseData.data))
-          // Redirect to dashboard
-          navigate('/dashboard')
-        } else {
-          console.error('Registration response missing required data')
-        }
-      } else {
-        console.error('Registration failed')
+      const registerData = {
+        email: formData.email,
+        password: formData.password,
+        name: `${formData.firstName} ${formData.lastName}`.trim()
       }
+      
+      const authData = await authApi.register(registerData)
+      
+      localStorage.setItem('token', authData.token)
+      localStorage.setItem('user', JSON.stringify(authData.user))
+      
+      // Redirect to dashboard
+      navigate('/dashboard')
     } catch (error) {
       console.error('Registration error:', error)
     } finally {

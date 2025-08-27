@@ -28,6 +28,7 @@ import demoRoutes from '@/demo/routes/demo';
 import workspaceRoutes from './modules/workspaces/routes/workspaces';
 import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
 import { protect, requireWorkspace } from '@/common/middleware/auth';
+import { stripeWebhookHandler } from '@/subscriptions/routes/billing';
 
 
 const app = express();
@@ -53,6 +54,10 @@ app.use(cors({
 }));
 app.use(morgan('tiny'));
 app.use(limiter);
+
+// Stripe webhook route (must be before JSON middleware and without auth)
+app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

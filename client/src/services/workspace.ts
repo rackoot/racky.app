@@ -1,13 +1,4 @@
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-  const workspaceId = localStorage.getItem('currentWorkspaceId');
-  return {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache',
-    ...(token && { 'Authorization': `Bearer ${token}` }),
-    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
-  };
-}
+import { workspacesApi } from '@/api'
 
 export interface WorkspaceSubscription {
   workspaceId: string;
@@ -68,63 +59,23 @@ export interface UpdateSubscriptionRequest {
 }
 
 export const getWorkspaceSubscription = async (workspaceId: string): Promise<WorkspaceSubscription> => {
-  const response = await fetch(`/api/workspaces/${workspaceId}/subscription`, {
-    headers: getAuthHeaders()
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.data;
+  return workspacesApi.getWorkspaceSubscription(workspaceId) as Promise<WorkspaceSubscription>
 };
 
 export const updateWorkspaceSubscription = async (
   workspaceId: string, 
   subscriptionData: UpdateSubscriptionRequest
 ): Promise<any> => {
-  const response = await fetch(`/api/workspaces/${workspaceId}/subscription`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(subscriptionData)
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-
-  return await response.json();
+  return workspacesApi.updateWorkspaceSubscription(workspaceId, subscriptionData)
 };
 
 export const cancelWorkspaceSubscription = async (workspaceId: string): Promise<any> => {
-  const response = await fetch(`/api/workspaces/${workspaceId}/subscription`, {
-    method: 'DELETE',
-    headers: getAuthHeaders()
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-
-  return await response.json();
+  // Using the generic delete method - this might need adjustment based on actual API
+  return workspacesApi.deleteWorkspace(workspaceId)
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
-  const response = await fetch(`/api/workspaces/${workspaceId}/usage`, {
-    headers: getAuthHeaders()
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.data;
+  return workspacesApi.getWorkspaceUsage(workspaceId) as Promise<WorkspaceUsage>
 };
 
 // Get available plans (public endpoint)

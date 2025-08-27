@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { getEnv } from '@/common/config/env';
 import Plan from '@/subscriptions/models/Plan';
 import Subscription from '@/subscriptions/models/Subscription';
-import { IWorkspace } from '../../modules/workspaces/models/Workspace';
+import { IWorkspace } from '@/workspaces/models/Workspace';
 
 const env = getEnv();
 
@@ -67,16 +67,12 @@ export const createEmbeddedCheckoutSession = async (params: CreateCheckoutSessio
 
   // Validate contributor count
   const validContributorCount = Math.max(1, Math.min(contributorCount, plan.maxContributorsPerWorkspace));
-  
-  // Calculate total price
-  const unitAmount = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice;
-  const totalAmount = unitAmount * validContributorCount;
 
   // Create or get Stripe customer
-  let customerId = workspace.stripeCustomerId;
+  let customerId = (workspace as any).stripeCustomerId;
   if (!customerId) {
     const customer = await stripeInstance.customers.create({
-      email: workspace.name + '@workspace.racky.app', // Use workspace name as identifier
+      email: workspace.slug + '@workspace.racky.app', // Use workspace slug as identifier (URL-safe)
       metadata: {
         workspaceId: workspace._id.toString(),
         userId: userId,
@@ -86,7 +82,7 @@ export const createEmbeddedCheckoutSession = async (params: CreateCheckoutSessio
     customerId = customer.id;
     
     // Save customer ID to workspace
-    workspace.stripeCustomerId = customerId;
+    (workspace as any).stripeCustomerId = customerId;
     await workspace.save();
   }
 
@@ -96,17 +92,7 @@ export const createEmbeddedCheckoutSession = async (params: CreateCheckoutSessio
     customer: customerId,
     line_items: [
       {
-        price_data: {
-          currency: plan.currency || 'usd',
-          product_data: {
-            name: `${plan.displayName} Contributors`,
-            description: `${validContributorCount} ${plan.displayName}(s) - ${plan.actionsPerContributor === -1 ? 'Unlimited' : (plan.actionsPerContributor * validContributorCount).toLocaleString()} actions/month`,
-          },
-          recurring: {
-            interval: billingCycle === 'yearly' ? 'year' : 'month',
-          },
-          unit_amount: unitAmount,
-        },
+        price: billingCycle === 'yearly' ? plan.stripeYearlyPriceId : plan.stripeMonthlyPriceId,
         quantity: validContributorCount,
       },
     ],
@@ -164,15 +150,12 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
 
   // Validate contributor count
   const validContributorCount = Math.max(1, Math.min(contributorCount, plan.maxContributorsPerWorkspace));
-  
-  // Calculate price
-  const unitAmount = billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice;
 
   // Create or get Stripe customer
-  let customerId = workspace.stripeCustomerId;
+  let customerId = (workspace as any).stripeCustomerId;
   if (!customerId) {
     const customer = await stripeInstance.customers.create({
-      email: workspace.name + '@workspace.racky.app',
+      email: workspace.slug + '@workspace.racky.app', // Use workspace slug as identifier (URL-safe)
       metadata: {
         workspaceId: workspace._id.toString(),
         userId: userId,
@@ -182,7 +165,7 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
     customerId = customer.id;
     
     // Save customer ID to workspace
-    workspace.stripeCustomerId = customerId;
+    (workspace as any).stripeCustomerId = customerId;
     await workspace.save();
   }
 
@@ -192,17 +175,7 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
     payment_method_types: ['card'],
     line_items: [
       {
-        price_data: {
-          currency: plan.currency || 'usd',
-          product_data: {
-            name: `${plan.displayName} Contributors`,
-            description: `${validContributorCount} ${plan.displayName}(s) - ${plan.actionsPerContributor === -1 ? 'Unlimited' : (plan.actionsPerContributor * validContributorCount).toLocaleString()} actions/month`,
-          },
-          recurring: {
-            interval: billingCycle === 'yearly' ? 'year' : 'month',
-          },
-          unit_amount: unitAmount,
-        },
+        price: billingCycle === 'yearly' ? plan.stripeYearlyPriceId : plan.stripeMonthlyPriceId,
         quantity: validContributorCount,
       },
     ],
@@ -240,7 +213,6 @@ export const handleSuccessfulPayment = async (stripeSubscription: Stripe.Subscri
   const workspaceId = metadata.workspaceId;
   const planName = metadata.planName;
   const contributorCount = parseInt(metadata.contributorCount);
-  const contributorType = metadata.contributorType as 'JUNIOR' | 'SENIOR' | 'EXECUTIVE';
 
   if (!workspaceId || !planName) {
     console.error('Missing required metadata in Stripe subscription:', stripeSubscription.id);

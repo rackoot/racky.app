@@ -17,7 +17,8 @@
       "@/opportunities/*": ["modules/opportunities/*"],
       "@/products/*": ["modules/products/*"],
       "@/stores/*": ["modules/stores/*"],
-      "@/subscriptions/*": ["modules/subscriptions/*"]
+      "@/subscriptions/*": ["modules/subscriptions/*"],
+      "@/workspaces/*": ["modules/workspaces/*"]
     },
     "strict": false,
     "esModuleInterop": true,

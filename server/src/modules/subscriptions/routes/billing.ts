@@ -10,9 +10,83 @@ import {
   handleSuccessfulPayment,
   isStripeConfigured 
 } from '@/common/services/stripeService';
+import { getEnv } from '@/common/config/env';
 import Stripe from 'stripe';
 
 const router = express.Router();
+
+// Exported Stripe webhook handler (used in main app routing to avoid auth middleware)
+export const stripeWebhookHandler = async (req: express.Request, res: Response) => {
+  try {
+    if (!isStripeConfigured()) {
+      console.log('Stripe not configured, webhook ignored');
+      return res.status(200).send('Webhook acknowledged - Stripe not configured');
+    }
+
+    const signature = req.headers['stripe-signature'] as string;
+    
+    if (!signature) {
+      console.error('No Stripe signature found');
+      return res.status(400).send('No signature found');
+    }
+
+    // Verify webhook signature
+    const event = verifyWebhookSignature(req.body, signature);
+    
+    console.log('Received Stripe webhook:', event.type);
+
+    // Handle different event types
+    switch (event.type) {
+      case 'checkout.session.completed':
+        console.log('Checkout session completed:', event.data.object.id);
+        // The subscription is created automatically by Stripe
+        break;
+        
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log('Subscription event:', subscription.id, subscription.status);
+        await handleSuccessfulPayment(subscription);
+        break;
+        
+      case 'customer.subscription.deleted':
+        const deletedSubscription = event.data.object as Stripe.Subscription;
+        console.log('Subscription deleted:', deletedSubscription.id);
+        
+        // Mark subscription as cancelled in our database
+        const existingSubscription = await Subscription.findByStripeId(deletedSubscription.id);
+        if (existingSubscription) {
+          existingSubscription.status = 'CANCELLED';
+          await existingSubscription.save();
+        }
+        break;
+        
+      case 'invoice.payment_succeeded':
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log('Payment succeeded for invoice:', invoice.id);
+        break;
+        
+      case 'invoice.payment_failed':
+        const failedInvoice = event.data.object as Stripe.Invoice;
+        console.log('Payment failed for invoice:', failedInvoice.id);
+        break;
+        
+      default:
+        console.log('Unhandled event type:', event.type);
+    }
+
+    res.status(200).send('Webhook processed successfully');
+    
+  } catch (error: any) {
+    console.error('Webhook error:', error);
+    
+    if (error.message.includes('signature')) {
+      return res.status(400).send('Invalid signature');
+    }
+    
+    return res.status(500).send('Webhook processing failed');
+  }
+};
 
 // POST /api/billing/create-checkout-session - Create checkout session for contributor-based plans
 router.post('/create-checkout-session', protect, async (req: AuthenticatedRequest, res: Response) => {
@@ -35,6 +109,17 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
 
     // Check if Stripe is configured
     if (!isStripeConfigured()) {
+      const env = getEnv();
+      
+      // Only allow demo/mock checkout in development environment
+      if (env.NODE_ENV !== 'development') {
+        return res.status(503).json({
+          success: false,
+          message: 'Payment system temporarily unavailable',
+          error: 'Stripe payment gateway is not configured for this environment'
+        });
+      }
+      
       // Fallback to mock for development/testing
       const plan = await Plan.findByName(planName);
       if (!plan) {
@@ -168,78 +253,7 @@ router.post('/update-contributors', protect, async (req: AuthenticatedRequest, r
   }
 });
 
-// POST /api/billing/stripe/webhook - Handle Stripe webhook events
-router.post('/stripe/webhook', express.raw({ type: 'application/json' }), async (req: express.Request, res: Response) => {
-  try {
-    if (!isStripeConfigured()) {
-      console.log('Stripe not configured, webhook ignored');
-      return res.status(200).send('Webhook acknowledged - Stripe not configured');
-    }
-
-    const signature = req.headers['stripe-signature'] as string;
-    
-    if (!signature) {
-      console.error('No Stripe signature found');
-      return res.status(400).send('No signature found');
-    }
-
-    // Verify webhook signature
-    const event = verifyWebhookSignature(req.body, signature);
-    
-    console.log('Received Stripe webhook:', event.type);
-
-    // Handle different event types
-    switch (event.type) {
-      case 'checkout.session.completed':
-        console.log('Checkout session completed:', event.data.object.id);
-        // The subscription is created automatically by Stripe
-        break;
-        
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        const subscription = event.data.object as Stripe.Subscription;
-        console.log('Subscription event:', subscription.id, subscription.status);
-        await handleSuccessfulPayment(subscription);
-        break;
-        
-      case 'customer.subscription.deleted':
-        const deletedSubscription = event.data.object as Stripe.Subscription;
-        console.log('Subscription deleted:', deletedSubscription.id);
-        
-        // Mark subscription as cancelled in our database
-        const existingSubscription = await Subscription.findByStripeId(deletedSubscription.id);
-        if (existingSubscription) {
-          existingSubscription.status = 'CANCELLED';
-          await existingSubscription.save();
-        }
-        break;
-        
-      case 'invoice.payment_succeeded':
-        const invoice = event.data.object as Stripe.Invoice;
-        console.log('Payment succeeded for invoice:', invoice.id);
-        break;
-        
-      case 'invoice.payment_failed':
-        const failedInvoice = event.data.object as Stripe.Invoice;
-        console.log('Payment failed for invoice:', failedInvoice.id);
-        break;
-        
-      default:
-        console.log('Unhandled event type:', event.type);
-    }
-
-    res.status(200).send('Webhook processed successfully');
-    
-  } catch (error: any) {
-    console.error('Webhook error:', error);
-    
-    if (error.message.includes('signature')) {
-      return res.status(400).send('Invalid signature');
-    }
-    
-    return res.status(500).send('Webhook processing failed');
-  }
-});
+// Note: Stripe webhook handler moved to main app routing to avoid JWT auth middleware
 
 router.get('/subscription', (req: AuthenticatedRequest, res: Response) => {
   res.status(503).json({

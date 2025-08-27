@@ -1,13 +1,4 @@
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
-  const workspaceId = localStorage.getItem('currentWorkspaceId');
-  return {
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache',
-    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
-  };
-};
+import { opportunitiesApi } from '@/api'
 
 export interface OpportunityCategory {
   _id: string;
@@ -85,21 +76,25 @@ export interface OpportunitySummary {
 
 class OpportunitiesService {
   private async makeRequest(endpoint: string, options: RequestInit = {}) {
-    const response = await fetch(`${`/api/opportunities`}${endpoint}`, {
-      ...options,
-      headers: {
-        ...getAuthHeaders(),
-        ...options.headers,
-      },
-    });
-
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.message || 'Request failed');
+    // Use the centralized opportunities API
+    if (options.method === 'POST' && endpoint.includes('/generate')) {
+      const productId = endpoint.split('/')[2]
+      return { data: await opportunitiesApi.generateOpportunities(productId) }
     }
     
-    return data;
+    if (options.method === 'GET' && endpoint.startsWith('/products/')) {
+      const productId = endpoint.split('/')[2]
+      const opportunities = await opportunitiesApi.getOpportunities()
+      return { data: { opportunities: opportunities.reduce((acc: any, opp: any) => {
+        if (!acc[opp.category]) acc[opp.category] = []
+        acc[opp.category].push(opp)
+        return acc
+      }, {}) }}
+    }
+    
+    // For other endpoints, fall back to the centralized API
+    const opportunities = await opportunitiesApi.getOpportunities()
+    return { data: opportunities }
   }
 
   /**
