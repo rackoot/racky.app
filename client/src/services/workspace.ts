@@ -1,4 +1,5 @@
 import { workspacesApi } from '@/api'
+import { getAuthHeaders } from '@/lib/utils'
 
 export interface WorkspaceSubscription {
   workspaceId: string;
@@ -12,6 +13,10 @@ export interface WorkspaceSubscription {
   };
   currentPlan: any;
   hasActiveSubscription: boolean;
+  contributorCount: number;
+  totalMonthlyActions: number;
+  currentMonthlyPrice: number;
+  billingCycle: 'monthly' | 'annual';
   limits: {
     maxStores: number;
     maxProducts: number;
@@ -56,10 +61,67 @@ export interface WorkspaceUsage {
 export interface UpdateSubscriptionRequest {
   planName: 'BASIC' | 'PRO' | 'ENTERPRISE';
   billingCycle?: 'monthly' | 'annual';
+  contributorCount?: number;
+}
+
+export interface SubscriptionPreviewRequest {
+  planName: 'BASIC' | 'PRO' | 'ENTERPRISE';
+  billingCycle: 'monthly' | 'annual';
+  contributorCount: number;
+}
+
+export interface SubscriptionPreview {
+  workspaceId: string;
+  changes: {
+    planChange: boolean;
+    contributorChange: boolean;
+    billingCycleChange: boolean;
+  };
+  current: {
+    planName: string;
+    contributorCount: number;
+    billingCycle: string;
+    monthlyPrice: number;
+    totalActions: number;
+  };
+  new: {
+    planName: string;
+    contributorCount: number;
+    billingCycle: string;
+    monthlyPrice: number;
+    totalActions: number;
+  };
+  pricing: {
+    priceDifference: number;
+    isUpgrade: boolean;
+    isDowngrade: boolean;
+    changeType: 'upgrade' | 'downgrade' | 'no_change';
+    timing: 'immediate' | 'next_billing_period';
+    message: string;
+  };
 }
 
 export const getWorkspaceSubscription = async (workspaceId: string): Promise<WorkspaceSubscription> => {
   return workspacesApi.getWorkspaceSubscription(workspaceId) as Promise<WorkspaceSubscription>
+};
+
+export const previewWorkspaceSubscriptionChange = async (
+  workspaceId: string, 
+  previewData: SubscriptionPreviewRequest
+): Promise<SubscriptionPreview> => {
+  const response = await fetch(`/api/workspaces/${workspaceId}/subscription/preview`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(previewData)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.data;
 };
 
 export const updateWorkspaceSubscription = async (
@@ -75,7 +137,7 @@ export const cancelWorkspaceSubscription = async (workspaceId: string): Promise<
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
-  return workspacesApi.getWorkspaceUsage(workspaceId) as Promise<WorkspaceUsage>
+  return workspacesApi.getWorkspaceUsage(workspaceId) as any as Promise<WorkspaceUsage>
 };
 
 // Get available plans (public endpoint)

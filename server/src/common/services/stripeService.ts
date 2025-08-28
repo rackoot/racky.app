@@ -1,8 +1,10 @@
 import Stripe from 'stripe';
 import { getEnv } from '@/common/config/env';
-import Plan from '@/subscriptions/models/Plan';
-import Subscription from '@/subscriptions/models/Subscription';
-import { IWorkspace } from '@/workspaces/models/Workspace';
+import Plan from '../../modules/subscriptions/models/Plan';
+import Subscription from '../../modules/subscriptions/models/Subscription';
+import { IWorkspace } from '../../modules/workspaces/models/Workspace';
+import Workspace from '../../modules/workspaces/models/Workspace';
+import { SubscriptionStatus } from '../../modules/subscriptions/models/Subscription';
 
 const env = getEnv();
 
@@ -21,6 +23,29 @@ const getStripeInstance = (): Stripe => {
   }
   
   return stripe;
+};
+
+/**
+ * Convert Stripe subscription status to our database enum format
+ */
+const mapStripeStatusToDbStatus = (stripeStatus: string): SubscriptionStatus => {
+  switch (stripeStatus.toLowerCase()) {
+    case 'active':
+      return 'ACTIVE';
+    case 'canceled':
+    case 'cancelled':
+      return 'CANCELLED';
+    case 'past_due':
+    case 'unpaid':
+      return 'SUSPENDED';
+    case 'incomplete':
+    case 'incomplete_expired':
+    case 'trialing':
+    default:
+      // For any other status, we default to ACTIVE for new subscriptions
+      // or keep the existing status for updates
+      return 'ACTIVE';
+  }
 };
 
 export interface CreateCheckoutSessionParams {
@@ -209,52 +234,77 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
  * Handle subscription creation/update after successful payment
  */
 export const handleSuccessfulPayment = async (stripeSubscription: Stripe.Subscription): Promise<void> => {
-  const metadata = stripeSubscription.metadata;
-  const workspaceId = metadata.workspaceId;
-  const planName = metadata.planName;
-  const contributorCount = parseInt(metadata.contributorCount);
+  try {
+    const metadata = stripeSubscription.metadata;
+    const workspaceId = metadata.workspaceId;
+    const planName = metadata.planName;
+    const contributorCount = parseInt(metadata.contributorCount) || 1;
 
-  if (!workspaceId || !planName) {
-    console.error('Missing required metadata in Stripe subscription:', stripeSubscription.id);
-    return;
-  }
-
-  // Get plan details
-  const plan = await Plan.findByName(planName);
-  if (!plan) {
-    console.error(`Plan ${planName} not found for subscription ${stripeSubscription.id}`);
-    return;
-  }
-
-  // Check if subscription already exists
-  const existingSubscription = await Subscription.findByStripeId(stripeSubscription.id);
-  
-  if (existingSubscription) {
-    // Update existing subscription
-    existingSubscription.status = stripeSubscription.status as any;
-    existingSubscription.contributorCount = contributorCount;
-    existingSubscription.amount = stripeSubscription.items.data[0].price.unit_amount || 0;
-    existingSubscription.totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
-    existingSubscription.endsAt = new Date((stripeSubscription as any).current_period_end * 1000);
-    await existingSubscription.save();
-  } else {
-    // Create new subscription
-    const newSubscription = new Subscription({
-      workspaceId: workspaceId,
-      planId: plan._id,
-      stripeSubscriptionId: stripeSubscription.id,
-      stripeCustomerId: stripeSubscription.customer as string,
-      status: stripeSubscription.status,
-      contributorCount: contributorCount,
-      amount: stripeSubscription.items.data[0].price.unit_amount || 0,
-      currency: stripeSubscription.currency || 'usd',
-      interval: stripeSubscription.items.data[0].price.recurring?.interval === 'year' ? 'year' : 'month',
-      totalMonthlyActions: plan.getTotalActionsPerMonth(contributorCount),
-      startsAt: new Date((stripeSubscription as any).current_period_start * 1000),
-      endsAt: new Date((stripeSubscription as any).current_period_end * 1000),
+    console.log('Processing subscription:', {
+      subscriptionId: stripeSubscription.id,
+      workspaceId,
+      planName,
+      contributorCount,
+      status: stripeSubscription.status
     });
 
-    await newSubscription.save();
+    if (!workspaceId || !planName) {
+      throw new Error(`Missing required metadata - workspaceId: ${workspaceId}, planName: ${planName}`);
+    }
+
+    // Validate workspace exists
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      throw new Error(`Workspace not found: ${workspaceId}`);
+    }
+
+    // Get plan details
+    const plan = await Plan.findByName(planName);
+    if (!plan) {
+      throw new Error(`Plan not found: ${planName}`);
+    }
+
+    // Check if subscription already exists
+    const existingSubscription = await Subscription.findByStripeId(stripeSubscription.id);
+    
+    if (existingSubscription) {
+      // Update existing subscription
+      console.log('Updating existing subscription:', existingSubscription._id);
+      
+      existingSubscription.status = mapStripeStatusToDbStatus(stripeSubscription.status);
+      existingSubscription.contributorCount = contributorCount;
+      existingSubscription.amount = stripeSubscription.items.data[0].price.unit_amount || 0;
+      existingSubscription.totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
+      existingSubscription.endsAt = new Date((stripeSubscription as any).current_period_end * 1000);
+      
+      await existingSubscription.save();
+      console.log('Successfully updated subscription:', existingSubscription._id);
+    } else {
+      // Create new subscription
+      console.log('Creating new subscription for workspace:', workspaceId);
+      
+      const newSubscription = new Subscription({
+        workspaceId: workspaceId,
+        planId: plan._id,
+        stripeSubscriptionId: stripeSubscription.id,
+        stripeCustomerId: stripeSubscription.customer as string,
+        status: mapStripeStatusToDbStatus(stripeSubscription.status),
+        contributorCount: contributorCount,
+        amount: stripeSubscription.items.data[0].price.unit_amount || 0,
+        currency: stripeSubscription.currency || 'usd',
+        interval: stripeSubscription.items.data[0].price.recurring?.interval === 'year' ? 'year' : 'month',
+        totalMonthlyActions: plan.getTotalActionsPerMonth(contributorCount),
+        startsAt: new Date((stripeSubscription as any).current_period_start * 1000),
+        endsAt: new Date((stripeSubscription as any).current_period_end * 1000),
+      });
+
+      await newSubscription.save();
+      console.log('Successfully created new subscription:', newSubscription._id);
+    }
+  } catch (error) {
+    console.error('Error in handleSuccessfulPayment:', error);
+    // Re-throw the error so the webhook handler can respond with appropriate status
+    throw error;
   }
 };
 

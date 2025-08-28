@@ -21,12 +21,16 @@ import {
   getWorkspaceSubscription, 
   getWorkspaceUsage, 
   getSubscriptionPlans,
+  previewWorkspaceSubscriptionChange,
   updateWorkspaceSubscription,
   cancelWorkspaceSubscription,
   type WorkspaceSubscription,
-  type WorkspaceUsage 
+  type WorkspaceUsage,
+  type SubscriptionPreview 
 } from "@/services/workspace"
+import { SubscriptionChangeModal } from "@/components/workspace/subscription-change-modal"
 import { useNavigate } from "react-router-dom"
+import { Slider } from "@/components/ui/slider"
 // TODO: Add toast library or use alert for now
 const toast = {
   success: (message: string) => alert(`Success: ${message}`),
@@ -63,6 +67,11 @@ export default function WorkspaceSubscriptionPage() {
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
+  const [selectedPlan, setSelectedPlan] = useState<string>('')
+  const [contributorCount, setContributorCount] = useState([1])
+  const [subscriptionPreview, setSubscriptionPreview] = useState<SubscriptionPreview | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
 
   useEffect(() => {
     if (!currentWorkspace) {
@@ -98,17 +107,49 @@ export default function WorkspaceSubscriptionPage() {
     }
   }
 
-  const handlePlanUpgrade = async (planName: 'BASIC' | 'PRO' | 'ENTERPRISE') => {
-    if (!currentWorkspace || isUpdating) return
+  // Initialize form values when subscription data is loaded
+  useEffect(() => {
+    if (subscription) {
+      setSelectedPlan(subscription.currentPlan?.name || 'BASIC')
+      setBillingCycle(subscription.billingCycle)
+      setContributorCount([subscription.contributorCount])
+    }
+  }, [subscription])
+
+  const handleSubscriptionPreview = async () => {
+    if (!currentWorkspace || !selectedPlan || isPreviewLoading) return
+
+    try {
+      setIsPreviewLoading(true)
+      const preview = await previewWorkspaceSubscriptionChange(currentWorkspace._id, {
+        planName: selectedPlan as 'BASIC' | 'PRO' | 'ENTERPRISE',
+        billingCycle,
+        contributorCount: contributorCount[0]
+      })
+      
+      setSubscriptionPreview(preview)
+      setShowConfirmModal(true)
+    } catch (error) {
+      console.error('Error previewing subscription changes:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to preview subscription changes')
+    } finally {
+      setIsPreviewLoading(false)
+    }
+  }
+
+  const handleConfirmSubscriptionChange = async () => {
+    if (!currentWorkspace || !selectedPlan || isUpdating) return
 
     try {
       setIsUpdating(true)
       await updateWorkspaceSubscription(currentWorkspace._id, {
-        planName,
-        billingCycle
+        planName: selectedPlan as 'BASIC' | 'PRO' | 'ENTERPRISE',
+        billingCycle,
+        contributorCount: contributorCount[0]
       })
       
-      toast.success(`Workspace subscription updated to ${planName} plan`)
+      toast.success(`Workspace subscription updated successfully`)
+      setShowConfirmModal(false)
       await loadSubscriptionData()
     } catch (error) {
       console.error('Error updating subscription:', error)
@@ -197,6 +238,13 @@ export default function WorkspaceSubscriptionPage() {
 
   const currentPlan = subscription?.currentPlan
   const planName = currentPlan?.name || 'No Plan'
+  
+  // Check if there are any changes from current subscription
+  const hasChanges = subscription && (
+    selectedPlan !== subscription.currentPlan?.name ||
+    billingCycle !== subscription.billingCycle ||
+    contributorCount[0] !== subscription.contributorCount
+  )
 
   return (
     <div className="container max-w-6xl mx-auto p-6">
@@ -219,6 +267,11 @@ export default function WorkspaceSubscriptionPage() {
             <div className="mt-2">
               {subscription && getStatusBadge(subscription.subscription.status, subscription.hasActiveSubscription)}
             </div>
+            {subscription && subscription.contributorCount > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {subscription.contributorCount} contributor{subscription.contributorCount > 1 ? 's' : ''}
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -245,14 +298,21 @@ export default function WorkspaceSubscriptionPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Workspace Members</CardTitle>
+            <CardTitle className="text-sm font-medium">Monthly Cost</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Shared</div>
+            <div className="text-2xl font-bold">
+              {subscription ? `$${subscription.currentMonthlyPrice.toFixed(0)}` : '$0'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              All workspace members benefit from this subscription
+              Current monthly cost
             </p>
+            {subscription && subscription.totalMonthlyActions > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {subscription.totalMonthlyActions.toLocaleString()} actions/month
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -323,17 +383,54 @@ export default function WorkspaceSubscriptionPage() {
         </Card>
       )}
 
-      {/* Available Plans */}
+      {/* Subscription Manager */}
       <Card>
         <CardHeader>
-          <CardTitle>Available Plans</CardTitle>
+          <CardTitle>Manage Subscription</CardTitle>
           <CardDescription>
-            Choose the plan that best fits your workspace needs
+            Update your workspace plan and contributor count
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex items-center gap-4">
-            <span className="text-sm font-medium">Billing cycle:</span>
+        <CardContent className="space-y-6">
+          {/* Plan Selection */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Plan Selection</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {availablePlans.map((plan) => (
+                <Card 
+                  key={plan.name} 
+                  className={`cursor-pointer transition-all ${
+                    selectedPlan === plan.name ? 'ring-2 ring-primary' : 'hover:shadow-md'
+                  }`}
+                  onClick={() => setSelectedPlan(plan.name)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h5 className="font-semibold">{plan.displayName}</h5>
+                        <div className="text-2xl font-bold">
+                          ${billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice}
+                          <span className="text-xs text-muted-foreground">
+                            /contributor/{billingCycle === 'monthly' ? 'month' : 'year'}
+                          </span>
+                        </div>
+                      </div>
+                      {currentPlan?.name === plan.name && (
+                        <Badge variant="secondary" className="text-xs">Current</Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {plan.limits.apiCallsPerMonth.toLocaleString()} actions per contributor
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Billing Cycle */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Billing Cycle</h4>
             <div className="flex gap-2">
               <Button 
                 variant={billingCycle === 'monthly' ? 'default' : 'outline'}
@@ -348,66 +445,85 @@ export default function WorkspaceSubscriptionPage() {
                 onClick={() => setBillingCycle('annual')}
               >
                 Annual
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  Save 17%
+                </Badge>
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {availablePlans.map((plan) => (
-              <Card key={plan.name} className={`relative ${currentPlan?.name === plan.name ? 'ring-2 ring-primary' : ''}`}>
-                {currentPlan?.name === plan.name && (
-                  <Badge className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-                    Current Plan
-                  </Badge>
-                )}
-                <CardHeader>
-                  <CardTitle>{plan.displayName}</CardTitle>
-                  <CardDescription>{plan.description}</CardDescription>
-                  <div className="text-3xl font-bold">
-                    ${billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice}
-                    <span className="text-base font-normal text-muted-foreground">
-                      /{billingCycle === 'monthly' ? 'month' : 'year'}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="text-sm">
-                      <strong>{plan.limits.maxStores}</strong> stores
-                    </div>
-                    <div className="text-sm">
-                      <strong>{plan.limits.maxProducts.toLocaleString()}</strong> products
-                    </div>
-                    <div className="text-sm">
-                      <strong>{plan.limits.maxMarketplaces}</strong> marketplaces
-                    </div>
-                    <div className="text-sm">
-                      <strong>{plan.limits.apiCallsPerMonth.toLocaleString()}</strong> API calls/month
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    {plan.features.map((feature) => (
-                      <div key={feature.name} className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        {feature.name}
-                      </div>
-                    ))}
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={() => handlePlanUpgrade(plan.name as 'BASIC' | 'PRO' | 'ENTERPRISE')}
-                    disabled={isUpdating || currentPlan?.name === plan.name}
-                  >
-                    {isUpdating ? 'Updating...' : 
-                     currentPlan?.name === plan.name ? 'Current Plan' :
-                     'Select Plan'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+          {/* Contributor Count */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-medium">Number of Contributors</h4>
+              <span className="text-2xl font-bold">{contributorCount[0]}</span>
+            </div>
+            <Slider
+              value={contributorCount}
+              onValueChange={setContributorCount}
+              max={selectedPlan ? availablePlans.find(p => p.name === selectedPlan)?.limits.maxStores || 5 : 5}
+              min={1}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>1 contributor</span>
+              <span>{selectedPlan ? availablePlans.find(p => p.name === selectedPlan)?.limits.maxStores || 5 : 5} contributors max</span>
+            </div>
           </div>
+
+          {/* Preview */}
+          {selectedPlan && (
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Selected plan:</span>
+                <span className="font-medium">{availablePlans.find(p => p.name === selectedPlan)?.displayName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Contributors:</span>
+                <span className="font-medium">{contributorCount[0]}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total monthly actions:</span>
+                <span className="font-medium">
+                  {((availablePlans.find(p => p.name === selectedPlan)?.limits.apiCallsPerMonth || 0) * contributorCount[0]).toLocaleString()}
+                </span>
+              </div>
+              <div className="border-t pt-3 flex justify-between items-center">
+                <span className="text-lg font-semibold">Estimated Monthly Cost:</span>
+                <span className="text-2xl font-bold text-primary">
+                  ${billingCycle === 'annual' ? 
+                    ((availablePlans.find(p => p.name === selectedPlan)?.yearlyPrice || 0) * contributorCount[0] / 12).toFixed(0) :
+                    ((availablePlans.find(p => p.name === selectedPlan)?.monthlyPrice || 0) * contributorCount[0]).toFixed(0)
+                  }
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Button */}
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleSubscriptionPreview}
+              disabled={!selectedPlan || !hasChanges || isPreviewLoading}
+              className="flex-1"
+            >
+              {isPreviewLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Calculating...
+                </div>
+              ) : (
+                'Preview Changes'
+              )}
+            </Button>
+          </div>
+
+          {!hasChanges && subscription && (
+            <div className="text-center text-sm text-muted-foreground">
+              No changes detected from your current subscription
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -437,6 +553,15 @@ export default function WorkspaceSubscriptionPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Subscription Change Modal */}
+      <SubscriptionChangeModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={handleConfirmSubscriptionChange}
+        preview={subscriptionPreview}
+        isLoading={isUpdating}
+      />
     </div>
   )
 }

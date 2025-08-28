@@ -43,7 +43,14 @@ const updateRoleSchema = Joi.object({
 
 const updateSubscriptionSchema = Joi.object({
   planName: Joi.string().valid('BASIC', 'PRO', 'ENTERPRISE').required(),
-  billingCycle: Joi.string().valid('monthly', 'annual').optional().default('monthly')
+  billingCycle: Joi.string().valid('monthly', 'annual').optional().default('monthly'),
+  contributorCount: Joi.number().integer().min(1).max(50).optional().default(1)
+});
+
+const subscriptionPreviewSchema = Joi.object({
+  planName: Joi.string().valid('BASIC', 'PRO', 'ENTERPRISE').required(),
+  billingCycle: Joi.string().valid('monthly', 'annual').optional().default('monthly'),
+  contributorCount: Joi.number().integer().min(1).max(50).optional().default(1)
 });
 
 // Get all workspaces for authenticated user
@@ -381,6 +388,21 @@ router.get('/:workspaceId/subscription', protect, requireWorkspace, requireWorks
     const currentPlan = await req.workspace!.getCurrentPlan();
     const hasActiveSubscription = await req.workspace!.hasActiveSubscription();
     
+    // Get current subscription for contributor info
+    const { default: Subscription } = await import('../../subscriptions/models/Subscription');
+    const currentSubscription = await Subscription.findOne({
+      workspaceId: req.workspace!._id,
+      status: 'ACTIVE'
+    }).populate('planId');
+
+    const contributorCount = currentSubscription?.contributorCount || 1;
+    const totalMonthlyActions = currentSubscription?.totalMonthlyActions || 0;
+    const currentMonthlyPrice = currentSubscription && currentPlan ? (
+      currentSubscription.interval === 'year' ? 
+        (currentSubscription.amount / 100 / 12) :
+        (currentSubscription.amount / 100)
+    ) : 0;
+
     res.json({
       success: true,
       message: 'Workspace subscription retrieved successfully',
@@ -390,6 +412,10 @@ router.get('/:workspaceId/subscription', protect, requireWorkspace, requireWorks
         subscription: subscriptionInfo,
         currentPlan,
         hasActiveSubscription,
+        contributorCount,
+        totalMonthlyActions,
+        currentMonthlyPrice,
+        billingCycle: currentSubscription?.interval === 'year' ? 'annual' : 'monthly',
         limits: currentPlan ? currentPlan.limits : null,
         features: currentPlan ? currentPlan.features : null
       }
@@ -398,6 +424,118 @@ router.get('/:workspaceId/subscription', protect, requireWorkspace, requireWorks
     res.status(500).json({
       success: false,
       message: 'Error retrieving workspace subscription',
+      error: (error as Error).message
+    });
+  }
+});
+
+// Preview subscription changes with pricing
+router.post('/:workspaceId/subscription/preview', protect, requireWorkspace, requireWorkspacePermission('workspace:read'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { error } = subscriptionPreviewSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        error: error.details[0].message
+      });
+    }
+
+    const { planName, billingCycle, contributorCount } = req.body;
+    
+    // Find the new plan
+    const { default: Plan } = await import('../../subscriptions/models/Plan');
+    const newPlan = await Plan.findByName(planName);
+    
+    if (!newPlan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Subscription plan not found'
+      });
+    }
+
+    if (contributorCount > newPlan.maxContributorsPerWorkspace) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum ${newPlan.maxContributorsPerWorkspace} contributors allowed for ${planName} plan`
+      });
+    }
+
+    // Get current subscription
+    const { default: Subscription } = await import('../../subscriptions/models/Subscription');
+    const currentSubscription = await Subscription.findOne({
+      workspaceId: req.workspace!._id,
+      status: 'ACTIVE'
+    }).populate('planId');
+
+    const currentPlan = currentSubscription?.planId as any;
+    const currentContributorCount = currentSubscription?.contributorCount || 1;
+    const currentBillingCycle = currentSubscription?.interval === 'year' ? 'annual' : 'monthly';
+    
+    // Calculate pricing
+    const newMonthlyPrice = billingCycle === 'annual' ? 
+      (newPlan.getTotalYearlyPrice(contributorCount) / 100 / 12) :
+      (newPlan.getTotalMonthlyPrice(contributorCount) / 100);
+    
+    const currentMonthlyPrice = currentPlan ? (
+      currentBillingCycle === 'annual' ? 
+        (currentPlan.getTotalYearlyPrice(currentContributorCount) / 100 / 12) :
+        (currentPlan.getTotalMonthlyPrice(currentContributorCount) / 100)
+    ) : 0;
+
+    const priceDifference = newMonthlyPrice - currentMonthlyPrice;
+    const isUpgrade = priceDifference > 0;
+    const isDowngrade = priceDifference < 0;
+    const isPlanChange = !currentPlan || currentPlan.name !== planName;
+    const isContributorChange = currentContributorCount !== contributorCount;
+    const isBillingCycleChange = currentBillingCycle !== billingCycle;
+    
+    // Calculate total actions
+    const newTotalActions = newPlan.getTotalActionsPerMonth(contributorCount);
+    const currentTotalActions = currentPlan ? currentPlan.getTotalActionsPerMonth(currentContributorCount) : 0;
+    
+    res.json({
+      success: true,
+      message: 'Subscription preview calculated',
+      data: {
+        workspaceId: req.workspace!._id,
+        changes: {
+          planChange: isPlanChange,
+          contributorChange: isContributorChange,
+          billingCycleChange: isBillingCycleChange
+        },
+        current: {
+          planName: currentPlan?.name || 'None',
+          contributorCount: currentContributorCount,
+          billingCycle: currentBillingCycle,
+          monthlyPrice: currentMonthlyPrice,
+          totalActions: currentTotalActions
+        },
+        new: {
+          planName,
+          contributorCount,
+          billingCycle,
+          monthlyPrice: newMonthlyPrice,
+          totalActions: newTotalActions
+        },
+        pricing: {
+          priceDifference: Math.abs(priceDifference),
+          isUpgrade,
+          isDowngrade,
+          changeType: isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'no_change',
+          timing: isUpgrade ? 'immediate' : 'next_billing_period',
+          message: isUpgrade ? 
+            'Upgrade will be charged immediately with prorated amount' :
+            isDowngrade ? 
+              'Downgrade will be applied at the next billing period' :
+              'No price change required'
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error calculating subscription preview',
       error: (error as Error).message
     });
   }
@@ -415,7 +553,7 @@ router.put('/:workspaceId/subscription', protect, requireWorkspace, requireWorks
       });
     }
 
-    const { planName, billingCycle } = req.body;
+    const { planName, billingCycle, contributorCount } = req.body;
     
     // Find the plan
     const { default: Plan } = await import('../../subscriptions/models/Plan');
@@ -428,11 +566,24 @@ router.put('/:workspaceId/subscription', protect, requireWorkspace, requireWorks
       });
     }
 
+    if (contributorCount > plan.maxContributorsPerWorkspace) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum ${plan.maxContributorsPerWorkspace} contributors allowed for ${planName} plan`
+      });
+    }
+
     // Create or update subscription
     const { default: Subscription } = await import('../../subscriptions/models/Subscription');
     
     const subscriptionEndDate = new Date();
     subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + (billingCycle === 'annual' ? 12 : 1));
+    
+    // Calculate pricing and actions
+    const totalAmount = billingCycle === 'annual' ? 
+      plan.getTotalYearlyPrice(contributorCount) : 
+      plan.getTotalMonthlyPrice(contributorCount);
+    const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
     
     const subscription = await Subscription.findOneAndUpdate(
       { workspaceId: req.workspace!._id },
@@ -440,21 +591,35 @@ router.put('/:workspaceId/subscription', protect, requireWorkspace, requireWorks
         workspaceId: req.workspace!._id,
         planId: plan._id,
         status: 'ACTIVE',
-        startedAt: new Date(),
+        contributorCount,
+        totalMonthlyActions,
+        amount: totalAmount,
+        currency: plan.currency,
+        interval: billingCycle === 'annual' ? 'year' : 'month',
+        startsAt: new Date(),
         endsAt: subscriptionEndDate,
-        billingCycle,
-        isDemo: false
+        nextBillingDate: subscriptionEndDate,
+        metadata: {
+          contributorCount,
+          totalMonthlyActions,
+          updatedBy: req.user!._id
+        }
       },
       { upsert: true, new: true }
     ).populate('planId');
     
     res.json({
       success: true,
-      message: `Workspace subscription updated to ${planName} plan`,
+      message: `Workspace subscription updated to ${planName} plan with ${contributorCount} contributor${contributorCount > 1 ? 's' : ''}`,
       data: {
         workspaceId: req.workspace!._id,
         subscription: subscription,
         plan: plan,
+        contributorCount,
+        totalMonthlyActions,
+        monthlyPrice: billingCycle === 'annual' ? 
+          (totalAmount / 100 / 12) : 
+          (totalAmount / 100),
         endsAt: subscriptionEndDate
       }
     });

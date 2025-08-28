@@ -101,13 +101,14 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
       success: true,
       message: 'Account created successfully',
       data: {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        // subscriptionInfo removed - handled at workspace level
-        token
+        token,
+        user: {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role
+        }
       }
     });
   } catch (error: any) {
@@ -145,13 +146,14 @@ router.post('/login', async (req: express.Request<{}, {}, LoginRequestBody>, res
       success: true,
       message: 'Login successful',
       data: {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        // subscriptionInfo removed - handled at workspace level
-        token
+        token,
+        user: {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role
+        }
       }
     });
   } catch (error: any) {
