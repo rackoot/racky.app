@@ -8,6 +8,7 @@ import Product from '@/products/models/Product';
 import Suggestion from '../models/Suggestion';
 import * as marketplaceService from '../../marketplaces/services/marketplaceService';
 import { protect } from '@/common/middleware/auth';
+import ProductHistoryService from '@/products/services/ProductHistoryService';
 
 const router = express.Router();
 
@@ -226,8 +227,31 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
         });
       }
 
+      // Create history entry for AI optimization generation
+      const generationHistory = await ProductHistoryService.createAIOptimizationHistory({
+        workspaceId: workspaceId.toString(),
+        userId: req.user!._id.toString(),
+        productId,
+        actionType: 'AI_OPTIMIZATION_GENERATED',
+        marketplace: platform,
+        aiModel: 'gpt-3.5-turbo',
+        originalContent: product.description || ''
+      });
+
       // Generate new suggestion
       const aiResult = await generateOptimizedDescription(platform, product);
+      
+      // Update history with results
+      await ProductHistoryService.markCompleted(
+        generationHistory._id.toString(),
+        'SUCCESS',
+        {
+          confidence: aiResult.confidence,
+          tokensUsed: aiResult.tokens,
+          newContent: aiResult.content,
+          keywords: aiResult.keywords
+        }
+      );
       
       // Add to cached descriptions
       const newCachedDescription: any = {
@@ -382,7 +406,33 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
       }
 
       // Update status
+      const oldStatus = cachedDescription.status;
       cachedDescription.status = status;
+
+      // Track history for accept/reject actions
+      if (status === 'accepted' && oldStatus !== 'accepted') {
+        await ProductHistoryService.createAIOptimizationHistory({
+          workspaceId: workspaceId.toString(),
+          userId: req.user!._id.toString(),
+          productId,
+          actionType: 'AI_OPTIMIZATION_ACCEPTED',
+          marketplace: platform,
+          originalContent: product.description || '',
+          newContent: cachedDescription.content,
+          confidence: cachedDescription.confidence
+        });
+      } else if (status === 'rejected' && oldStatus !== 'rejected') {
+        await ProductHistoryService.createAIOptimizationHistory({
+          workspaceId: workspaceId.toString(),
+          userId: req.user!._id.toString(),
+          productId,
+          actionType: 'AI_OPTIMIZATION_REJECTED',
+          marketplace: platform,
+          originalContent: product.description || '',
+          newContent: cachedDescription.content,
+          confidence: cachedDescription.confidence
+        });
+      }
 
       await product.save();
 
@@ -458,8 +508,30 @@ router.post('/products/:id/description/:platform/apply', async (req: Authenticat
 
           // Only update local description if marketplace update was successful
           if (storeUpdateResult.success) {
+            // Track successful application to marketplace
+            await ProductHistoryService.createAIOptimizationHistory({
+              workspaceId: workspaceId.toString(),
+              userId: req.user!._id.toString(),
+              productId,
+              actionType: 'AI_OPTIMIZATION_APPLIED',
+              marketplace: platform,
+              originalContent: product.description || '',
+              newContent: cachedDescription.content,
+              confidence: cachedDescription.confidence
+            });
+
             product.description = cachedDescription.content;
             await product.save();
+          } else {
+            // Track failed application
+            await ProductHistoryService.createErrorHistory({
+              workspaceId: workspaceId.toString(),
+              userId: req.user!._id.toString(),
+              productId,
+              actionType: 'SYNC_FAILED',
+              errorMessage: storeUpdateResult.message,
+              marketplace: platform
+            });
           }
         } catch (error: any) {
           console.error('Failed to update product in store:', error);
@@ -470,6 +542,17 @@ router.post('/products/:id/description/:platform/apply', async (req: Authenticat
         }
       } else {
         // If no store connection, just update locally
+        await ProductHistoryService.createProductUpdateHistory({
+          workspaceId: workspaceId.toString(),
+          userId: req.user!._id.toString(),
+          productId,
+          actionType: 'DESCRIPTION_UPDATED',
+          fieldChanged: 'description',
+          oldValue: product.description,
+          newValue: cachedDescription.content,
+          marketplace: platform
+        });
+
         product.description = cachedDescription.content;
         await product.save();
         storeUpdateResult = {

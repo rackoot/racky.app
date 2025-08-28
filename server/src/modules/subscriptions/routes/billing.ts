@@ -200,6 +200,114 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
   }
 });
 
+// POST /api/billing/complete-mock-payment - Complete mock payment in development
+router.post('/complete-mock-payment', protect, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { planName, contributorCount = 1, billingCycle = 'monthly' } = req.body;
+
+    if (!planName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Plan name is required'
+      });
+    }
+
+    if (!req.workspace) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workspace context required'
+      });
+    }
+
+    const env = getEnv();
+    
+    // Only allow in development
+    if (env.NODE_ENV !== 'development') {
+      return res.status(403).json({
+        success: false,
+        message: 'Mock payment only available in development'
+      });
+    }
+
+    // Get the plan
+    const plan = await Plan.findByName(planName);
+    if (!plan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Plan not found'
+      });
+    }
+
+    // Check if workspace already has an active subscription
+    const existingSubscription = await req.workspace.getActiveSubscription();
+    if (existingSubscription) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workspace already has an active subscription'
+      });
+    }
+
+    // Create subscription
+    const count = Math.max(1, Math.min(contributorCount, plan.maxContributorsPerWorkspace));
+    const now = new Date();
+    const endsAt = billingCycle === 'yearly' 
+      ? new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
+      : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+    
+    const subscription = new Subscription({
+      workspaceId: req.workspace._id,
+      userId: req.user._id,
+      planId: plan._id,
+      contributorCount: count,
+      status: 'ACTIVE',
+      interval: billingCycle === 'yearly' ? 'year' : 'month',
+      amount: billingCycle === 'yearly' ? plan.getTotalYearlyPrice(count) : plan.getTotalMonthlyPrice(count),
+      totalMonthlyActions: plan.getTotalActionsPerMonth(count),
+      currency: 'usd',
+      startsAt: now,
+      endsAt: endsAt,
+      stripeSubscriptionId: `mock_sub_${Date.now()}`,
+      stripeCustomerId: `mock_cus_${req.user._id}`,
+      cancelAtPeriodEnd: false,
+      paymentFailed: false,
+      expirationWarningsSent: [],
+      expiredNotificationSent: false,
+      cancellationNotificationSent: false,
+      suspensionNotificationSent: false,
+      metadata: { isMock: true }
+    });
+
+    await subscription.save();
+    await subscription.populate('planId');
+
+    res.json({
+      success: true,
+      message: 'Mock payment completed successfully',
+      data: {
+        subscription: {
+          id: subscription._id,
+          status: subscription.status,
+          planName: (subscription.planId as any).name,
+          planDisplayName: (subscription.planId as any).displayName,
+          contributorCount: subscription.contributorCount,
+          totalMonthlyActions: subscription.totalMonthlyActions,
+          billingCycle: subscription.interval,
+          amount: subscription.amount,
+          currentPeriodEnd: subscription.endsAt
+        }
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error completing mock payment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to complete mock payment',
+      error: error.message
+    });
+  }
+});
+
 // POST /api/billing/update-contributors - Update contributor count for existing subscription
 router.post('/update-contributors', protect, async (req: AuthenticatedRequest, res: Response) => {
   try {

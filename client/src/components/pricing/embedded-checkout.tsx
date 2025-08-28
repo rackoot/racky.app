@@ -151,14 +151,50 @@ export function EmbeddedCheckoutWrapper({
           <div className="space-y-3">
             <Button 
               className="w-full" 
-              onClick={() => {
-                // Simulate successful payment
-                setTimeout(() => {
-                  onSuccess?.()
-                }, 1000)
+              onClick={async () => {
+                setLoading(true)
+                try {
+                  // Complete mock payment
+                  const response = await fetch('/api/billing/complete-mock-payment', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                      planName,
+                      contributorCount,
+                      billingCycle
+                    })
+                  })
+
+                  const data = await response.json()
+                  
+                  if (data.success) {
+                    // Simulate slight delay for UX
+                    setTimeout(() => {
+                      onSuccess?.()
+                    }, 500)
+                  } else {
+                    setError(data.message || 'Failed to complete mock payment')
+                    setLoading(false)
+                  }
+                } catch (error) {
+                  console.error('Mock payment error:', error)
+                  setError('Failed to complete mock payment')
+                  setLoading(false)
+                }
               }}
+              disabled={loading}
             >
-              Complete Demo Payment
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Complete Demo Payment'
+              )}
             </Button>
             
             <Button 

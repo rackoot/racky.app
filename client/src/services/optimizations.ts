@@ -1,4 +1,14 @@
-import { opportunitiesApi } from '@/api'
+import { opportunitiesApi, apiClient } from '@/api'
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token')
+  const workspaceId = localStorage.getItem('currentWorkspaceId')
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+    'X-Workspace-ID': workspaceId || ''
+  }
+}
 
 export interface OptimizationSuggestion {
   id: string;
@@ -36,7 +46,7 @@ export interface SuggestionHistory {
 
 export const optimizationsService = {
   // Get or generate description optimization for a platform
-  async getDescriptionOptimization(productId: string, platform: string): Promise<{
+  async getDescriptionOptimization(productId: string, platform: string, retryCount = 0): Promise<{
     suggestion: OptimizationSuggestion;
     cached: boolean;
   }> {
@@ -46,7 +56,12 @@ export const optimizationsService = {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch optimization');
+      if (response.status >= 500 && retryCount < 3) {
+        // Retry server errors with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retryCount) * 1000))
+        return this.getDescriptionOptimization(productId, platform, retryCount + 1)
+      }
+      throw new Error(`HTTP ${response.status}: Failed to fetch optimization`);
     }
 
     const data = await response.json();
@@ -151,6 +166,66 @@ export const optimizationsService = {
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.message || 'Failed to fetch suggestion history');
+    }
+
+    return data.data;
+  },
+
+  // Start individual product AI optimization
+  async startIndividualOptimization(productId: string, platform?: string): Promise<{
+    jobId: string;
+    status: string;
+    estimatedTime: string;
+  }> {
+    const response = await fetch('/api/opportunities/ai/scan', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        productId, // Individual product optimization
+        marketplace: platform,
+        priority: 'high' // Individual optimizations get higher priority
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to start individual optimization');
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to start individual optimization');
+    }
+
+    return {
+      jobId: data.data.jobId,
+      status: data.data.status,
+      estimatedTime: '2-5 minutes'
+    };
+  },
+
+  // Check optimization job status
+  async getOptimizationJobStatus(jobId: string): Promise<{
+    status: string;
+    progress: {
+      current: number;
+      total: number;
+      percentage: number;
+    };
+    eta: string;
+    result?: any;
+  }> {
+    const response = await fetch(`/api/opportunities/ai/status/${jobId}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to get job status');
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to get job status');
     }
 
     return data.data;

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 import { 
   History, 
   Clock, 
@@ -14,7 +15,10 @@ import {
   Upload,
   Download,
   Edit,
-  Trash2
+  Trash2,
+  Bot,
+  AlertTriangle,
+  CheckCircle2
 } from "lucide-react"
 
 const platformColors = {
@@ -28,30 +32,93 @@ const platformColors = {
 }
 
 const actionIcons: Record<string, any> = {
-  'Product Created': Package,
-  'Product Updated': Edit,
-  'Product Synced': RefreshCw,
-  'Inventory Updated': Settings,
-  'Price Updated': Settings,
-  'Description Updated': Edit,
-  'Images Updated': Upload,
-  'Product Published': Upload,
-  'Product Unpublished': Download,
-  'Product Archived': Trash2,
-  'Status Changed': Settings,
-  'Optimization Applied': RefreshCw,
-  'AI Suggestion Generated': RefreshCw,
-  'Sync Completed': RefreshCw,
-  'Sync Failed': AlertCircle
+  // Sync operations
+  'SYNC_FROM_MARKETPLACE': Download,
+  'SYNC_TO_MARKETPLACE': Upload,
+  'BULK_SYNC': RefreshCw,
+  
+  // AI optimization actions
+  'AI_OPTIMIZATION_GENERATED': Bot,
+  'AI_OPTIMIZATION_ACCEPTED': CheckCircle2,
+  'AI_OPTIMIZATION_REJECTED': AlertTriangle,
+  'AI_OPTIMIZATION_APPLIED': Bot,
+  'AI_BULK_SCAN_STARTED': Bot,
+  'AI_BULK_SCAN_COMPLETED': CheckCircle2,
+  
+  // Product modifications
+  'PRODUCT_CREATED': Package,
+  'PRODUCT_UPDATED': Edit,
+  'PRODUCT_DELETED': Trash2,
+  'DESCRIPTION_UPDATED': Edit,
+  'PRICE_UPDATED': Settings,
+  'INVENTORY_UPDATED': Package,
+  'STATUS_CHANGED': Settings,
+  
+  // Store operations
+  'MARKETPLACE_CONNECTED': Upload,
+  'MARKETPLACE_DISCONNECTED': Download,
+  'STORE_CONFIGURATION_CHANGED': Settings,
+  
+  // Error tracking
+  'SYNC_FAILED': AlertCircle,
+  'API_ERROR': AlertCircle,
+  'VALIDATION_ERROR': AlertTriangle
+}
+
+const statusColors: Record<string, string> = {
+  'PENDING': 'bg-yellow-100 text-yellow-800',
+  'IN_PROGRESS': 'bg-blue-100 text-blue-800',
+  'SUCCESS': 'bg-green-100 text-green-800',
+  'FAILED': 'bg-red-100 text-red-800',
+  'CANCELLED': 'bg-gray-100 text-gray-800'
 }
 
 interface ProductHistoryItem {
-  action: string;
-  details: string;
-  platform?: string;
-  timestamp: string;
-  user?: string;
-  metadata?: any;
+  id: string;
+  actionType: string;
+  actionStatus: string;
+  actionSource: string;
+  title: string;
+  description: string;
+  metadata: {
+    marketplace?: string;
+    platform?: string;
+    aiModel?: string;
+    confidence?: number;
+    tokensUsed?: number;
+    originalContent?: string;
+    newContent?: string;
+    keywords?: string[];
+    oldValue?: any;
+    newValue?: any;
+    fieldChanged?: string;
+    errorCode?: string;
+    errorMessage?: string;
+    stackTrace?: string;
+    apiEndpoint?: string;
+    httpStatus?: number;
+    responseTime?: number;
+    ipAddress?: string;
+    userAgent?: string;
+    syncDirection?: string;
+    recordsProcessed?: number;
+    recordsTotal?: number;
+    [key: string]: any;
+  };
+  startedAt: string;
+  completedAt?: string;
+  duration?: number;
+  relatedJobId?: string;
+  relatedBatchId?: string;
+  parentHistoryId?: string;
+  createdAt: string;
+  updatedAt: string;
+  user?: {
+    id: string;
+  };
+  storeConnection?: {
+    id: string;
+  };
 }
 
 interface ProductHistoryProps {
@@ -62,78 +129,40 @@ export function ProductHistory({ productId }: ProductHistoryProps) {
   const [historyItems, setHistoryItems] = useState<ProductHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const { currentWorkspace } = useWorkspace()
 
   useEffect(() => {
-    loadHistory()
-  }, [productId])
+    if (currentWorkspace && productId) {
+      loadHistory()
+    }
+  }, [productId, currentWorkspace])
 
   const loadHistory = async () => {
     setLoading(true)
     setError("")
     
     try {
-      // For now, we'll generate mock history data
-      // In a real implementation, this would fetch from an API
-      const mockHistory: ProductHistoryItem[] = [
-        {
-          action: "Product Created",
-          details: "Product was initially created and imported from Shopify store",
-          platform: "shopify",
-          timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          user: "System Import"
-        },
-        {
-          action: "Inventory Updated",
-          details: "Inventory quantity changed from 15 to 12 units during routine sync",
-          platform: "shopify",
-          timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          user: "Auto Sync"
-        },
-        {
-          action: "AI Suggestion Generated",
-          details: "AI-optimized description suggestion created for Amazon marketplace",
-          platform: "amazon",
-          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          user: "AI Assistant"
-        },
-        {
-          action: "Price Updated",
-          details: "Product price adjusted from $29.99 to $27.99 based on market analysis",
-          platform: "shopify",
-          timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          user: "John Doe"
-        },
-        {
-          action: "Optimization Applied",
-          details: "Accepted AI-generated description optimization for Amazon marketplace",
-          platform: "amazon",
-          timestamp: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-          user: "John Doe"
-        },
-        {
-          action: "Sync Completed",
-          details: "Successfully synchronized product data across all connected platforms",
-          timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-          user: "Auto Sync"
-        },
-        {
-          action: "Images Updated",
-          details: "Product image gallery updated with 3 new high-resolution images",
-          platform: "shopify",
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-          user: "Jane Smith"
-        },
-        {
-          action: "Description Updated",
-          details: "Product description manually edited to include new feature highlights and benefits",
-          platform: "shopify",
-          timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-          user: "John Doe"
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+
+      const response = await fetch(`/api/products/${productId}/history?limit=50`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-Workspace-ID': currentWorkspace!._id
         }
-      ]
-      
-      setHistoryItems(mockHistory)
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load product history')
+      }
+
+      const data = await response.json()
+      setHistoryItems(data.data?.history || [])
     } catch (err) {
+      console.error('Error loading product history:', err)
       setError(err instanceof Error ? err.message : "Failed to load product history")
     } finally {
       setLoading(false)
@@ -245,36 +274,65 @@ export function ProductHistory({ productId }: ProductHistoryProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {historyItems.map((item, index) => {
-                  const IconComponent = actionIcons[item.action] || Settings
+                {historyItems.map((item) => {
+                  const IconComponent = actionIcons[item.actionType] || Settings
+                  const platform = item.metadata.marketplace || item.metadata.platform
                   
                   return (
-                    <TableRow key={index} className="hover:bg-slate-25">
+                    <TableRow key={item.id} className="hover:bg-slate-25">
                       <TableCell className="py-4 px-6 align-top">
                         <div className="flex items-center gap-2">
                           <IconComponent className="w-4 h-4 text-slate-600 flex-shrink-0" />
-                          <span className="font-medium text-sm">{item.action}</span>
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-sm">{item.title}</span>
+                            <Badge className={`w-fit ${statusColors[item.actionStatus] || 'bg-gray-100 text-gray-800'}`}>
+                              {item.actionStatus.toLowerCase()}
+                            </Badge>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="py-4 px-6 align-top">
                         <p className="whitespace-normal break-words max-w-md leading-relaxed text-sm">
-                          {item.details}
+                          {item.description}
                         </p>
+                        {/* Show additional metadata for relevant actions */}
+                        {item.metadata.confidence && (
+                          <div className="mt-1 text-xs text-slate-500">
+                            Confidence: {Math.round(item.metadata.confidence * 100)}%
+                          </div>
+                        )}
+                        {item.metadata.tokensUsed && (
+                          <div className="mt-1 text-xs text-slate-500">
+                            Tokens: {item.metadata.tokensUsed}
+                          </div>
+                        )}
+                        {item.metadata.errorMessage && (
+                          <div className="mt-1 text-xs text-red-600">
+                            Error: {item.metadata.errorMessage}
+                          </div>
+                        )}
+                        {item.duration && (
+                          <div className="mt-1 text-xs text-slate-500">
+                            Duration: {(item.duration / 1000).toFixed(1)}s
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="py-4 px-6 align-top">
-                        {item.platform && (
-                          <Badge className={platformColors[item.platform as keyof typeof platformColors] || 'bg-gray-100 text-gray-800'}>
-                            {item.platform}
+                        {platform && (
+                          <Badge className={platformColors[platform as keyof typeof platformColors] || 'bg-gray-100 text-gray-800'}>
+                            {platform}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="py-4 px-6 align-top text-sm text-slate-600">
-                        {item.user || 'System'}
+                        <div className="capitalize">
+                          {item.actionSource.toLowerCase().replace('_', ' ')}
+                        </div>
                       </TableCell>
                       <TableCell className="py-4 px-6 align-top">
                         <div className="flex items-center gap-1 text-sm text-slate-600">
                           <Clock className="w-3 h-3" />
-                          <span>{formatTimestamp(item.timestamp)}</span>
+                          <span>{formatTimestamp(item.createdAt)}</span>
                         </div>
                       </TableCell>
                     </TableRow>

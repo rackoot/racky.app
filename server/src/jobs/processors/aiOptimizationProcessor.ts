@@ -9,6 +9,7 @@ import {
 import Product from '@/products/models/Product';
 import Opportunity from '@/opportunities/models/Opportunity';
 import aiService from '@/opportunities/services/aiService';
+import ProductHistoryService from '@/products/services/ProductHistoryService';
 
 /**
  * AI Optimization Processor
@@ -94,6 +95,21 @@ export class AIOptimizationProcessor {
       const totalProducts = productsNeedingOptimization.length;
       console.log(`📊 Found ${totalProducts} products needing AI optimization`);
 
+      // Create bulk scan history entries for each product
+      const bulkHistoryPromises = productsNeedingOptimization.map(product => 
+        ProductHistoryService.createBulkOperationHistory({
+          workspaceId,
+          userId,
+          productId: product._id.toString(),
+          actionType: 'AI_BULK_SCAN_STARTED',
+          batchId: job.id!.toString(),
+          recordsTotal: totalProducts,
+          recordsProcessed: 0
+        })
+      );
+      
+      await Promise.all(bulkHistoryPromises);
+
       await job.progress(50);
 
       // Calculate batches
@@ -137,6 +153,21 @@ export class AIOptimizationProcessor {
 
       // Wait for all batch jobs to be created
       await Promise.all(batchJobs);
+      
+      // Mark bulk scan as completed for all products
+      const completionHistoryPromises = productsNeedingOptimization.map(product => 
+        ProductHistoryService.createBulkOperationHistory({
+          workspaceId,
+          userId,
+          productId: product._id.toString(),
+          actionType: 'AI_BULK_SCAN_COMPLETED',
+          batchId: job.id!.toString(),
+          recordsTotal: totalProducts,
+          recordsProcessed: totalProducts
+        })
+      );
+      
+      await Promise.all(completionHistoryPromises);
       
       await job.progress(100);
 
@@ -215,9 +246,31 @@ export class AIOptimizationProcessor {
             tags: product.tags || [],
           };
 
+          // Create history entry for AI optimization generation
+          const generationHistory = await ProductHistoryService.createAIOptimizationHistory({
+            workspaceId,
+            userId,
+            productId: product._id.toString(),
+            actionType: 'AI_OPTIMIZATION_GENERATED',
+            marketplace: product.marketplace,
+            aiModel: 'gpt-3.5-turbo', // This should come from the AI service
+            originalContent: product.description || '',
+            jobId: job.id!.toString()
+          });
+
           // Generate AI opportunities (includes description improvements)
           console.log(`🤖 Generating AI opportunities for product: ${product.title}`);
           const opportunities = await aiService.generateProductOpportunities(aiProduct, [product.marketplace]);
+
+          // Update history with results
+          await ProductHistoryService.markCompleted(
+            generationHistory._id.toString(),
+            'SUCCESS',
+            {
+              confidence: opportunities.length > 0 ? opportunities[0].confidence : 0.8,
+              tokensUsed: opportunities[0]?.aiMetadata?.tokens || 0
+            }
+          );
 
           // Save opportunities to database
           for (const oppData of opportunities) {
@@ -266,6 +319,18 @@ export class AIOptimizationProcessor {
 
         } catch (error) {
           console.error(`❌ Failed to process AI for product ${product._id}:`, error);
+          
+          // Create error history entry
+          await ProductHistoryService.createErrorHistory({
+            workspaceId,
+            userId,
+            productId: product._id.toString(),
+            actionType: 'API_ERROR',
+            errorMessage: error instanceof Error ? error.message : 'Unknown AI processing error',
+            marketplace: product.marketplace,
+            apiEndpoint: 'openai/chat/completions'
+          });
+          
           results.push({ 
             productId: product._id.toString(), 
             status: 'failed', 

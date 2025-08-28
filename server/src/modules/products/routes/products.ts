@@ -7,6 +7,8 @@ import Product from '../models/Product';
 import StoreConnection from '@/stores/models/StoreConnection';
 import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits, checkSyncFrequency, requireFeature } from '@/common/middleware/auth';
 import syncRoutes from './sync';
+import historyRoutes from './history';
+import ProductHistoryService from '../services/ProductHistoryService';
 
 const router = express.Router();
 
@@ -526,7 +528,7 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, workspace
   try {
     // Find existing product by Shopify ID or title
     const existingProduct = await Product.findOne({
-      userId: userId,
+      workspaceId: workspaceId,
       $or: [
         { shopifyId: shopifyProduct.id },
         { 'platforms.platformId': shopifyProduct.id },
@@ -579,6 +581,7 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, workspace
       // Create new product
       isNew = true;
       const newProduct = new Product({
+        workspaceId,
         userId,
         storeConnectionId: connectionId,
         title: shopifyProduct.title,
@@ -891,6 +894,17 @@ router.patch('/:id/description', async (req: AuthenticatedRequest, res: Response
         });
       }
 
+      // Track description update in history
+      await ProductHistoryService.createProductUpdateHistory({
+        workspaceId: req.workspace!._id.toString(),
+        userId: req.user!._id.toString(),
+        productId: id,
+        actionType: 'DESCRIPTION_UPDATED',
+        fieldChanged: 'description',
+        oldValue: product.description,
+        newValue: description
+      });
+
       // Update the description
       product.description = description;
       await product.save();
@@ -963,12 +977,49 @@ router.post('/:id/description/apply-to-marketplace', async (
                   description,
                   product.storeConnectionId
                 );
+
+                // Track the result in history
+                if (updateResult.success) {
+                  await ProductHistoryService.createProductUpdateHistory({
+                    workspaceId: req.workspace!._id.toString(),
+                    userId: req.user!._id.toString(),
+                    productId: id,
+                    actionType: 'DESCRIPTION_UPDATED',
+                    fieldChanged: 'description',
+                    oldValue: product.description,
+                    newValue: description,
+                    marketplace
+                  });
+
+                  // Also update local description
+                  product.description = description;
+                  await product.save();
+                } else {
+                  await ProductHistoryService.createErrorHistory({
+                    workspaceId: req.workspace!._id.toString(),
+                    userId: req.user!._id.toString(),
+                    productId: id,
+                    actionType: 'SYNC_FAILED',
+                    errorMessage: updateResult.message,
+                    marketplace
+                  });
+                }
               } catch (error: any) {
                 console.error('Marketplace update failed:', error);
                 updateResult = {
                   success: false,
                   message: error.message || 'Failed to update marketplace'
                 };
+
+                // Track the error in history
+                await ProductHistoryService.createErrorHistory({
+                  workspaceId: req.workspace!._id.toString(),
+                  userId: req.user!._id.toString(),
+                  productId: id,
+                  actionType: 'SYNC_FAILED',
+                  errorMessage: error.message || 'Failed to update marketplace',
+                  marketplace
+                });
               }
 
               res.json({
@@ -1216,5 +1267,8 @@ async function updateFacebookShopProductDescriptionDirect(
 
 // Add sync routes
 router.use('/sync', syncRoutes);
+
+// Add history routes
+router.use(historyRoutes);
 
 export default router;

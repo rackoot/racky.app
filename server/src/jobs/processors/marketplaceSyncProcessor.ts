@@ -9,6 +9,7 @@ import {
 // import { marketplaceService } from '@/marketplaces/services/marketplaces';
 import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
+import ProductHistoryService from '@/products/services/ProductHistoryService';
 
 /**
  * Marketplace Sync Processor
@@ -182,13 +183,47 @@ export class MarketplaceSyncProcessor {
           );
 
           // Save or update product in database
-          await this.saveProduct(userId, workspaceId, connectionId, marketplace, productData);
+          const savedProduct = await this.saveProduct(userId, workspaceId, connectionId, marketplace, productData);
+
+          // Create history entry for successful sync
+          await ProductHistoryService.createSyncHistory({
+            workspaceId,
+            userId,
+            productId: savedProduct._id.toString(),
+            storeConnectionId: connectionId,
+            actionType: 'SYNC_FROM_MARKETPLACE',
+            marketplace,
+            syncDirection: 'FROM_MARKETPLACE',
+            jobId: job.id!.toString(),
+            batchId: `batch_${batchNumber}`
+          });
 
           results.push({ externalId: productId, status: 'success' });
           processedCount++;
 
         } catch (error) {
           console.error(`❌ Failed to process product ${productId}:`, error);
+          
+          // Try to find the product to create error history
+          const existingProduct = await Product.findOne({
+            userId,
+            workspaceId,
+            marketplace,
+            externalId: productId
+          });
+
+          if (existingProduct) {
+            await ProductHistoryService.createErrorHistory({
+              workspaceId,
+              userId,
+              productId: existingProduct._id.toString(),
+              storeConnectionId: connectionId,
+              actionType: 'SYNC_FAILED',
+              errorMessage: error instanceof Error ? error.message : 'Unknown sync error',
+              marketplace
+            });
+          }
+          
           results.push({ 
             externalId: productId, 
             status: 'failed', 
@@ -281,7 +316,7 @@ export class MarketplaceSyncProcessor {
     connectionId: string,
     marketplace: string,
     productData: any
-  ): Promise<void> {
+  ): Promise<any> {
     // Convert marketplace data to our product schema
     const productDoc = {
       userId,
@@ -312,7 +347,7 @@ export class MarketplaceSyncProcessor {
     };
 
     // Use upsert to create or update
-    await Product.findOneAndUpdate(
+    const savedProduct = await Product.findOneAndUpdate(
       {
         userId,
         workspaceId,
@@ -325,6 +360,8 @@ export class MarketplaceSyncProcessor {
         new: true,
       }
     );
+
+    return savedProduct;
   }
 
   /**

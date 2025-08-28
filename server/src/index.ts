@@ -45,15 +45,27 @@ const limiter = rateLimit({
 });
 
 app.use(helmet());
+// Handle multiple CLIENT_URLs separated by commas
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+// Add CLIENT_URL(s) from environment
+const clientUrl = getEnv().CLIENT_URL;
+if (clientUrl) {
+  const clientUrls = clientUrl.split(',').map(url => url.trim());
+  allowedOrigins.push(...clientUrls);
+}
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    getEnv().CLIENT_URL
-  ],
+  origin: allowedOrigins,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Workspace-ID', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count']
 }));
 app.use(morgan('tiny'));
 app.use(limiter);

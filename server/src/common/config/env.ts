@@ -32,8 +32,8 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   
-  // Client
-  CLIENT_URL: z.string().url().default('http://localhost:5173'),
+  // Client - can be a single URL or comma-separated URLs
+  CLIENT_URL: z.string().default('http://localhost:5173'),
 });
 
 // Parse and validate environment variables
