@@ -65,17 +65,32 @@ export const handleApiResponse = async <T>(
   try {
     const response = await apiCall()
     
+    console.log('API Response received:', {
+      status: response.status,
+      success: response.data.success,
+      message: response.data.message,
+      hasData: !!response.data.data
+    });
+    
     // Handle successful responses
     if (response.data.success) {
       return response.data.data
     }
     
     // Handle unsuccessful responses with success: false
+    console.error('API request failed with success: false', response.data);
     throw new Error(response.data.message || 'API request failed')
   } catch (error) {
+    console.error('API call error:', error);
+    
     // Handle axios errors
     if (axios.isAxiosError(error) && error.response) {
       const errorMessage = error.response.data?.message || `HTTP ${error.response.status}: ${error.response.statusText}`
+      console.error('Axios error details:', {
+        status: error.response.status,
+        data: error.response.data,
+        message: errorMessage
+      });
       throw new Error(errorMessage)
     }
     

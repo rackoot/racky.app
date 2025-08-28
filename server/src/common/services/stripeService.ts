@@ -328,4 +328,195 @@ export const isStripeConfigured = (): boolean => {
   return !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET);
 };
 
+/**
+ * Update subscription immediately with proration (for upgrades)
+ */
+export const updateSubscriptionImmediate = async (
+  subscriptionId: string,
+  newPriceId: string,
+  newQuantity: number,
+  metadata: Record<string, string>
+): Promise<Stripe.Subscription> => {
+  const stripeInstance = getStripeInstance();
+  
+  try {
+    console.log('Updating subscription immediately:', {
+      subscriptionId,
+      newPriceId,
+      newQuantity,
+      metadata
+    });
+
+    // Get current subscription details
+    const currentSubscription = await stripeInstance.subscriptions.retrieve(subscriptionId);
+    const currentItem = currentSubscription.items.data[0];
+
+    // Update the subscription item with immediate proration
+    const updatedSubscription = await stripeInstance.subscriptions.update(subscriptionId, {
+      items: [{
+        id: currentItem.id,
+        price: newPriceId,
+        quantity: newQuantity,
+      }],
+      proration_behavior: 'always_invoice', // Create invoice immediately for proration
+      metadata: metadata,
+    });
+
+    console.log('Subscription updated successfully:', {
+      id: updatedSubscription.id,
+      status: updatedSubscription.status,
+      current_period_end: (updatedSubscription as any).current_period_end,
+      items: updatedSubscription.items.data.length
+    });
+    return updatedSubscription;
+    
+  } catch (error: any) {
+    console.error('Error updating subscription immediately:', error);
+    throw new Error(`Failed to update subscription: ${error.message}`);
+  }
+};
+
+/**
+ * Schedule subscription downgrade for next billing period
+ */
+export const scheduleSubscriptionDowngrade = async (
+  subscriptionId: string,
+  newPriceId: string,
+  newQuantity: number,
+  metadata: Record<string, string>
+): Promise<Stripe.SubscriptionSchedule> => {
+  const stripeInstance = getStripeInstance();
+  
+  try {
+    console.log('Scheduling subscription downgrade:', {
+      subscriptionId,
+      newPriceId,
+      newQuantity,
+      metadata
+    });
+
+    // Get current subscription to determine the next billing date
+    const currentSubscription = await stripeInstance.subscriptions.retrieve(subscriptionId) as any;
+    const nextBillingDate = currentSubscription.current_period_end;
+
+    console.log('Retrieved current subscription for schedule:', {
+      id: currentSubscription.id,
+      status: currentSubscription.status,
+      current_period_start: currentSubscription.current_period_start,
+      current_period_end: currentSubscription.current_period_end,
+      items: currentSubscription.items.data.length
+    });
+
+    if (!nextBillingDate || !currentSubscription.current_period_start) {
+      throw new Error('Invalid subscription period dates - cannot create schedule');
+    }
+
+    // Create a subscription schedule for the downgrade
+    const schedule = await stripeInstance.subscriptionSchedules.create({
+      from_subscription: subscriptionId,
+      phases: [
+        {
+          // Current phase - keep existing subscription until next billing
+          start_date: currentSubscription.current_period_start,
+          end_date: nextBillingDate,
+          items: currentSubscription.items.data.map((item: any) => ({
+            price: item.price.id,
+            quantity: item.quantity || 1,
+          })),
+        },
+        {
+          // New phase - start the downgraded plan from next billing period  
+          start_date: nextBillingDate,
+          items: [{
+            price: newPriceId,
+            quantity: newQuantity,
+          }],
+          metadata: metadata,
+        }
+      ],
+    } as any);
+
+    console.log('Subscription schedule created successfully:', {
+      id: schedule.id,
+      status: schedule.status,
+      phases: schedule.phases?.length,
+      subscription: schedule.subscription,
+      nextPhaseDate: schedule.phases?.[1]?.start_date
+    });
+    return schedule;
+    
+  } catch (error: any) {
+    console.error('Error scheduling subscription downgrade:', error);
+    throw new Error(`Failed to schedule subscription downgrade: ${error.message}`);
+  }
+};
+
+/**
+ * Calculate proration amount for subscription change preview
+ */
+export const calculateProration = async (
+  subscriptionId: string,
+  newPriceId: string,
+  newQuantity: number
+): Promise<{
+  proratedAmount: number;
+  currency: string;
+  immediateCharge: boolean;
+}> => {
+  const stripeInstance = getStripeInstance();
+  
+  try {
+    console.log('Calculating proration for:', {
+      subscriptionId,
+      newPriceId,
+      newQuantity
+    });
+
+    // Get current subscription
+    const currentSubscription = await stripeInstance.subscriptions.retrieve(subscriptionId) as any;
+    const currentItem = currentSubscription.items.data[0];
+
+    // Create an invoice preview to see the proration
+    const preview = await (stripeInstance.invoices as any).retrieveUpcoming({
+      subscription: subscriptionId,
+      subscription_items: [{
+        id: currentItem.id,
+        price: newPriceId,
+        quantity: newQuantity,
+      }],
+      subscription_proration_behavior: 'always_invoice',
+    });
+
+    // Calculate the proration amount
+    let proratedAmount = 0;
+    let immediateCharge = false;
+
+    // Sum all line items to get the total proration
+    preview.lines.data.forEach(line => {
+      if (line.type === 'subscription') {
+        proratedAmount += line.amount;
+      }
+    });
+
+    // If proration amount is positive, it's an immediate charge (upgrade)
+    immediateCharge = proratedAmount > 0;
+
+    console.log('Proration calculated:', {
+      proratedAmount,
+      currency: currentSubscription.currency,
+      immediateCharge
+    });
+
+    return {
+      proratedAmount: Math.abs(proratedAmount), // Always return positive amount
+      currency: currentSubscription.currency,
+      immediateCharge,
+    };
+    
+  } catch (error: any) {
+    console.error('Error calculating proration:', error);
+    throw new Error(`Failed to calculate proration: ${error.message}`);
+  }
+};
+
 export { getStripeInstance };

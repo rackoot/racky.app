@@ -5,6 +5,12 @@ import { AuthenticatedRequest } from '@/common/types/express';
 import { protect, requireWorkspace, requireWorkspacePermission, requireWorkspaceRole } from '@/common/middleware/auth';
 import { WorkspaceService } from '../services/workspaceService';
 import { ICreateWorkspaceRequest, IUpdateWorkspaceRequest, IWorkspaceInviteRequest } from '../interfaces/workspace';
+import { 
+  updateSubscriptionImmediate, 
+  scheduleSubscriptionDowngrade, 
+  calculateProration,
+  isStripeConfigured 
+} from '@/common/services/stripeService';
 
 const router = express.Router();
 
@@ -494,6 +500,32 @@ router.post('/:workspaceId/subscription/preview', protect, requireWorkspace, req
     const newTotalActions = newPlan.getTotalActionsPerMonth(contributorCount);
     const currentTotalActions = currentPlan ? currentPlan.getTotalActionsPerMonth(currentContributorCount) : 0;
     
+    // For real Stripe calculations, we need the Stripe price ID and subscription ID
+    let realProration = null;
+    let stripeError = null;
+    
+    if (currentSubscription?.stripeSubscriptionId && isStripeConfigured()) {
+      try {
+        const newPriceId = billingCycle === 'annual' ? newPlan.stripeYearlyPriceId : newPlan.stripeMonthlyPriceId;
+        
+        const prorationResult = await calculateProration(
+          currentSubscription.stripeSubscriptionId,
+          newPriceId,
+          contributorCount
+        );
+        
+        realProration = {
+          amount: prorationResult.proratedAmount / 100, // Convert cents to dollars
+          currency: prorationResult.currency,
+          immediateCharge: prorationResult.immediateCharge,
+          formattedAmount: `$${(prorationResult.proratedAmount / 100).toFixed(2)}`
+        };
+      } catch (error) {
+        console.warn('Could not calculate Stripe proration:', error);
+        stripeError = (error as Error).message;
+      }
+    }
+    
     res.json({
       success: true,
       message: 'Subscription preview calculated',
@@ -528,7 +560,10 @@ router.post('/:workspaceId/subscription/preview', protect, requireWorkspace, req
             'Upgrade will be charged immediately with prorated amount' :
             isDowngrade ? 
               'Downgrade will be applied at the next billing period' :
-              'No price change required'
+              'No price change required',
+          realProration,
+          stripeConfigured: isStripeConfigured(),
+          stripeError
         }
       }
     });
@@ -573,56 +608,261 @@ router.put('/:workspaceId/subscription', protect, requireWorkspace, requireWorks
       });
     }
 
-    // Create or update subscription
+    // Get current subscription to determine if it's an upgrade or downgrade
     const { default: Subscription } = await import('../../subscriptions/models/Subscription');
+    const currentSubscription = await Subscription.findOne({
+      workspaceId: req.workspace!._id,
+      status: 'ACTIVE'
+    }).populate('planId');
+
+    if (!currentSubscription?.stripeSubscriptionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active Stripe subscription found. Please create a subscription through the billing system first.',
+        requiresNewSubscription: true
+      });
+    }
+
+    if (!isStripeConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Payment system is not configured. Cannot update subscription.',
+        error: 'Stripe is not properly configured'
+      });
+    }
+
+    const currentPlan = currentSubscription.planId as any;
+    const currentContributorCount = currentSubscription.contributorCount;
+    const currentBillingCycle = currentSubscription.interval === 'year' ? 'annual' : 'monthly';
     
-    const subscriptionEndDate = new Date();
-    subscriptionEndDate.setMonth(subscriptionEndDate.getMonth() + (billingCycle === 'annual' ? 12 : 1));
+    // Calculate pricing to determine upgrade vs downgrade
+    const newMonthlyPrice = billingCycle === 'annual' ? 
+      (plan.getTotalYearlyPrice(contributorCount) / 100 / 12) :
+      (plan.getTotalMonthlyPrice(contributorCount) / 100);
     
-    // Calculate pricing and actions
-    const totalAmount = billingCycle === 'annual' ? 
-      plan.getTotalYearlyPrice(contributorCount) : 
-      plan.getTotalMonthlyPrice(contributorCount);
-    const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
+    const currentMonthlyPrice = currentBillingCycle === 'annual' ? 
+      (currentPlan.getTotalYearlyPrice(currentContributorCount) / 100 / 12) :
+      (currentPlan.getTotalMonthlyPrice(currentContributorCount) / 100);
+
+    const priceDifference = newMonthlyPrice - currentMonthlyPrice;
+    const isUpgrade = priceDifference > 0;
+    const isDowngrade = priceDifference < 0;
+
+    // Get the new Stripe price ID
+    const newPriceId = billingCycle === 'annual' ? plan.stripeYearlyPriceId : plan.stripeMonthlyPriceId;
     
-    const subscription = await Subscription.findOneAndUpdate(
-      { workspaceId: req.workspace!._id },
-      {
-        workspaceId: req.workspace!._id,
-        planId: plan._id,
-        status: 'ACTIVE',
-        contributorCount,
-        totalMonthlyActions,
-        amount: totalAmount,
-        currency: plan.currency,
-        interval: billingCycle === 'annual' ? 'year' : 'month',
-        startsAt: new Date(),
-        endsAt: subscriptionEndDate,
-        nextBillingDate: subscriptionEndDate,
-        metadata: {
+    // Metadata for Stripe
+    const stripeMetadata = {
+      workspaceId: req.workspace!._id.toString(),
+      planName: plan.name,
+      contributorCount: contributorCount.toString(),
+      contributorType: plan.contributorType,
+      billingCycle: billingCycle,
+      updatedBy: req.user!._id.toString()
+    };
+
+    let result;
+    let stripeSubscription;
+
+    console.log('Starting Stripe subscription update:', {
+      subscriptionId: currentSubscription.stripeSubscriptionId,
+      changeType: isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'no_change',
+      newPriceId,
+      contributorCount,
+      priceDifference
+    });
+
+    try {
+      if (isUpgrade) {
+        console.log('Processing immediate upgrade with proration');
+        stripeSubscription = await updateSubscriptionImmediate(
+          currentSubscription.stripeSubscriptionId,
+          newPriceId,
+          contributorCount,
+          stripeMetadata
+        );
+        console.log('Upgrade completed successfully:', {
+          subscriptionId: (stripeSubscription as any)?.id,
+          status: (stripeSubscription as any)?.status,
+          current_period_end: (stripeSubscription as any)?.current_period_end
+        });
+        result = { type: 'upgrade', timing: 'immediate' };
+      } else if (isDowngrade) {
+        console.log('Scheduling downgrade for next billing period');
+        const schedule = await scheduleSubscriptionDowngrade(
+          currentSubscription.stripeSubscriptionId,
+          newPriceId,
+          contributorCount,
+          stripeMetadata
+        );
+        console.log('Downgrade scheduled successfully:', {
+          scheduleId: schedule.id,
+          phases: schedule.phases?.length
+        });
+        result = { type: 'downgrade', timing: 'scheduled', scheduleId: schedule.id };
+        // For downgrades, we keep the current subscription active until the schedule takes effect
+        stripeSubscription = null; // We don't update immediately
+      } else {
+        console.log('Processing change with no price difference');
+        stripeSubscription = await updateSubscriptionImmediate(
+          currentSubscription.stripeSubscriptionId,
+          newPriceId,
+          contributorCount,
+          stripeMetadata
+        );
+        console.log('No-price-change update completed:', {
+          subscriptionId: (stripeSubscription as any)?.id,
+          status: (stripeSubscription as any)?.status
+        });
+        result = { type: 'no_price_change', timing: 'immediate' };
+      }
+
+      // Update our database subscription record
+      const totalAmount = billingCycle === 'annual' ? 
+        plan.getTotalYearlyPrice(contributorCount) : 
+        plan.getTotalMonthlyPrice(contributorCount);
+      const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
+
+      // For downgrades, we only update the database when the schedule takes effect
+      // For upgrades and no-change scenarios, we update immediately
+      if (!isDowngrade) {
+        console.log('Updating subscription in database for:', result.type, {
+          stripeSubscriptionExists: !!stripeSubscription,
+          planId: plan._id,
           contributorCount,
           totalMonthlyActions,
-          updatedBy: req.user!._id
+          amount: totalAmount
+        });
+
+        (currentSubscription as any).planId = plan._id;
+        currentSubscription.contributorCount = contributorCount;
+        currentSubscription.totalMonthlyActions = totalMonthlyActions;
+        currentSubscription.amount = totalAmount;
+        currentSubscription.interval = billingCycle === 'annual' ? 'year' : 'month';
+        
+        // Only update dates if we have a valid Stripe subscription response
+        if (stripeSubscription && (stripeSubscription as any).current_period_end) {
+          const endTimestamp = (stripeSubscription as any).current_period_end;
+          
+          // Validate the timestamp is a valid number and reasonable date
+          if (typeof endTimestamp === 'number' && endTimestamp > 0) {
+            const endDate = new Date(endTimestamp * 1000);
+            
+            // Additional validation: ensure the date is not invalid and is in the future
+            if (!isNaN(endDate.getTime()) && endDate > new Date()) {
+              console.log('Updating subscription dates from Stripe:', {
+                endTimestamp,
+                endDate: endDate.toISOString()
+              });
+              
+              currentSubscription.endsAt = endDate;
+              currentSubscription.nextBillingDate = endDate;
+            } else {
+              console.warn('Invalid date from Stripe timestamp, keeping existing dates:', {
+                timestamp: endTimestamp,
+                computedDate: endDate.toISOString()
+              });
+            }
+          } else {
+            console.warn('Invalid timestamp format from Stripe:', endTimestamp);
+          }
+        } else {
+          console.warn('No valid Stripe subscription response, keeping existing dates');
         }
-      },
-      { upsert: true, new: true }
-    ).populate('planId');
-    
-    res.json({
-      success: true,
-      message: `Workspace subscription updated to ${planName} plan with ${contributorCount} contributor${contributorCount > 1 ? 's' : ''}`,
-      data: {
-        workspaceId: req.workspace!._id,
-        subscription: subscription,
-        plan: plan,
-        contributorCount,
-        totalMonthlyActions,
-        monthlyPrice: billingCycle === 'annual' ? 
-          (totalAmount / 100 / 12) : 
-          (totalAmount / 100),
-        endsAt: subscriptionEndDate
+
+        // Final defensive check: ensure endsAt is always valid
+        if (!currentSubscription.endsAt || isNaN(currentSubscription.endsAt.getTime())) {
+          // If no valid end date exists, set it based on billing cycle
+          const fallbackDays = billingCycle === 'annual' ? 365 : 30;
+          currentSubscription.endsAt = new Date(Date.now() + (fallbackDays * 24 * 60 * 60 * 1000));
+          console.log(`Set fallback endsAt date for ${billingCycle} cycle:`, currentSubscription.endsAt.toISOString());
+        }
+        
+        currentSubscription.metadata = {
+          ...currentSubscription.metadata,
+          contributorCount,
+          totalMonthlyActions,
+          updatedBy: req.user!._id,
+          lastStripeUpdate: new Date().toISOString(),
+          changeType: result.type
+        };
+
+        await currentSubscription.save();
+        console.log('Subscription updated in database successfully');
+      } else {
+        console.log('Skipping database update for downgrade - will be handled by Stripe schedule');
       }
-    });
+
+      await currentSubscription.populate('planId');
+
+      res.json({
+        success: true,
+        message: isDowngrade ? 
+          `Downgrade to ${planName} scheduled for next billing period` :
+          `Workspace subscription updated to ${planName} plan with ${contributorCount} contributor${contributorCount > 1 ? 's' : ''}`,
+        data: {
+          workspaceId: req.workspace!._id,
+          subscription: currentSubscription,
+          plan: plan,
+          contributorCount,
+          totalMonthlyActions,
+          changeResult: result,
+          pricing: {
+            currentMonthlyPrice,
+            newMonthlyPrice,
+            priceDifference: Math.abs(priceDifference),
+            isUpgrade,
+            isDowngrade
+          },
+          stripeSubscriptionId: currentSubscription.stripeSubscriptionId,
+          timing: result.timing
+        }
+      });
+      
+    } catch (stripeError: any) {
+      console.error('Stripe subscription update failed:', {
+        error: stripeError,
+        message: stripeError.message,
+        type: stripeError.type,
+        code: stripeError.code,
+        subscriptionId: currentSubscription?.stripeSubscriptionId,
+        changeType: isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'no_change'
+      });
+      
+      // Handle specific Stripe errors
+      let errorMessage = 'Failed to update subscription in payment system';
+      let statusCode = 500;
+      
+      if (stripeError.message && stripeError.message.includes('No such subscription')) {
+        errorMessage = 'Subscription not found in payment system. Please contact support.';
+        statusCode = 404;
+      } else if (stripeError.message && stripeError.message.includes('No such price')) {
+        errorMessage = 'Subscription plan pricing not configured. Please contact support.';
+        statusCode = 400;
+      } else if (stripeError.message && stripeError.message.includes('invoice')) {
+        errorMessage = 'Unable to process payment for upgrade. Please check your payment method.';
+        statusCode = 402;
+      } else if (stripeError.message && stripeError.message.includes('schedule')) {
+        errorMessage = 'Unable to schedule subscription change. Please try again later.';
+        statusCode = 400;
+      } else if (stripeError.message && stripeError.message.includes('Invalid Date')) {
+        errorMessage = 'Subscription date validation failed. Please contact support.';
+        statusCode = 500;
+      }
+
+      res.status(statusCode).json({
+        success: false,
+        message: errorMessage,
+        error: stripeError.message || 'Unknown Stripe error',
+        stripeError: true,
+        currentSubscriptionId: currentSubscription?.stripeSubscriptionId,
+        errorDetails: {
+          type: stripeError.type,
+          code: stripeError.code,
+          changeType: isUpgrade ? 'upgrade' : isDowngrade ? 'downgrade' : 'no_change'
+        }
+      });
+    }
   } catch (error) {
     res.status(500).json({
       success: false,

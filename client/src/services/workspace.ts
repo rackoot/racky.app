@@ -128,7 +128,15 @@ export const updateWorkspaceSubscription = async (
   workspaceId: string, 
   subscriptionData: UpdateSubscriptionRequest
 ): Promise<any> => {
-  return workspacesApi.updateWorkspaceSubscription(workspaceId, subscriptionData)
+  try {
+    console.log('Updating workspace subscription:', { workspaceId, subscriptionData });
+    const result = await workspacesApi.updateWorkspaceSubscription(workspaceId, subscriptionData);
+    console.log('Subscription update successful:', result);
+    return result;
+  } catch (error) {
+    console.error('Subscription update failed in service:', error);
+    throw error;
+  }
 };
 
 export const cancelWorkspaceSubscription = async (workspaceId: string): Promise<any> => {

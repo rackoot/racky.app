@@ -29,13 +29,9 @@ import {
   type SubscriptionPreview 
 } from "@/services/workspace"
 import { SubscriptionChangeModal } from "@/components/workspace/subscription-change-modal"
+import { SuccessModal } from "@/components/ui/success-modal"
 import { useNavigate } from "react-router-dom"
 import { Slider } from "@/components/ui/slider"
-// TODO: Add toast library or use alert for now
-const toast = {
-  success: (message: string) => alert(`Success: ${message}`),
-  error: (message: string) => alert(`Error: ${message}`)
-}
 
 interface Plan {
   name: string
@@ -72,6 +68,11 @@ export default function WorkspaceSubscriptionPage() {
   const [subscriptionPreview, setSubscriptionPreview] = useState<SubscriptionPreview | null>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+  const [successTitle, setSuccessTitle] = useState('Success!')
+  const [errorMessage, setErrorMessage] = useState('')
+  const [showErrorAlert, setShowErrorAlert] = useState(false)
 
   useEffect(() => {
     if (!currentWorkspace) {
@@ -116,6 +117,19 @@ export default function WorkspaceSubscriptionPage() {
     }
   }, [subscription])
 
+  // Helper functions for notifications
+  const showSuccess = (title: string, message: string) => {
+    setSuccessTitle(title)
+    setSuccessMessage(message)
+    setShowSuccessModal(true)
+  }
+
+  const showError = (message: string) => {
+    setErrorMessage(message)
+    setShowErrorAlert(true)
+    setTimeout(() => setShowErrorAlert(false), 5000) // Auto-hide after 5 seconds
+  }
+
   const handleSubscriptionPreview = async () => {
     if (!currentWorkspace || !selectedPlan || isPreviewLoading) return
 
@@ -131,7 +145,7 @@ export default function WorkspaceSubscriptionPage() {
       setShowConfirmModal(true)
     } catch (error) {
       console.error('Error previewing subscription changes:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to preview subscription changes')
+      showError(error instanceof Error ? error.message : 'Failed to preview subscription changes')
     } finally {
       setIsPreviewLoading(false)
     }
@@ -142,18 +156,41 @@ export default function WorkspaceSubscriptionPage() {
 
     try {
       setIsUpdating(true)
-      await updateWorkspaceSubscription(currentWorkspace._id, {
+      const result = await updateWorkspaceSubscription(currentWorkspace._id, {
         planName: selectedPlan as 'BASIC' | 'PRO' | 'ENTERPRISE',
         billingCycle,
         contributorCount: contributorCount[0]
       })
       
-      toast.success(`Workspace subscription updated successfully`)
+      console.log('Subscription update result:', result)
+      
+      // Close confirmation modal first
       setShowConfirmModal(false)
+      
+      // Reload subscription data
       await loadSubscriptionData()
+      
+      // Determine success message based on change type
+      const plan = availablePlans.find(p => p.name === selectedPlan)
+      const isUpgrade = subscriptionPreview?.pricing.isUpgrade
+      const isDowngrade = subscriptionPreview?.pricing.isDowngrade
+      
+      let title = 'Subscription Updated!'
+      let message = `Your workspace subscription has been updated to ${plan?.displayName} with ${contributorCount[0]} contributor${contributorCount[0] > 1 ? 's' : ''}.`
+      
+      if (isUpgrade) {
+        title = 'Upgrade Complete!'
+        message = `Successfully upgraded to ${plan?.displayName}! The changes are effective immediately and you'll be charged the prorated amount.`
+      } else if (isDowngrade) {
+        title = 'Downgrade Scheduled!'
+        message = `Your downgrade to ${plan?.displayName} has been scheduled for the next billing period. You'll keep your current features until then.`
+      }
+      
+      showSuccess(title, message)
+      
     } catch (error) {
       console.error('Error updating subscription:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to update subscription')
+      showError(error instanceof Error ? error.message : 'Failed to update subscription')
     } finally {
       setIsUpdating(false)
     }
@@ -170,11 +207,11 @@ export default function WorkspaceSubscriptionPage() {
       setIsUpdating(true)
       await cancelWorkspaceSubscription(currentWorkspace._id)
       
-      toast.success('Workspace subscription cancelled')
       await loadSubscriptionData()
+      showSuccess('Subscription Cancelled', 'Your workspace subscription has been cancelled successfully. The workspace will be downgraded to the free tier.')
     } catch (error) {
       console.error('Error cancelling subscription:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to cancel subscription')
+      showError(error instanceof Error ? error.message : 'Failed to cancel subscription')
     } finally {
       setIsUpdating(false)
     }
@@ -566,6 +603,44 @@ export default function WorkspaceSubscriptionPage() {
         preview={subscriptionPreview}
         isLoading={isUpdating}
       />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title={successTitle}
+        message={successMessage}
+      />
+
+      {/* Error Alert */}
+      {showErrorAlert && (
+        <div className="fixed top-4 right-4 z-50 max-w-md p-4 bg-red-50 border border-red-200 rounded-lg shadow-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 text-red-400" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Error
+              </h3>
+              <p className="mt-1 text-sm text-red-700">
+                {errorMessage}
+              </p>
+            </div>
+            <div className="ml-auto pl-3">
+              <button
+                onClick={() => setShowErrorAlert(false)}
+                className="inline-flex rounded-md bg-red-50 p-1.5 text-red-500 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 focus:ring-offset-red-50"
+              >
+                <span className="sr-only">Dismiss</span>
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
