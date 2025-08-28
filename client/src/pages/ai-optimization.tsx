@@ -49,6 +49,23 @@ const AIOptimizationPage = () => {
   const [connectedMarketplaces, setConnectedMarketplaces] = useState<Marketplace[]>([]);
   const [marketplacesLoading, setMarketplacesLoading] = useState(false);
   
+  // Helper function to check if any scan is active/waiting
+  const hasActiveScan = () => {
+    return jobs.some(job => job.status === 'waiting' || job.status === 'active');
+  };
+  
+  // Helper function to get marketplace with active/waiting scan
+  const getActiveMarketplace = () => {
+    const activeJob = jobs.find(job => job.status === 'waiting' || job.status === 'active');
+    return activeJob?.data.filters?.marketplace;
+  };
+  
+  // Helper function to get available marketplaces (connected but not running scans)
+  const getAvailableMarketplaces = () => {
+    const activeMarketplace = getActiveMarketplace();
+    return connectedMarketplaces.filter(mp => mp.id !== activeMarketplace);
+  };
+  
   // Scan filters
   const [marketplace, setMarketplace] = useState<string>('');
   const [minDescriptionLength, setMinDescriptionLength] = useState<string>('');
@@ -69,9 +86,13 @@ const AIOptimizationPage = () => {
       const connected = marketplaces.filter(m => m.connectionInfo);
       setConnectedMarketplaces(connected);
       
-      // Auto-select first connected marketplace if none selected
-      if (!marketplace && connected.length > 0) {
-        setMarketplace(connected[0].id);
+      // Auto-select first available marketplace if none selected or current selection is unavailable
+      const available = connected.filter(mp => mp.id !== getActiveMarketplace());
+      if (!marketplace && available.length > 0) {
+        setMarketplace(available[0].id);
+      } else if (marketplace && !available.find(mp => mp.id === marketplace)) {
+        // Reset selection if currently selected marketplace is no longer available
+        setMarketplace(available.length > 0 ? available[0].id : '');
       }
     } catch (err) {
       console.error('Error loading connected marketplaces:', err);
@@ -125,6 +146,15 @@ const AIOptimizationPage = () => {
     if (!currentWorkspace || !currentWorkspace._id) {
       setError('No workspace selected');
       return;
+    }
+    
+    // Check if there's already an active or waiting job for this marketplace
+    if (hasActiveScan()) {
+      const activeMarketplace = getActiveMarketplace();
+      if (activeMarketplace === marketplace) {
+        setError('This marketplace already has a scan in progress. Please select a different marketplace.');
+        return;
+      }
     }
     
     // Validate required fields
@@ -321,14 +351,104 @@ const AIOptimizationPage = () => {
         </TabsContent>
 
         <TabsContent value="scan" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Configure AI Product Scan</CardTitle>
-              <CardDescription>
-                Set filters to analyze specific products that need optimization
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          {hasActiveScan() && getAvailableMarketplaces().length === 0 ? (
+            (() => {
+              const runningJob = jobs.find(job => job.status === 'waiting' || job.status === 'active');
+              return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className={`h-3 w-3 rounded-full ${getStatusColor(runningJob?.status || 'active')} animate-pulse`} />
+                      AI Scan In Progress
+                    </CardTitle>
+                    <CardDescription>
+                      An AI optimization scan is currently {runningJob?.status === 'waiting' ? 'waiting to start' : 'running'}. 
+                      {getAvailableMarketplaces().length === 0 ? 
+                        ' No other marketplaces are available for scanning.' :
+                        ' Please wait for it to complete or select a different marketplace.'
+                      }
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Status</span>
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          {getStatusIcon(runningJob?.status || 'active')}
+                          {(runningJob?.status || 'ACTIVE').toUpperCase()}
+                        </Badge>
+                      </div>
+                      
+                      {runningJob && typeof runningJob.progress === 'number' && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Progress</span>
+                            <span className="text-sm text-muted-foreground">
+                              {runningJob.progress}%
+                            </span>
+                          </div>
+                          <Progress value={runningJob.progress} className="w-full" />
+                        </div>
+                      )}
+                      
+                      {runningJob && (
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                          <div>
+                            <span className="text-sm font-medium">Started</span>
+                            <p className="text-sm text-muted-foreground">
+                              {formatDate(runningJob.processedOn || runningJob.data.createdAt)}
+                            </p>
+                          </div>
+                          {runningJob.result && (
+                            <div>
+                              <span className="text-sm font-medium">Products Found</span>
+                              <p className="text-sm text-muted-foreground">
+                                {runningJob.result.totalProducts || 0}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {runningJob && runningJob.data.filters?.marketplace && (
+                        <div className="pt-2 border-t">
+                          <span className="text-sm font-medium">Scan Filters</span>
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            <Badge variant="outline">
+                              {connectedMarketplaces.find(m => m.id === runningJob.data.filters?.marketplace)?.name || runningJob.data.filters.marketplace}
+                            </Badge>
+                            {runningJob.data.filters.minDescriptionLength && (
+                              <Badge variant="outline">
+                                Min length: {runningJob.data.filters.minDescriptionLength}
+                              </Badge>
+                            )}
+                            {runningJob.data.filters.maxDescriptionLength && (
+                              <Badge variant="outline">
+                                Max length: {runningJob.data.filters.maxDescriptionLength}
+                              </Badge>
+                            )}
+                            {runningJob.data.filters.createdAfter && (
+                              <Badge variant="outline">
+                                After: {new Date(runningJob.data.filters.createdAfter).toLocaleDateString()}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Configure AI Product Scan</CardTitle>
+                <CardDescription>
+                  Set filters to analyze specific products that need optimization
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="marketplace">
@@ -339,13 +459,13 @@ const AIOptimizationPage = () => {
                       <SelectValue placeholder={
                         marketplacesLoading 
                           ? "Loading marketplaces..." 
-                          : connectedMarketplaces.length === 0
-                          ? "No connected marketplaces"
+                          : getAvailableMarketplaces().length === 0
+                          ? "No available marketplaces"
                           : "Select marketplace"
                       } />
                     </SelectTrigger>
                     <SelectContent>
-                      {connectedMarketplaces.map((mp) => (
+                      {getAvailableMarketplaces().map((mp) => (
                         <SelectItem key={mp.id} value={mp.id}>
                           <div className="flex items-center gap-2">
                             <Store className="h-4 w-4" />
@@ -363,6 +483,11 @@ const AIOptimizationPage = () => {
                   {connectedMarketplaces.length === 0 && !marketplacesLoading && (
                     <p className="text-sm text-muted-foreground">
                       No connected marketplaces found. Please connect a marketplace first.
+                    </p>
+                  )}
+                  {hasActiveScan() && getAvailableMarketplaces().length < connectedMarketplaces.length && (
+                    <p className="text-sm text-muted-foreground">
+                      Some marketplaces are unavailable due to running scans.
                     </p>
                   )}
                 </div>
@@ -403,7 +528,11 @@ const AIOptimizationPage = () => {
               <div className="flex justify-end">
                 <Button 
                   onClick={startAIScan} 
-                  disabled={scanLoading || connectedMarketplaces.length === 0 || !marketplace}
+                  disabled={
+                    scanLoading || 
+                    getAvailableMarketplaces().length === 0 || 
+                    !marketplace
+                  }
                   className="flex items-center gap-2"
                 >
                   <Brain className="h-4 w-4" />
@@ -411,68 +540,24 @@ const AIOptimizationPage = () => {
                 </Button>
               </div>
               
-              {connectedMarketplaces.length === 0 && !marketplacesLoading && (
+              {getAvailableMarketplaces().length === 0 && !marketplacesLoading && (
                 <Alert>
                   <Store className="h-4 w-4" />
                   <AlertDescription>
-                    You need to connect at least one marketplace before running an AI scan. 
-                    Go to the <strong>Stores</strong> page to connect your first marketplace.
+                    {connectedMarketplaces.length === 0 ? (
+                      <>
+                        You need to connect at least one marketplace before running an AI scan. 
+                        Go to the <strong>Stores</strong> page to connect your first marketplace.
+                      </>
+                    ) : (
+                      <>
+                        All connected marketplaces are currently running scans. 
+                        Please wait for them to complete or check the <strong>Scan History</strong> tab.
+                      </>
+                    )}
                   </AlertDescription>
                 </Alert>
               )}
-            </CardContent>
-          </Card>
-
-          {activeJob && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <div className={`h-3 w-3 rounded-full ${getStatusColor(activeJob.status)} animate-pulse`} />
-                  Active AI Scan
-                </CardTitle>
-                <CardDescription>
-                  Monitoring progress of your current AI optimization scan
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Status</span>
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      {getStatusIcon(activeJob.status)}
-                      {activeJob.status.toUpperCase()}
-                    </Badge>
-                  </div>
-                  
-                  {typeof activeJob.progress === 'number' && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Progress</span>
-                        <span className="text-sm text-muted-foreground">
-                          {activeJob.progress}%
-                        </span>
-                      </div>
-                      <Progress value={activeJob.progress} className="w-full" />
-                    </div>
-                  )}
-                  
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div>
-                      <span className="text-sm font-medium">Started</span>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDate(activeJob.processedOn || activeJob.data.createdAt)}
-                      </p>
-                    </div>
-                    {activeJob.result && (
-                      <div>
-                        <span className="text-sm font-medium">Products Found</span>
-                        <p className="text-sm text-muted-foreground">
-                          {activeJob.result.totalProducts || 0}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </CardContent>
             </Card>
           )}
