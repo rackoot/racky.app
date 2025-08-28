@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Brain,
   Home,
   Package,
   ShoppingCart,
@@ -42,6 +43,12 @@ const items: NavigationItem[] = [
     title: "Products",
     url: "/products",
     icon: Package,
+    requiresSubscription: true, // Requires active subscription
+  },
+  {
+    title: "AI Optimization",
+    url: "/ai-optimization",
+    icon: Brain,
     requiresSubscription: true, // Requires active subscription
   },
   {

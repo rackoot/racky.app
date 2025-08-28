@@ -25,6 +25,7 @@ import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import Workspaces from '@/pages/workspaces'
+import AIOptimizationPage from '@/pages/ai-optimization'
 
 function App() {
   return (
@@ -107,6 +108,18 @@ function App() {
               <RequireSubscription>
                 <MainLayout>
                   <ProductDetail />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIOptimizationPage />
                 </MainLayout>
               </RequireSubscription>
             </ProtectedRoute>

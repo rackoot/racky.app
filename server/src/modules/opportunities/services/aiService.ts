@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { SUPPORTED_MARKETPLACES, OPPORTUNITY_CATEGORIES } from '@/common/constants/marketplaces';
+import getEnv from '@/common/config/env';
 
 // Type definitions for AI service
 export interface Product {
@@ -49,8 +50,9 @@ export interface ValidationResult {
 }
 
 // Initialize OpenAI
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const env = getEnv();
+const openai = env.OPENAI_API_KEY ? new OpenAI({
+  apiKey: env.OPENAI_API_KEY,
 }) : null;
 
 class AIService {
@@ -70,7 +72,7 @@ class AIService {
       const prompt = this.buildPrompt(product, userMarketplaces);
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
+        model: env.OPENAI_MODEL,
         messages: [
           {
             role: "system",
@@ -97,7 +99,7 @@ class AIService {
       return opportunities.map(opp => ({
         ...opp,
         aiMetadata: {
-          model: 'gpt-3.5-turbo',
+          model: env.OPENAI_MODEL,
           prompt: prompt.substring(0, 500) + '...', // Truncate for storage
           tokens: completion.usage?.total_tokens || 0,
           confidence: opp.confidence || 0.8

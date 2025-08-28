@@ -6,6 +6,7 @@ import { PlatformType } from '../models/Product';
 import Product from '../models/Product';
 import StoreConnection from '@/stores/models/StoreConnection';
 import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits, checkSyncFrequency, requireFeature } from '@/common/middleware/auth';
+import syncRoutes from './sync';
 
 const router = express.Router();
 
@@ -1212,5 +1213,8 @@ async function updateFacebookShopProductDescriptionDirect(
     };
   }
 }
+
+// Add sync routes
+router.use('/sync', syncRoutes);
 
 export default router;

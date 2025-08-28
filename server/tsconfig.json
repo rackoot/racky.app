@@ -8,6 +8,7 @@
     "baseUrl": "./src",
     "paths": {
       "@/common/*": ["common/*"],
+      "@/jobs/*": ["jobs/*"],
       "@/auth/*": ["modules/auth/*"],
       "@/admin/*": ["modules/admin/*"],
       "@/dashboard/*": ["modules/dashboard/*"],

@@ -20,6 +20,7 @@ import productRoutes from '@/products/routes/products';
 import dashboardRoutes from '@/dashboard/routes/dashboard';
 import optimizationRoutes from '@/opportunities/routes/optimizations';
 import opportunityRoutes from '@/opportunities/routes/opportunities';
+import aiOptimizationRoutes from '@/opportunities/routes/ai-optimization';
 import adminRoutes from '@/admin/routes/admin';
 import planRoutes from '@/subscriptions/routes/plans';
 import usageRoutes from '@/subscriptions/routes/usage';
@@ -29,11 +30,13 @@ import workspaceRoutes from './modules/workspaces/routes/workspaces';
 import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
 import { protect, requireWorkspace } from '@/common/middleware/auth';
 import { stripeWebhookHandler } from '@/subscriptions/routes/billing';
+import queueService from '@/common/services/queueService';
+import { setupJobProcessors } from '@/jobs/jobSetup';
 
 
 const app = express();
 
-// Initialize notification scheduler after database connection
+// Initialize notification scheduler and queue service after database connection
 let notificationCleanup: (() => void) | undefined;
 
 const limiter = rateLimit({
@@ -76,6 +79,7 @@ app.use('/api/products', protect, requireWorkspace, productRoutes);
 app.use('/api/dashboard', protect, requireWorkspace, dashboardRoutes);
 app.use('/api/optimizations', protect, requireWorkspace, optimizationRoutes);
 app.use('/api/opportunities', protect, requireWorkspace, opportunityRoutes);
+app.use('/api/opportunities/ai', protect, requireWorkspace, aiOptimizationRoutes);
 app.use('/api/usage', protect, requireWorkspace, usageRoutes);
 app.use('/api/billing', protect, requireWorkspace, billingRoutes);
 app.use('/api/demo', protect, requireWorkspace, demoRoutes);
@@ -92,6 +96,12 @@ const startServer = async () => {
     // Connect to database first
     await connectDB();
     
+    // Initialize queue service
+    await queueService.initialize();
+    
+    // Set up job processors
+    setupJobProcessors();
+    
     const PORT = getEnv().PORT;
     const server = app.listen(PORT, () => {
       console.log(`🚀 Racky server running on port ${PORT}`);
@@ -103,11 +113,12 @@ const startServer = async () => {
     });
 
     // Graceful shutdown handlers
-    const gracefulShutdown = () => {
+    const gracefulShutdown = async () => {
       console.log('Shutting down gracefully...');
       if (notificationCleanup) {
         notificationCleanup();
       }
+      await queueService.shutdown();
       server.close(() => {
         console.log('Server closed.');
         process.exit(0);
