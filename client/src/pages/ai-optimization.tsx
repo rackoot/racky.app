@@ -8,9 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Filter, Search } from 'lucide-react';
+import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Filter, Search, Store } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SimpleOpportunitiesList } from '@/components/ai-optimization/simple-opportunities-list';
+import { marketplaceService } from '@/services/marketplace';
+import type { Marketplace } from '@/types/marketplace';
 
 interface AIJob {
   id: string;
@@ -43,11 +45,41 @@ const AIOptimizationPage = () => {
   const [activeJob, setActiveJob] = useState<AIJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   
+  // Connected marketplaces
+  const [connectedMarketplaces, setConnectedMarketplaces] = useState<Marketplace[]>([]);
+  const [marketplacesLoading, setMarketplacesLoading] = useState(false);
+  
   // Scan filters
   const [marketplace, setMarketplace] = useState<string>('');
   const [minDescriptionLength, setMinDescriptionLength] = useState<string>('');
   const [maxDescriptionLength, setMaxDescriptionLength] = useState<string>('');
   const [createdAfter, setCreatedAfter] = useState<string>('');
+
+  // Load connected marketplaces
+  const loadConnectedMarketplaces = async () => {
+    if (!currentWorkspace || !currentWorkspace._id) {
+      return;
+    }
+    
+    setMarketplacesLoading(true);
+    
+    try {
+      const marketplaces = await marketplaceService.getMarketplaceStatus();
+      // Filter to only connected marketplaces
+      const connected = marketplaces.filter(m => m.connectionInfo);
+      setConnectedMarketplaces(connected);
+      
+      // Auto-select first connected marketplace if none selected
+      if (!marketplace && connected.length > 0) {
+        setMarketplace(connected[0].id);
+      }
+    } catch (err) {
+      console.error('Error loading connected marketplaces:', err);
+      setError('Failed to load connected marketplaces');
+    } finally {
+      setMarketplacesLoading(false);
+    }
+  };
 
   // Load AI jobs
   const loadJobs = async () => {
@@ -95,13 +127,20 @@ const AIOptimizationPage = () => {
       return;
     }
     
+    // Validate required fields
+    if (!marketplace) {
+      setError('Please select a marketplace');
+      return;
+    }
+    
     setScanLoading(true);
     setError(null);
     
     try {
       const filters: any = {};
       
-      if (marketplace) filters.marketplace = marketplace;
+      // Marketplace is now required
+      filters.marketplace = marketplace;
       if (minDescriptionLength) filters.minDescriptionLength = parseInt(minDescriptionLength);
       if (maxDescriptionLength) filters.maxDescriptionLength = parseInt(maxDescriptionLength);
       if (createdAfter) filters.createdAfter = new Date(createdAfter).toISOString();
@@ -126,8 +165,7 @@ const AIOptimizationPage = () => {
       // Reload jobs to show the new scan
       await loadJobs();
       
-      // Clear form
-      setMarketplace('');
+      // Clear form (keep marketplace selected since it's required)
       setMinDescriptionLength('');
       setMaxDescriptionLength('');
       setCreatedAfter('');
@@ -174,9 +212,12 @@ const AIOptimizationPage = () => {
     return () => clearInterval(interval);
   }, [activeJob, currentWorkspace]);
 
-  // Load jobs on mount and workspace change
+  // Load jobs and marketplaces on mount and workspace change
   useEffect(() => {
-    loadJobs();
+    if (currentWorkspace) {
+      loadJobs();
+      loadConnectedMarketplaces();
+    }
   }, [currentWorkspace]);
 
   const getStatusIcon = (status: string) => {
@@ -290,20 +331,40 @@ const AIOptimizationPage = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="marketplace">Marketplace (Optional)</Label>
-                  <Select value={marketplace} onValueChange={setMarketplace}>
+                  <Label htmlFor="marketplace">
+                    Marketplace <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={marketplace} onValueChange={setMarketplace} disabled={marketplacesLoading}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select marketplace" />
+                      <SelectValue placeholder={
+                        marketplacesLoading 
+                          ? "Loading marketplaces..." 
+                          : connectedMarketplaces.length === 0
+                          ? "No connected marketplaces"
+                          : "Select marketplace"
+                      } />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Marketplaces</SelectItem>
-                      <SelectItem value="shopify">Shopify</SelectItem>
-                      <SelectItem value="amazon">Amazon</SelectItem>
-                      <SelectItem value="vtex">VTEX</SelectItem>
-                      <SelectItem value="mercadolibre">MercadoLibre</SelectItem>
-                      <SelectItem value="woocommerce">WooCommerce</SelectItem>
+                      {connectedMarketplaces.map((mp) => (
+                        <SelectItem key={mp.id} value={mp.id}>
+                          <div className="flex items-center gap-2">
+                            <Store className="h-4 w-4" />
+                            {mp.name}
+                            {mp.connectionInfo && (
+                              <Badge variant="secondary" className="text-xs">
+                                {mp.connectionInfo.productsCount} products
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  {connectedMarketplaces.length === 0 && !marketplacesLoading && (
+                    <p className="text-sm text-muted-foreground">
+                      No connected marketplaces found. Please connect a marketplace first.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -342,13 +403,23 @@ const AIOptimizationPage = () => {
               <div className="flex justify-end">
                 <Button 
                   onClick={startAIScan} 
-                  disabled={scanLoading}
+                  disabled={scanLoading || connectedMarketplaces.length === 0 || !marketplace}
                   className="flex items-center gap-2"
                 >
                   <Brain className="h-4 w-4" />
                   {scanLoading ? 'Starting Scan...' : 'Start AI Scan'}
                 </Button>
               </div>
+              
+              {connectedMarketplaces.length === 0 && !marketplacesLoading && (
+                <Alert>
+                  <Store className="h-4 w-4" />
+                  <AlertDescription>
+                    You need to connect at least one marketplace before running an AI scan. 
+                    Go to the <strong>Stores</strong> page to connect your first marketplace.
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
 
