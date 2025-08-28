@@ -97,8 +97,8 @@ const createPlans = async () => {
         actionsPerContributor: 1000,
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
-        monthlyPrice: 50, // $29.00 per contributor
-        yearlyPrice: 500, // $290.00 per contributor (save 17%)
+        monthlyPrice: 5000, // $50.00 per contributor
+        yearlyPrice: 50000, // $500.00 per contributor (save 17%)
         stripeMonthlyPriceId: 'price_1RoS28C0dRh4ObHWOlCINkwn',
         stripeYearlyPriceId: 'price_1S0i9AC0dRh4ObHW05zDSbp8',
         limits: {
@@ -126,8 +126,8 @@ const createPlans = async () => {
         actionsPerContributor: 5000,
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
-        monthlyPrice: 99, 
-        yearlyPrice: 999, 
+        monthlyPrice: 10000, // $100.00 per contributor
+        yearlyPrice: 100000, // $1,000.00 per contributor (save 17%) 
         stripeMonthlyPriceId: 'price_1RoS2UC0dRh4ObHWIVQporSy',
         stripeYearlyPriceId: 'price_1S0i8aC0dRh4ObHWZ8M2BufQ',
         limits: {

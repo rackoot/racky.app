@@ -239,6 +239,10 @@ export default function WorkspaceSubscriptionPage() {
   const currentPlan = subscription?.currentPlan
   const planName = currentPlan?.name || 'No Plan'
   
+  // Helper functions to format prices correctly (convert from cents to dollars)
+  const formatPrice = (cents: number) => (cents / 100).toFixed(0)
+  const formatYearlyPrice = (cents: number) => (cents / 100 / 12).toFixed(0)
+  
   // Check if there are any changes from current subscription
   const hasChanges = subscription && (
     selectedPlan !== subscription.currentPlan?.name ||
@@ -409,7 +413,7 @@ export default function WorkspaceSubscriptionPage() {
                       <div>
                         <h5 className="font-semibold">{plan.displayName}</h5>
                         <div className="text-2xl font-bold">
-                          ${billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice}
+                          ${billingCycle === 'monthly' ? formatPrice(plan.monthlyPrice) : formatYearlyPrice(plan.yearlyPrice)}
                           <span className="text-xs text-muted-foreground">
                             /contributor/{billingCycle === 'monthly' ? 'month' : 'year'}
                           </span>
@@ -493,8 +497,8 @@ export default function WorkspaceSubscriptionPage() {
                 <span className="text-lg font-semibold">Estimated Monthly Cost:</span>
                 <span className="text-2xl font-bold text-primary">
                   ${billingCycle === 'annual' ? 
-                    ((availablePlans.find(p => p.name === selectedPlan)?.yearlyPrice || 0) * contributorCount[0] / 12).toFixed(0) :
-                    ((availablePlans.find(p => p.name === selectedPlan)?.monthlyPrice || 0) * contributorCount[0]).toFixed(0)
+                    ((availablePlans.find(p => p.name === selectedPlan)?.yearlyPrice || 0) * contributorCount[0] / 100 / 12).toFixed(0) :
+                    ((availablePlans.find(p => p.name === selectedPlan)?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)
                   }
                 </span>
               </div>
