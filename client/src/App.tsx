@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/main-layout'
 import { AdminLayout } from '@/components/layout/admin-layout'
 import { WorkspaceProvider } from '@/components/workspace/workspace-context'
@@ -31,8 +31,13 @@ function App() {
     <Router>
       <WorkspaceProvider>
         <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        {/* Auth routes */}
+        <Route path="/auth/login" element={<Login />} />
+        <Route path="/auth/register" element={<Register />} />
+        
+        {/* Legacy redirects */}
+        <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+        <Route path="/register" element={<Navigate to="/auth/register" replace />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/demo-checkout" element={<DemoCheckout />} />
         

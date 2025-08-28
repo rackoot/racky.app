@@ -101,13 +101,14 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
       success: true,
       message: 'Account created successfully',
       data: {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        // subscriptionInfo removed - handled at workspace level
-        token
+        token,
+        user: {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role
+        }
       }
     });
   } catch (error: any) {
@@ -124,7 +125,10 @@ router.post('/login', async (req: express.Request<{}, {}, LoginRequestBody>, res
   try {
     const { error } = loginSchema.validate(req.body);
     if (error) {
-      return res.status(400).json({ message: error.details[0].message });
+      return res.status(400).json({ 
+        success: false,
+        message: error.details[0].message 
+      });
     }
 
     const { email, password } = req.body;
@@ -132,11 +136,17 @@ router.post('/login', async (req: express.Request<{}, {}, LoginRequestBody>, res
         
     const user = await User.findOne({ email });
     if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Invalid credentials' 
+      });
     }
 
     if (!user.isActive) {
-      return res.status(401).json({ message: 'Account is deactivated' });
+      return res.status(401).json({ 
+        success: false,
+        message: 'Account is deactivated' 
+      });
     }
 
     const token = generateToken(user._id.toString());
@@ -145,17 +155,22 @@ router.post('/login', async (req: express.Request<{}, {}, LoginRequestBody>, res
       success: true,
       message: 'Login successful',
       data: {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        role: user.role,
-        // subscriptionInfo removed - handled at workspace level
-        token
+        token,
+        user: {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role
+        }
       }
     });
   } catch (error: any) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error', 
+      error: error.message 
+    });
   }
 });
 
