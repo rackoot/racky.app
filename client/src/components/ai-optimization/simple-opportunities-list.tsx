@@ -23,7 +23,10 @@ export const SimpleOpportunitiesList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const loadOpportunities = async () => {
-    if (!currentWorkspace) return;
+    if (!currentWorkspace || !currentWorkspace._id) {
+      setError('No workspace selected');
+      return;
+    }
     
     setLoading(true);
     setError(null);
@@ -52,7 +55,7 @@ export const SimpleOpportunitiesList: React.FC = () => {
   };
 
   useEffect(() => {
-    if (currentWorkspace) {
+    if (currentWorkspace && currentWorkspace._id) {
       loadOpportunities();
     }
   }, [currentWorkspace]);
