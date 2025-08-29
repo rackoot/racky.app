@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Filter, Search, Store, Eye, Package, Hash } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SimpleOpportunitiesList } from '@/components/ai-optimization/simple-opportunities-list';
 import { marketplaceService } from '@/services/marketplace';
@@ -360,6 +360,13 @@ const AIOptimizationPage = () => {
           const data = await response.json();
           if (data.success) {
             setActiveJob(prev => prev ? { ...prev, ...data.data } : null);
+            
+            // Update the job in the jobs list with progress data
+            setJobs(prev => prev.map(job => 
+              job.id === activeJob.id 
+                ? { ...job, ...data.data }
+                : job
+            ));
             
             // If job completed or failed, refresh job list
             if (['completed', 'failed'].includes(data.data.status)) {
@@ -735,6 +742,20 @@ const AIOptimizationPage = () => {
             </Button>
           </div>
 
+          {/* Active Scan Notification */}
+          {jobs.some(job => job.status === 'active') && (
+            <Alert className="border-blue-200 bg-blue-50">
+              <Brain className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-900">
+                AI Scan in Progress
+              </AlertTitle>
+              <AlertDescription className="text-blue-800">
+                {jobs.filter(job => job.status === 'active').length} active scan(s) running. 
+                Progress and next steps are shown below for each active job.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid gap-4">
             {jobs.length === 0 ? (
               <Card>
@@ -750,11 +771,11 @@ const AIOptimizationPage = () => {
               </Card>
             ) : (
               jobs.map((job) => (
-                <Card key={job.id}>
+                <Card key={job.id} className={job.status === 'active' ? 'border-blue-200 bg-blue-50/50' : ''}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={`h-3 w-3 rounded-full ${getStatusColor(job.status)}`} />
+                        <div className={`h-3 w-3 rounded-full ${getStatusColor(job.status)} ${job.status === 'active' ? 'animate-pulse' : ''}`} />
                         <div>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="flex items-center gap-1">
@@ -771,12 +792,55 @@ const AIOptimizationPage = () => {
                             Started {formatDate(job.data.createdAt)}
                             {job.finishedOn && ` • Finished ${formatDate(job.finishedOn)}`}
                           </p>
+                          
+                          {/* Show current activity for active jobs */}
+                          {job.status === 'active' && (
+                            <p className="text-sm text-blue-600 mt-1 font-medium">
+                              🤖 Analyzing products and generating optimizations...
+                            </p>
+                          )}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          {job.result && (
+                          {/* Show progress for active jobs */}
+                          {job.status === 'active' && job.progress && (
+                            <div className="w-48">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium">
+                                  {job.progress.current || 0}/{job.progress.total || 100}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                  {Math.round(job.progress.percentage || 0)}%
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                  style={{ width: `${Math.min(job.progress.percentage || 0, 100)}%` }}
+                                ></div>
+                              </div>
+                              {job.eta && job.eta !== 'Calculating...' && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {job.eta}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          
+                          {/* Show waiting status */}
+                          {job.status === 'waiting' && (
+                            <div className="text-center">
+                              <p className="text-sm font-medium text-orange-600">Queued</p>
+                              <p className="text-xs text-muted-foreground">
+                                Waiting to start...
+                              </p>
+                            </div>
+                          )}
+                          
+                          {/* Show completed results */}
+                          {job.result && job.status === 'completed' && (
                             <div>
                               <p className="font-semibold">
                                 {job.result.totalProducts || 0} products
@@ -786,6 +850,8 @@ const AIOptimizationPage = () => {
                               </p>
                             </div>
                           )}
+                          
+                          {/* Show failed reason */}
                           {job.failedReason && (
                             <p className="text-sm text-red-600">
                               Failed: {job.failedReason}
@@ -805,6 +871,38 @@ const AIOptimizationPage = () => {
                         )}
                       </div>
                     </div>
+                    
+                    {/* Detailed next steps for active jobs */}
+                    {job.status === 'active' && (
+                      <div className="mt-4 pt-4 border-t border-blue-100">
+                        <div className="bg-blue-50 rounded-lg p-3">
+                          <h4 className="text-sm font-semibold text-blue-900 mb-2">What's happening now:</h4>
+                          <div className="space-y-2 text-sm text-blue-800">
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 bg-blue-600 rounded-full animate-pulse"></div>
+                              <span>AI is analyzing your product descriptions</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 bg-blue-400 rounded-full"></div>
+                              <span>Generating optimization suggestions</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="h-2 w-2 bg-gray-300 rounded-full"></div>
+                              <span>Creating actionable recommendations</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-amber-50 rounded-lg p-3 mt-3">
+                          <h4 className="text-sm font-semibold text-amber-900 mb-2">Next steps:</h4>
+                          <div className="space-y-1 text-sm text-amber-800">
+                            <p>• Review generated suggestions when scan completes</p>
+                            <p>• Accept or reject individual recommendations</p>
+                            <p>• Apply approved optimizations to your products</p>
+                            <p>• Track performance improvements over time</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))
