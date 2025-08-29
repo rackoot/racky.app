@@ -236,13 +236,11 @@ const ProductHistorySchema = new Schema<IProductHistory>({
   
   // Related entities
   relatedJobId: {
-    type: String,
-    index: true
+    type: String
   },
   
   relatedBatchId: {
-    type: String,
-    index: true
+    type: String
   },
   
   parentHistoryId: {

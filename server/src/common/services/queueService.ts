@@ -119,7 +119,7 @@ class QueueService {
       port: parseInt(redisUrl.port) || 6379,
       host: redisUrl.hostname || 'localhost',
       connectTimeout: 60000,
-      lazyConnect: true,
+      lazyConnect: false, // Changed to false to connect immediately
     };
 
     // Update default options with environment-specific Redis config
@@ -137,13 +137,27 @@ class QueueService {
     ];
 
     try {
+      const queuePromises = [];
+      
       for (const queueName of queueNames) {
         const queue = new Bull(queueName, queueOptions);
         this.queues.set(queueName, queue);
 
         // Set up queue event listeners
         this.setupQueueEvents(queue, queueName);
+        
+        // Wait for queue to be ready
+        queuePromises.push(
+          new Promise((resolve) => {
+            queue.on('ready', () => resolve(queueName));
+            // Add timeout in case ready event doesn't fire
+            setTimeout(() => resolve(queueName), 2000);
+          })
+        );
       }
+      
+      // Wait for all queues to be ready
+      await Promise.all(queuePromises);
 
       console.log('✅ Queue service initialized with Redis:', `${redisConfig.host}:${redisConfig.port}`);
       this.isInitialized = true;

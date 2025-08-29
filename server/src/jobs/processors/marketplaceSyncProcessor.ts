@@ -1,8 +1,7 @@
 import { Job } from 'bull';
-import {
+import queueService, {
   MarketplaceSyncJobData,
   ProductBatchJobData,
-  queueService,
   JobType,
   JobPriority,
 } from '@/common/services/queueService';
@@ -55,7 +54,7 @@ export class MarketplaceSyncProcessor {
 
       // Fetch product list from marketplace
       console.log(`📊 Fetching product list from ${marketplace}...`);
-      const productList = await this.fetchMarketplaceProducts(
+      const productList = await MarketplaceSyncProcessor.fetchMarketplaceProducts(
         marketplace,
         connection.credentials
       );
@@ -66,7 +65,7 @@ export class MarketplaceSyncProcessor {
       await job.progress(30);
 
       // Calculate batches
-      const batchSize = this.BATCH_SIZE;
+      const batchSize = MarketplaceSyncProcessor.BATCH_SIZE;
       const totalBatches = Math.ceil(totalProducts / batchSize);
 
       // Create batch jobs
@@ -176,14 +175,14 @@ export class MarketplaceSyncProcessor {
           await job.progress(progressPercentage);
 
           // Fetch product details from marketplace
-          const productData = await this.fetchProductDetails(
+          const productData = await MarketplaceSyncProcessor.fetchProductDetails(
             marketplace,
             productId,
             connection.credentials
           );
 
           // Save or update product in database
-          const savedProduct = await this.saveProduct(userId, workspaceId, connectionId, marketplace, productData);
+          const savedProduct = await MarketplaceSyncProcessor.saveProduct(userId, workspaceId, connectionId, marketplace, productData);
 
           // Create history entry for successful sync
           await ProductHistoryService.createSyncHistory({
@@ -233,7 +232,7 @@ export class MarketplaceSyncProcessor {
         }
 
         // Add small delay to respect rate limits
-        await this.delay(100);
+        await MarketplaceSyncProcessor.delay(100);
       }
 
       await job.progress(100);
@@ -266,13 +265,13 @@ export class MarketplaceSyncProcessor {
     try {
       switch (marketplace.toLowerCase()) {
         case 'shopify':
-          return await this.fetchShopifyProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchShopifyProducts(credentials);
         case 'vtex':
-          return await this.fetchVtexProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchVtexProducts(credentials);
         case 'woocommerce':
-          return await this.fetchWooCommerceProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchWooCommerceProducts(credentials);
         case 'mercadolibre':
-          return await this.fetchMercadoLibreProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchMercadoLibreProducts(credentials);
         default:
           throw new Error(`Marketplace ${marketplace} not supported for batch sync`);
       }
@@ -295,9 +294,9 @@ export class MarketplaceSyncProcessor {
     try {
       switch (marketplace.toLowerCase()) {
         case 'shopify':
-          return await this.fetchShopifyProductDetails(productId, credentials);
+          return await MarketplaceSyncProcessor.fetchShopifyProductDetails(productId, credentials);
         case 'vtex':
-          return await this.fetchVtexProductDetails(productId, credentials);
+          return await MarketplaceSyncProcessor.fetchVtexProductDetails(productId, credentials);
         default:
           throw new Error(`Product details fetch not implemented for ${marketplace}`);
       }
@@ -454,5 +453,5 @@ export class MarketplaceSyncProcessor {
 /**
  * Job processor function for Bull queue
  */
-export const processMarketplaceSync = MarketplaceSyncProcessor.processMarketplaceSync;
-export const processProductBatch = MarketplaceSyncProcessor.processProductBatch;
+export const processMarketplaceSync = MarketplaceSyncProcessor.processMarketplaceSync.bind(MarketplaceSyncProcessor);
+export const processProductBatch = MarketplaceSyncProcessor.processProductBatch.bind(MarketplaceSyncProcessor);

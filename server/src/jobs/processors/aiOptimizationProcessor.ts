@@ -1,8 +1,7 @@
 import { Job } from 'bull';
-import {
+import queueService, {
   AIOptimizationScanJobData,
   AIDescriptionBatchJobData,
-  queueService,
   JobType,
   JobPriority,
 } from '@/common/services/queueService';
@@ -113,7 +112,7 @@ export class AIOptimizationProcessor {
       await job.progress(50);
 
       // Calculate batches
-      const batchSize = this.BATCH_SIZE;
+      const batchSize = AIOptimizationProcessor.BATCH_SIZE;
       const totalBatches = Math.ceil(totalProducts / batchSize);
 
       // Create batch jobs
@@ -341,7 +340,7 @@ export class AIOptimizationProcessor {
 
         // Add delay between AI calls to respect rate limits
         if (i < products.length - 1) {
-          await this.delay(2000); // 2-second delay between products
+          await AIOptimizationProcessor.delay(2000); // 2-second delay between products
         }
       }
 
@@ -374,5 +373,5 @@ export class AIOptimizationProcessor {
 /**
  * Job processor functions for Bull queue
  */
-export const processAIOptimizationScan = AIOptimizationProcessor.processAIOptimizationScan;
-export const processAIDescriptionBatch = AIOptimizationProcessor.processAIDescriptionBatch;
+export const processAIOptimizationScan = AIOptimizationProcessor.processAIOptimizationScan.bind(AIOptimizationProcessor);
+export const processAIDescriptionBatch = AIOptimizationProcessor.processAIDescriptionBatch.bind(AIOptimizationProcessor);
