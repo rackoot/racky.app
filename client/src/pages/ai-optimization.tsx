@@ -8,8 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Filter, Search, Store } from 'lucide-react';
+import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Filter, Search, Store, Eye, Package, Hash } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SimpleOpportunitiesList } from '@/components/ai-optimization/simple-opportunities-list';
 import { marketplaceService } from '@/services/marketplace';
 import type { Marketplace } from '@/types/marketplace';
@@ -37,12 +38,52 @@ interface AIJob {
   failedReason?: string;
 }
 
+interface JobDetails {
+  job: AIJob & { name: string };
+  batches: Array<{
+    id: string;
+    status: string;
+    batchNumber: number;
+    totalBatches: number;
+    productCount: number;
+    progress?: number;
+    result?: any;
+    failedReason?: string;
+    createdAt: number;
+    finishedOn?: number;
+  }>;
+  products: Array<{
+    id: string;
+    title: string;
+    externalId: string;
+    marketplace: string;
+    image?: string;
+    status: 'pending' | 'optimized' | 'failed';
+    optimizedAt?: string;
+    actions: Array<{
+      type: string;
+      status: string;
+      createdAt: string;
+      completedAt?: string;
+    }>;
+  }>;
+  summary: {
+    totalProducts: number;
+    optimized: number;
+    failed: number;
+    pending: number;
+  };
+}
+
 const AIOptimizationPage = () => {
   const { currentWorkspace } = useWorkspace();
   const [jobs, setJobs] = useState<AIJob[]>([]);
   const [loading, setLoading] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [activeJob, setActiveJob] = useState<AIJob | null>(null);
+  const [selectedJobDetails, setSelectedJobDetails] = useState<JobDetails | null>(null);
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Connected marketplaces
@@ -138,6 +179,43 @@ const AIOptimizationPage = () => {
       console.error('Error loading AI jobs:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch job details
+  const fetchJobDetails = async (jobId: string) => {
+    if (!currentWorkspace || !currentWorkspace._id) {
+      return;
+    }
+
+    setDetailsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/opportunities/ai/job/${jobId}/details`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'X-Workspace-ID': currentWorkspace._id,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch job details');
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        setSelectedJobDetails(result.data);
+        setDetailsModalOpen(true);
+      } else {
+        setError(result.message || 'Failed to fetch job details');
+      }
+    } catch (err: any) {
+      console.error('Error fetching job details:', err);
+      setError('Failed to fetch job details');
+    } finally {
+      setDetailsLoading(false);
     }
   };
 
@@ -610,21 +688,35 @@ const AIOptimizationPage = () => {
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        {job.result && (
-                          <div>
-                            <p className="font-semibold">
-                              {job.result.totalProducts || 0} products
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          {job.result && (
+                            <div>
+                              <p className="font-semibold">
+                                {job.result.totalProducts || 0} products
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {job.result.totalBatches || 0} batches
+                              </p>
+                            </div>
+                          )}
+                          {job.failedReason && (
+                            <p className="text-sm text-red-600">
+                              Failed: {job.failedReason}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                              {job.result.totalBatches || 0} batches
-                            </p>
-                          </div>
-                        )}
-                        {job.failedReason && (
-                          <p className="text-sm text-red-600">
-                            Failed: {job.failedReason}
-                          </p>
+                          )}
+                        </div>
+                        {job.status === 'completed' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => fetchJobDetails(job.id)}
+                            disabled={detailsLoading}
+                            className="flex items-center gap-2"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View Details
+                          </Button>
                         )}
                       </div>
                     </div>
@@ -635,6 +727,160 @@ const AIOptimizationPage = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Job Details Modal */}
+      <Dialog open={detailsModalOpen} onOpenChange={setDetailsModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          {selectedJobDetails && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  AI Scan Details
+                </DialogTitle>
+                <DialogDescription>
+                  Scan ID: {selectedJobDetails.job.id} • {formatDate(selectedJobDetails.job.createdAt)}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="h-[60vh] overflow-y-auto mt-4">
+                <div className="space-y-6 pr-4">
+                  {/* Summary Section */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Total Products</span>
+                        </div>
+                        <p className="text-2xl font-bold">{selectedJobDetails.summary.totalProducts}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium">Optimized</span>
+                        </div>
+                        <p className="text-2xl font-bold text-green-600">{selectedJobDetails.summary.optimized}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <XCircle className="h-4 w-4 text-red-600" />
+                          <span className="text-sm font-medium">Failed</span>
+                        </div>
+                        <p className="text-2xl font-bold text-red-600">{selectedJobDetails.summary.failed}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="h-4 w-4 text-yellow-600" />
+                          <span className="text-sm font-medium">Pending</span>
+                        </div>
+                        <p className="text-2xl font-bold text-yellow-600">{selectedJobDetails.summary.pending}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Batches Section */}
+                  {selectedJobDetails.batches.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                        <Hash className="h-4 w-4" />
+                        Processing Batches ({selectedJobDetails.batches.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {selectedJobDetails.batches.map((batch) => (
+                          <Card key={batch.id}>
+                            <CardContent className="p-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <Badge variant={batch.status === 'completed' ? 'default' : 'secondary'}>
+                                    Batch {batch.batchNumber}/{batch.totalBatches}
+                                  </Badge>
+                                  <span className="text-sm text-muted-foreground">
+                                    {batch.productCount} products
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {batch.progress !== undefined && batch.progress < 100 && (
+                                    <Progress value={batch.progress} className="w-20" />
+                                  )}
+                                  <Badge variant={batch.status === 'completed' ? 'default' : 'outline'}>
+                                    {batch.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                              {batch.result && (
+                                <div className="mt-2 text-sm text-muted-foreground">
+                                  Processed: {batch.result.processedCount || 0} • Failed: {batch.result.failedCount || 0}
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Products Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Products Analyzed ({selectedJobDetails.products.length})
+                    </h3>
+                    <div className="grid gap-2">
+                      {selectedJobDetails.products.map((product) => (
+                        <Card key={product.id}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {product.image && (
+                                  <img 
+                                    src={product.image} 
+                                    alt={product.title}
+                                    className="w-10 h-10 object-cover rounded"
+                                  />
+                                )}
+                                <div>
+                                  <p className="font-medium">{product.title}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-xs text-muted-foreground">
+                                      {product.externalId}
+                                    </span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {product.marketplace}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                              <Badge 
+                                variant={
+                                  product.status === 'optimized' ? 'default' : 
+                                  product.status === 'failed' ? 'destructive' : 
+                                  'secondary'
+                                }
+                              >
+                                {product.status === 'optimized' && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                                {product.status === 'failed' && <XCircle className="h-3 w-3 mr-1" />}
+                                {product.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                                {product.status}
+                              </Badge>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
