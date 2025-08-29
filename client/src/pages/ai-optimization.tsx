@@ -97,9 +97,10 @@ const AIOptimizationPage = () => {
   const [scanSuccess, setScanSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
   
-  // Connected marketplaces
+  // Connected marketplaces and availability
   const [connectedMarketplaces, setConnectedMarketplaces] = useState<Marketplace[]>([]);
   const [marketplacesLoading, setMarketplacesLoading] = useState(false);
+  const [marketplaceAvailability, setMarketplaceAvailability] = useState<any[]>([]);
   
   // Helper function to check if any scan is active/waiting
   const hasActiveScan = () => {
@@ -112,26 +113,22 @@ const AIOptimizationPage = () => {
     return activeJob?.data.filters?.marketplace;
   };
   
-  // Helper function to get available marketplaces (connected, has products, and not running scans)
+  // Helper function to get available marketplaces using availability data
   const getAvailableMarketplaces = React.useCallback(() => {
-    // Get all marketplaces that have active or waiting scans
-    const busyMarketplaces = jobs
-      .filter(job => job.status === 'waiting' || job.status === 'active')
-      .map(job => job.data.filters?.marketplace)
-      .filter(Boolean);
+    if (marketplaceAvailability.length === 0) {
+      return []; // No availability data yet
+    }
     
-    console.log('Busy marketplaces:', busyMarketplaces);
-    console.log('Connected marketplaces:', connectedMarketplaces.map(mp => mp.id));
+    // Get available marketplaces from availability data and match with connected marketplaces
+    const availableMarketplaceIds = marketplaceAvailability
+      .filter(mp => mp.available)
+      .map(mp => mp.marketplace);
     
-    // Return marketplaces that are connected, have products, and not busy
-    const available = connectedMarketplaces.filter(mp => 
-      !busyMarketplaces.includes(mp.id) && 
-      mp.connectionInfo && 
-      mp.connectionInfo.productsCount > 0
+    return connectedMarketplaces.filter(mp => 
+      availableMarketplaceIds.includes(mp.id) && 
+      mp.connectionInfo
     );
-    console.log('Available marketplaces:', available.map(mp => mp.id));
-    return available;
-  }, [jobs, connectedMarketplaces]);
+  }, [marketplaceAvailability, connectedMarketplaces]);
   
   // Scan filters
   const [marketplace, setMarketplace] = useState<string>('');
@@ -164,7 +161,6 @@ const AIOptimizationPage = () => {
         setMarketplace(available.length > 0 ? available[0].id : '');
       }
     } catch (err) {
-      console.error('Error loading connected marketplaces:', err);
       setError('Failed to load connected marketplaces');
     } finally {
       setMarketplacesLoading(false);
@@ -194,7 +190,6 @@ const AIOptimizationPage = () => {
       }
       
       const data = await response.json();
-      console.log('Jobs API response:', data); // Debug log
       setJobs(data.data?.jobs || data.data || []);
       
       // Find active job for monitoring
@@ -206,7 +201,6 @@ const AIOptimizationPage = () => {
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load AI jobs');
-      console.error('Error loading AI jobs:', err);
     } finally {
       setLoading(false);
     }
@@ -242,7 +236,6 @@ const AIOptimizationPage = () => {
         setError(result.message || 'Failed to fetch job details');
       }
     } catch (err: any) {
-      console.error('Error fetching job details:', err);
       setError('Failed to fetch job details');
     } finally {
       setDetailsLoading(false);
@@ -251,8 +244,6 @@ const AIOptimizationPage = () => {
 
   // Start AI scan
   const startAIScan = async () => {
-    console.log('startAIScan called');
-    
     if (!currentWorkspace || !currentWorkspace._id) {
       setError('No workspace selected');
       return;
@@ -260,7 +251,6 @@ const AIOptimizationPage = () => {
     
     // Prevent multiple calls while already loading
     if (scanLoading) {
-      console.log('Scan already in progress, ignoring call');
       return;
     }
     
@@ -306,7 +296,6 @@ const AIOptimizationPage = () => {
       }
       
       const data = await response.json();
-      console.log('AI scan started:', data);
       
       // Show success feedback
       setScanSuccess(true);
@@ -323,7 +312,6 @@ const AIOptimizationPage = () => {
       setCreatedAfter('');
       
       // Reload jobs and marketplaces to ensure form is updated
-      console.log('Reloading jobs and marketplaces after scan start...');
       await Promise.all([
         loadJobs(),
         loadConnectedMarketplaces()
@@ -335,17 +323,9 @@ const AIOptimizationPage = () => {
       // Reload jobs again to make sure we have the latest state
       await loadJobs();
       
-      // Force a re-evaluation by triggering a state update
+      // Small delay for state updates
       setTimeout(() => {
-        const currentlyAvailable = getAvailableMarketplaces();
-        console.log(`Final check - Used marketplace: ${usedMarketplace}`);
-        console.log('Available marketplaces after final reload:', currentlyAvailable.map(mp => mp.id));
-        console.log('Current jobs:', jobs.map(j => ({ id: j.id, status: j.status, marketplace: j.data.filters?.marketplace })));
-        
-        // If the used marketplace is still showing as available, something went wrong
-        if (currentlyAvailable.find(mp => mp.id === usedMarketplace)) {
-          console.warn(`WARNING: Marketplace ${usedMarketplace} is still showing as available after starting a scan!`);
-        }
+        // Allow UI to update
       }, 100);
       
       // Clear success message after 5 seconds
@@ -358,7 +338,6 @@ const AIOptimizationPage = () => {
       setError(err instanceof Error ? err.message : 'Failed to start AI scan');
       setScanSuccess(false);
       setSuccessMessage('');
-      console.error('Error starting AI scan:', err);
     } finally {
       setScanLoading(false);
     }
@@ -390,7 +369,6 @@ const AIOptimizationPage = () => {
           }
         }
       } catch (err) {
-        console.error('Error polling job status:', err);
       }
     };
     
@@ -615,15 +593,28 @@ const AIOptimizationPage = () => {
                 )}
                 
                 {/* Show message when no marketplaces are available */}
-                {connectedMarketplaces.length > 0 && getAvailableMarketplaces().length === 0 && !marketplacesLoading ? (
+                {connectedMarketplaces.length > 0 && getAvailableMarketplaces().length === 0 && !marketplacesLoading && marketplaceAvailability.length > 0 ? (
                   <Alert>
                     <Clock className="h-4 w-4" />
                     <AlertDescription>
                       <div className="space-y-2">
-                        <p className="font-medium">All marketplaces are currently running scans</p>
+                        <p className="font-medium">
+                          {marketplaceAvailability.some(mp => mp.reason === 'scan_in_progress')
+                            ? 'All marketplaces are currently running scans'
+                            : marketplaceAvailability.some(mp => mp.reason === 'cooldown_24h')
+                            ? 'All marketplaces are on cooldown (scanned within 24 hours)'
+                            : marketplaceAvailability.some(mp => mp.reason === 'no_products')
+                            ? 'No products available in connected marketplaces'
+                            : 'No marketplaces available for scanning'}
+                        </p>
                         <p className="text-sm">
-                          Please wait for existing scans to complete before starting a new one. 
-                          You can monitor the progress in the <strong>Scan History</strong> tab.
+                          {marketplaceAvailability.some(mp => mp.reason === 'scan_in_progress')
+                            ? 'Please wait for existing scans to complete before starting a new one. You can monitor the progress in the Scan History tab.'
+                            : marketplaceAvailability.some(mp => mp.reason === 'cooldown_24h')
+                            ? 'Marketplaces can only be scanned once every 24 hours. Please wait for the cooldown to expire.'
+                            : marketplaceAvailability.some(mp => mp.reason === 'no_products')
+                            ? 'Please sync some products from your marketplaces before running an AI scan.'
+                            : 'Make sure your marketplaces have products available for scanning.'}
                         </p>
                       </div>
                     </AlertDescription>

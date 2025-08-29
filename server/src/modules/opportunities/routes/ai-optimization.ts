@@ -42,9 +42,10 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!._id.toString();
     const workspaceId = req.workspace!._id.toString();
 
-    // If marketplace is specified, validate it has products
+    // If marketplace is specified, validate it has products and check for running scans
     if (marketplace) {
       const ProductModel = (await import('@/products/models/Product')).default;
+      const ProductHistory = (await import('@/products/models/ProductHistory')).default;
       
       const productCount = await ProductModel.countDocuments({
         workspaceId,
@@ -58,7 +59,88 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
         });
       }
 
-      console.log(`Validated marketplace "${marketplace}" has ${productCount} products`);
+
+      // Check for active or waiting scans for this marketplace
+      const aiQueue = queueService.getQueue('ai-optimization');
+      const [waitingJobs, activeJobs] = await Promise.all([
+        aiQueue.getWaiting(),
+        aiQueue.getActive()
+      ]);
+
+      const runningJobs = [...waitingJobs, ...activeJobs].filter(job => 
+        job.data.userId === userId && 
+        job.data.workspaceId === workspaceId && 
+        job.data.filters?.marketplace === marketplace
+      );
+
+      if (runningJobs.length > 0) {
+        const jobStatus = runningJobs[0].opts?.delay ? 'waiting' : 'active';
+        return res.status(409).json({
+          success: false,
+          message: `A scan is already ${jobStatus} for marketplace "${marketplace}". Please wait for it to complete before starting a new scan.`,
+          data: {
+            existingJobId: runningJobs[0].id,
+            status: jobStatus
+          }
+        });
+      }
+
+      // Check for recent scans (last 24 hours) and filter products
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      // Find products that have been scanned in the last 24 hours
+      const recentlyScannedProducts = await ProductHistory.find({
+        workspaceId,
+        actionType: 'AI_OPTIMIZATION_GENERATED',
+        createdAt: { $gte: twentyFourHoursAgo },
+        'metadata.marketplace': marketplace
+      }).distinct('productId');
+
+      // Build product filters for scan
+      let productFilters: any = { workspaceId, marketplace };
+      
+      // Apply user filters
+      if (createdAfter) {
+        productFilters.createdAt = { $gte: new Date(createdAfter) };
+      }
+      if (minDescriptionLength || maxDescriptionLength) {
+        const descConditions: any[] = [];
+        if (minDescriptionLength) {
+          descConditions.push({ $gte: [{ $strLenCP: "$description" }, minDescriptionLength] });
+        }
+        if (maxDescriptionLength) {
+          descConditions.push({ $lte: [{ $strLenCP: "$description" }, maxDescriptionLength] });
+        }
+        productFilters.$expr = {
+          $and: descConditions
+        };
+      }
+
+      // Exclude recently scanned products (unless they're new products created after the last scan)
+      if (recentlyScannedProducts.length > 0) {
+        productFilters._id = { $nin: recentlyScannedProducts };
+      }
+
+      // Count products available for scanning
+      const availableProductCount = await ProductModel.countDocuments(productFilters);
+
+      if (availableProductCount === 0) {
+        const allProductsRecentlyScanned = recentlyScannedProducts.length === productCount;
+        
+        return res.status(400).json({
+          success: false,
+          message: allProductsRecentlyScanned 
+            ? `All ${productCount} products in marketplace "${marketplace}" were scanned within the last 24 hours. Please wait before scanning again.`
+            : `No products match the specified filters for marketplace "${marketplace}".`,
+          data: {
+            totalProducts: productCount,
+            recentlyScanned: recentlyScannedProducts.length,
+            availableForScan: availableProductCount,
+            cooldownEndsAt: allProductsRecentlyScanned ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null
+          }
+        });
+      }
+
     }
 
     // Create AI optimization scan job
@@ -101,6 +183,127 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to start AI optimization scan',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/opportunities/ai/marketplace-availability
+ * Check which marketplaces are available for AI scanning
+ */
+router.get('/marketplace-availability', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!._id.toString();
+    const workspaceId = req.workspace!._id.toString();
+
+    const ProductHistory = (await import('@/products/models/ProductHistory')).default;
+    const { ProductCountService } = await import('@/products/services/productCountService');
+
+    // Use the unified product count service to get marketplace counts
+    const marketplaceCounts = await ProductCountService.getProductCountsByMarketplace(workspaceId);
+
+    // Convert to the format expected by the rest of the function
+    const marketplacesWithProducts = marketplaceCounts.map(mc => ({
+      _id: mc.marketplace,
+      totalProducts: mc.totalProducts,
+      lastCreated: mc.lastCreated
+    }));
+    
+    // Check for running jobs
+    const aiQueue = queueService.getQueue('ai-optimization');
+    const [waitingJobs, activeJobs] = await Promise.all([
+      aiQueue.getWaiting(),
+      aiQueue.getActive()
+    ]);
+    
+    // Filter jobs by user AND workspace and extract marketplace info
+    const userJobs = [...waitingJobs, ...activeJobs].filter(job => 
+      job.data.userId === userId && job.data.workspaceId === workspaceId
+    );
+    
+    const runningScans = userJobs.reduce((acc: any, job) => {
+      if (job.data.filters?.marketplace) {
+        acc[job.data.filters.marketplace] = {
+          jobId: job.id,
+          status: job.processedOn ? 'active' : 'waiting',
+          startedAt: job.timestamp
+        };
+      }
+      return acc;
+    }, {});
+
+    // Check for recent scans (last 24 hours)
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const marketplaceAvailability = await Promise.all(
+      marketplacesWithProducts.map(async (mp) => {
+        const marketplace = mp._id;
+        
+        // Check if marketplace has 0 products
+        if (mp.totalProducts === 0) {
+          return {
+            marketplace,
+            totalProducts: 0,
+            available: false,
+            reason: 'no_products',
+            recentlyScanned: 0,
+            availableProducts: 0
+          };
+        }
+        
+        // Check if there's a running scan
+        if (runningScans[marketplace]) {
+          return {
+            marketplace,
+            totalProducts: mp.totalProducts,
+            available: false,
+            reason: 'scan_in_progress',
+            runningScan: runningScans[marketplace]
+          };
+        }
+
+        // Check recently scanned products
+        const recentlyScannedProducts = await ProductHistory.find({
+          workspaceId,
+          actionType: 'AI_OPTIMIZATION_GENERATED',
+          createdAt: { $gte: twentyFourHoursAgo },
+          'metadata.marketplace': marketplace
+        }).distinct('productId');
+
+        const availableProductCount = mp.totalProducts - recentlyScannedProducts.length;
+        const allProductsRecentlyScanned = recentlyScannedProducts.length === mp.totalProducts && mp.totalProducts > 0;
+
+        return {
+          marketplace,
+          totalProducts: mp.totalProducts,
+          recentlyScanned: recentlyScannedProducts.length,
+          availableProducts: availableProductCount,
+          available: availableProductCount > 0,
+          reason: allProductsRecentlyScanned ? 'cooldown_24h' : availableProductCount === 0 ? 'no_products_match' : null,
+          cooldownEndsAt: allProductsRecentlyScanned ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        marketplaces: marketplaceAvailability,
+        summary: {
+          total: marketplaceAvailability.length,
+          available: marketplaceAvailability.filter(m => m.available).length,
+          runningScans: Object.keys(runningScans).length,
+          onCooldown: marketplaceAvailability.filter(m => m.reason === 'cooldown_24h').length
+        }
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error checking marketplace availability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check marketplace availability',
       error: error.message
     });
   }
@@ -234,7 +437,6 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
     
     // Get all related job IDs (main job + child batch jobs)
     const relatedJobIds = [jobId, ...childBatchJobs.map(j => j.id!.toString())];
-    console.log(`Looking for history entries with job IDs: ${relatedJobIds.join(', ')}`);
     
     // Get ALL products that match the scan filters, not just those with history entries
     let scanFilters: any = { workspaceId };
@@ -264,14 +466,12 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
       }
     }
     
-    console.log('Scan filters:', JSON.stringify(scanFilters));
     
     // Get all products that should be part of this scan
     const allScanProducts = await ProductModel.find(scanFilters)
       .select('title externalId marketplace images description createdAt')
       .lean();
     
-    console.log(`Found ${allScanProducts.length} products matching scan criteria`);
     
     // Find history entries for products that were processed
     const historyEntries = await ProductHistory.find({
@@ -283,14 +483,11 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
     .sort({ createdAt: 1 })
     .lean();
     
-    console.log(`Found ${historyEntries.length} history entries for jobs ${relatedJobIds.join(', ')}`);
 
     // Get product IDs from both scan results and history
     const allProductIds = allScanProducts.map(p => p._id);
     const historyProductIds = historyEntries.map(entry => entry.productId?._id).filter(Boolean);
     
-    console.log(`All scan product IDs: ${allProductIds.map(id => id.toString()).join(', ')}`);
-    console.log(`History product IDs: ${historyProductIds.map(id => id.toString()).join(', ')}`);
     
     // Get AI-generated opportunities for description suggestions with prompts
     const OpportunityModel = (await import('@/opportunities/models/Opportunity')).default;
@@ -300,7 +497,6 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
       category: 'description'
     }).lean();
     
-    console.log(`Found ${aiOpportunities.length} AI description opportunities`);
 
     // Map child batch jobs to response format (already retrieved above)
     const batchJobs = childBatchJobs.map(j => ({

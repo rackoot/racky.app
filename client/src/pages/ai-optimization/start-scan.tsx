@@ -45,9 +45,10 @@ const AIStartScanPage = () => {
   const [scanSuccess, setScanSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string>('');
   
-  // Connected marketplaces
+  // Connected marketplaces and their availability
   const [connectedMarketplaces, setConnectedMarketplaces] = useState<Marketplace[]>([]);
   const [marketplacesLoading, setMarketplacesLoading] = useState(false);
+  const [marketplaceAvailability, setMarketplaceAvailability] = useState<any[]>([]);
   
   // Helper function to check if any scan is active/waiting
   const hasActiveScan = () => {
@@ -60,28 +61,62 @@ const AIStartScanPage = () => {
     return activeJob?.data.filters?.marketplace;
   };
   
-  // Helper function to get available marketplaces (connected, has products, and not running scans)
+  // Helper function to get available marketplaces using availability data
   const getAvailableMarketplaces = React.useCallback(() => {
-    // Get all marketplaces that have active or waiting scans
-    const busyMarketplaces = jobs
-      .filter(job => job.status === 'waiting' || job.status === 'active')
-      .map(job => job.data.filters?.marketplace)
-      .filter(Boolean);
+    if (marketplaceAvailability.length === 0) {
+      return []; // No availability data yet
+    }
     
-    // Return marketplaces that are connected, have products, and not busy
-    const available = connectedMarketplaces.filter(mp => 
-      !busyMarketplaces.includes(mp.id) && 
-      mp.connectionInfo && 
-      mp.connectionInfo.productsCount > 0
+    // Get available marketplaces from availability data and match with connected marketplaces
+    const availableMarketplaceIds = marketplaceAvailability
+      .filter(mp => mp.available)
+      .map(mp => mp.marketplace);
+    
+    return connectedMarketplaces.filter(mp => 
+      availableMarketplaceIds.includes(mp.id) && 
+      mp.connectionInfo
     );
-    return available;
-  }, [jobs, connectedMarketplaces]);
+  }, [marketplaceAvailability, connectedMarketplaces]);
+  
+  // Helper function to get marketplace availability info
+  const getMarketplaceAvailabilityInfo = React.useCallback((marketplaceId: string) => {
+    return marketplaceAvailability.find(mp => mp.marketplace === marketplaceId);
+  }, [marketplaceAvailability]);
   
   // Scan filters
   const [marketplace, setMarketplace] = useState<string>('');
   const [minDescriptionLength, setMinDescriptionLength] = useState<string>('');
   const [maxDescriptionLength, setMaxDescriptionLength] = useState<string>('');
   const [createdAfter, setCreatedAfter] = useState<string>('');
+
+  // Load marketplace availability
+  const loadMarketplaceAvailability = async () => {
+    if (!currentWorkspace || !currentWorkspace._id) {
+      console.log('[DEBUG] No workspace selected, skipping marketplace availability load');
+      return;
+    }
+    
+    console.log('[DEBUG] Loading marketplace availability for workspace:', currentWorkspace._id);
+    
+    try {
+      const response = await fetch(`/api/opportunities/ai/marketplace-availability?t=${Date.now()}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'X-Workspace-ID': currentWorkspace._id,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[DEBUG] Marketplace availability response:', data);
+        setMarketplaceAvailability(data.data.marketplaces || []);
+      } else {
+        console.error('[DEBUG] Failed to load marketplace availability:', response.status, response.statusText);
+      }
+    } catch (err) {
+      console.error('[DEBUG] Error loading marketplace availability:', err);
+    }
+  };
 
   // Load connected marketplaces
   const loadConnectedMarketplaces = async () => {
@@ -99,21 +134,25 @@ const AIStartScanPage = () => {
       );
       setConnectedMarketplaces(connected);
       
-      // Auto-select first available marketplace if none selected or current selection is unavailable
-      const available = connected.filter(mp => mp.id !== getActiveMarketplace());
+    } catch (err) {
+      setError('Failed to load connected marketplaces');
+    } finally {
+      setMarketplacesLoading(false);
+    }
+  };
+
+  // Auto-select marketplace after availability data is loaded
+  React.useEffect(() => {
+    if (connectedMarketplaces.length > 0 && marketplaceAvailability.length > 0) {
+      const available = getAvailableMarketplaces();
       if (!marketplace && available.length > 0) {
         setMarketplace(available[0].id);
       } else if (marketplace && !available.find(mp => mp.id === marketplace)) {
         // Reset selection if currently selected marketplace is no longer available
         setMarketplace(available.length > 0 ? available[0].id : '');
       }
-    } catch (err) {
-      console.error('Error loading connected marketplaces:', err);
-      setError('Failed to load connected marketplaces');
-    } finally {
-      setMarketplacesLoading(false);
     }
-  };
+  }, [connectedMarketplaces, marketplaceAvailability, marketplace, getAvailableMarketplaces]);
 
   // Load AI jobs
   const loadJobs = async () => {
@@ -149,7 +188,6 @@ const AIStartScanPage = () => {
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load AI jobs');
-      console.error('Error loading AI jobs:', err);
     } finally {
       setLoading(false);
     }
@@ -224,10 +262,11 @@ const AIStartScanPage = () => {
       setMaxDescriptionLength('');
       setCreatedAfter('');
       
-      // Reload jobs and marketplaces to ensure form is updated
+      // Reload jobs, marketplaces and availability to ensure form is updated
       await Promise.all([
         loadJobs(),
-        loadConnectedMarketplaces()
+        loadConnectedMarketplaces(),
+        loadMarketplaceAvailability()
       ]);
       
       // Small delay to ensure the new job appears in the backend
@@ -246,7 +285,6 @@ const AIStartScanPage = () => {
       setError(err instanceof Error ? err.message : 'Failed to start AI scan');
       setScanSuccess(false);
       setSuccessMessage('');
-      console.error('Error starting AI scan:', err);
     } finally {
       setScanLoading(false);
     }
@@ -278,7 +316,6 @@ const AIStartScanPage = () => {
           }
         }
       } catch (err) {
-        console.error('Error polling job status:', err);
       }
     };
     
@@ -286,11 +323,12 @@ const AIStartScanPage = () => {
     return () => clearInterval(interval);
   }, [activeJob, currentWorkspace]);
 
-  // Load jobs and marketplaces on mount and workspace change
+  // Load jobs, marketplaces and availability on mount and workspace change
   useEffect(() => {
     if (currentWorkspace) {
       loadJobs();
       loadConnectedMarketplaces();
+      loadMarketplaceAvailability();
     }
   }, [currentWorkspace]);
 
@@ -491,15 +529,28 @@ const AIStartScanPage = () => {
             )}
             
             {/* Show message when no marketplaces are available */}
-            {connectedMarketplaces.length > 0 && getAvailableMarketplaces().length === 0 && !marketplacesLoading ? (
+            {connectedMarketplaces.length > 0 && getAvailableMarketplaces().length === 0 && !marketplacesLoading && marketplaceAvailability.length > 0 ? (
               <Alert>
                 <Clock className="h-4 w-4" />
                 <AlertDescription>
                   <div className="space-y-2">
-                    <p className="font-medium">All marketplaces are currently running scans</p>
+                    <p className="font-medium">
+                      {marketplaceAvailability.some(mp => mp.reason === 'scan_in_progress')
+                        ? 'All marketplaces are currently running scans'
+                        : marketplaceAvailability.some(mp => mp.reason === 'cooldown_24h')
+                        ? 'All marketplaces are on cooldown (scanned within 24 hours)'
+                        : marketplaceAvailability.some(mp => mp.reason === 'no_products')
+                        ? 'No products available in connected marketplaces'
+                        : 'No marketplaces available for scanning'}
+                    </p>
                     <p className="text-sm">
-                      Please wait for existing scans to complete before starting a new one. 
-                      You can monitor the progress in the <strong>Scan History</strong> page.
+                      {marketplaceAvailability.some(mp => mp.reason === 'scan_in_progress')
+                        ? 'Please wait for existing scans to complete before starting a new one. You can monitor the progress in the Scan History page.'
+                        : marketplaceAvailability.some(mp => mp.reason === 'cooldown_24h')
+                        ? 'Marketplaces can only be scanned once every 24 hours. Please wait for the cooldown to expire.'
+                        : marketplaceAvailability.some(mp => mp.reason === 'no_products')
+                        ? 'Please sync some products from your marketplaces before running an AI scan.'
+                        : 'Make sure your marketplaces have products available for scanning.'}
                     </p>
                   </div>
                 </AlertDescription>
@@ -521,19 +572,29 @@ const AIStartScanPage = () => {
                   } />
                 </SelectTrigger>
                 <SelectContent>
-                  {getAvailableMarketplaces().map((mp) => (
-                    <SelectItem key={mp.id} value={mp.id}>
-                      <div className="flex items-center gap-2">
-                        <Store className="h-4 w-4" />
-                        {mp.name}
-                        {mp.connectionInfo && (
-                          <Badge variant="secondary" className="text-xs">
-                            {mp.connectionInfo.productsCount} products
-                          </Badge>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {getAvailableMarketplaces().map((mp) => {
+                    const availabilityInfo = getMarketplaceAvailabilityInfo(mp.id);
+                    return (
+                      <SelectItem key={mp.id} value={mp.id}>
+                        <div className="flex items-center gap-2">
+                          <Store className="h-4 w-4" />
+                          {mp.name}
+                          {availabilityInfo && (
+                            <div className="flex gap-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {availabilityInfo.availableProducts || availabilityInfo.totalProducts} products
+                              </Badge>
+                              {availabilityInfo.recentlyScanned > 0 && (
+                                <Badge variant="outline" className="text-xs">
+                                  {availabilityInfo.recentlyScanned} recently scanned
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               {connectedMarketplaces.length === 0 && !marketplacesLoading && (
@@ -541,10 +602,30 @@ const AIStartScanPage = () => {
                   No marketplaces with products found. Please connect a marketplace and sync products first.
                 </p>
               )}
-              {hasActiveScan() && getAvailableMarketplaces().length < connectedMarketplaces.length && (
-                <p className="text-sm text-muted-foreground">
-                  Some marketplaces are unavailable due to running scans.
-                </p>
+              {marketplaceAvailability.length > 0 && getAvailableMarketplaces().length < connectedMarketplaces.length && (
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p>Some marketplaces are unavailable:</p>
+                  <ul className="text-xs space-y-1 ml-4">
+                    {marketplaceAvailability.filter(mp => !mp.available).map(mp => {
+                      const connectedMp = connectedMarketplaces.find(cm => cm.id === mp.marketplace);
+                      if (!connectedMp) return null;
+                      
+                      return (
+                        <li key={mp.marketplace} className="flex items-center gap-2">
+                          <span>• {connectedMp.name}:</span>
+                          {mp.reason === 'scan_in_progress' && <span>scan in progress</span>}
+                          {mp.reason === 'cooldown_24h' && <span>all products scanned in last 24h</span>}
+                          {mp.reason === 'no_products_match' && <span>no products match filters</span>}
+                          {mp.cooldownEndsAt && (
+                            <span className="text-xs opacity-75">
+                              (available {new Date(mp.cooldownEndsAt).toLocaleTimeString()})
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               )}
             </div>
 
