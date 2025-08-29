@@ -1,4 +1,4 @@
-import { workspacesApi } from '@/api'
+import { workspacesApi, subscriptionApi, workspaceUsageApi } from '@/api'
 import { getAuthHeaders } from '@/lib/utils'
 
 export interface WorkspaceSubscription {
@@ -102,26 +102,14 @@ export interface SubscriptionPreview {
 }
 
 export const getWorkspaceSubscription = async (workspaceId: string): Promise<WorkspaceSubscription> => {
-  return workspacesApi.getWorkspaceSubscription(workspaceId) as Promise<WorkspaceSubscription>
+  return subscriptionApi.getSubscription(workspaceId) as Promise<WorkspaceSubscription>
 };
 
 export const previewWorkspaceSubscriptionChange = async (
   workspaceId: string, 
   previewData: SubscriptionPreviewRequest
 ): Promise<SubscriptionPreview> => {
-  const response = await fetch(`/api/workspaces/${workspaceId}/subscription/preview`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(previewData)
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.data;
+  return subscriptionApi.previewSubscriptionChanges(workspaceId, previewData) as Promise<SubscriptionPreview>
 };
 
 export const updateWorkspaceSubscription = async (
@@ -130,7 +118,7 @@ export const updateWorkspaceSubscription = async (
 ): Promise<any> => {
   try {
     console.log('Updating workspace subscription:', { workspaceId, subscriptionData });
-    const result = await workspacesApi.updateWorkspaceSubscription(workspaceId, subscriptionData);
+    const result = await subscriptionApi.updateSubscription(workspaceId, subscriptionData);
     console.log('Subscription update successful:', result);
     return result;
   } catch (error) {
@@ -140,12 +128,11 @@ export const updateWorkspaceSubscription = async (
 };
 
 export const cancelWorkspaceSubscription = async (workspaceId: string): Promise<any> => {
-  // Using the generic delete method - this might need adjustment based on actual API
-  return workspacesApi.deleteWorkspace(workspaceId)
+  return subscriptionApi.cancelSubscription(workspaceId)
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {
-  return workspacesApi.getWorkspaceUsage(workspaceId) as any as Promise<WorkspaceUsage>
+  return workspaceUsageApi.getWorkspaceUsage(workspaceId) as Promise<WorkspaceUsage>
 };
 
 // Get available plans (public endpoint)

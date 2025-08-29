@@ -28,8 +28,9 @@ export const ENDPOINTS = {
     GET: (id: string) => `/workspaces/${id}`,
     UPDATE: (id: string) => `/workspaces/${id}`,
     DELETE: (id: string) => `/workspaces/${id}`,
-    SUBSCRIPTION: (id: string) => `/workspaces/${id}/subscription`,
-    USAGE: (id: string) => `/workspaces/${id}/usage`,
+    // Note: Subscription and usage moved to dedicated endpoints
+    // SUBSCRIPTION: (id: string) => `/workspaces/${id}/subscription`, // DEPRECATED
+    // USAGE: (id: string) => `/workspaces/${id}/usage`, // DEPRECATED
   },
   
   // Marketplaces
@@ -73,17 +74,28 @@ export const ENDPOINTS = {
     OPTIMIZE: (id: string) => `/opportunities/${id}/optimize`,
   },
   
-  // Subscriptions & Billing
-  BILLING: {
-    CHECKOUT_SESSION: '/billing/create-checkout-session',
-    PORTAL: '/billing/portal',
+  // Subscriptions (workspace-based)
+  SUBSCRIPTIONS: {
+    GET: (workspaceId: string) => `/subscription/${workspaceId}`,
+    PREVIEW: (workspaceId: string) => `/subscription/${workspaceId}/preview`,
+    UPDATE: (workspaceId: string) => `/subscription/${workspaceId}`,
+    CANCEL: (workspaceId: string) => `/subscription/${workspaceId}`,
   },
-  
-  // Usage
+
+  // Usage (workspace-based)
   USAGE: {
+    WORKSPACE: (workspaceId: string) => `/usage/${workspaceId}`,
+    // Legacy user-based routes (kept for backward compatibility)
     CURRENT: '/usage/current',
     TRENDS: '/usage/trends',
     HISTORY: '/usage/history',
+  },
+
+  // Billing (payment processing only)
+  BILLING: {
+    CHECKOUT_SESSION: '/billing/create-checkout-session',
+    UPDATE_CONTRIBUTORS: '/billing/update-contributors',
+    PORTAL: '/billing/portal',
   },
   
   // Plans

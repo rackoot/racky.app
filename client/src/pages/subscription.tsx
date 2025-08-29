@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { workspacesApi } from '@/api'
+import { subscriptionApi, workspaceUsageApi } from '@/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -146,8 +146,8 @@ export function Subscription() {
       setError(null)
 
       const [subscriptionResponse, usageResponse] = await Promise.all([
-        workspacesApi.getWorkspaceSubscription(currentWorkspace._id),
-        workspacesApi.getWorkspaceUsage(currentWorkspace._id)
+        subscriptionApi.getSubscription(currentWorkspace._id),
+        workspaceUsageApi.getWorkspaceUsage(currentWorkspace._id)
       ])
 
       setSubscriptionData(subscriptionResponse)
