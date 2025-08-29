@@ -182,6 +182,8 @@ const AIOptimizationPage = () => {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Workspace-ID': currentWorkspace._id,
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         },
       });
       
@@ -190,10 +192,11 @@ const AIOptimizationPage = () => {
       }
       
       const data = await response.json();
-      setJobs(data.data?.jobs || data.data || []);
+      const jobsList = data.data?.jobs || data.data || [];
+      
+      setJobs(jobsList);
       
       // Find active job for monitoring
-      const jobsList = data.data?.jobs || data.data || [];
       const active = jobsList.find((job: AIJob) => job.status === 'active');
       if (active) {
         setActiveJob(active);
@@ -843,10 +846,11 @@ const AIOptimizationPage = () => {
                           {job.result && job.status === 'completed' && (
                             <div>
                               <p className="font-semibold">
-                                {job.result.totalProducts || 0} products
+                                {job.result.totalProducts || job.result.processedCount || 0} products
                               </p>
                               <p className="text-sm text-muted-foreground">
-                                {job.result.totalBatches || 0} batches
+                                {job.result.totalBatches || 
+                                 (job.result.processedCount ? '1' : '0')} batches
                               </p>
                             </div>
                           )}

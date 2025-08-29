@@ -315,6 +315,8 @@ router.get('/marketplace-availability', async (req: AuthenticatedRequest, res: R
  */
 router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const userId = req.user!._id.toString();
+    const workspaceId = req.headers['x-workspace-id'] as string;
     const { jobId } = req.params;
 
     if (!jobId) {
@@ -323,11 +325,26 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
         message: 'Job ID is required'
       });
     }
+    
+    if (!workspaceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workspace ID is required'
+      });
+    }
 
     // Get job status from ai-optimization queue
     const jobStatus = await queueService.getJobStatus('ai-optimization', jobId);
 
     if (!jobStatus) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+    
+    // Verify job belongs to this user and workspace
+    if (jobStatus.data.userId !== userId || jobStatus.data.workspaceId !== workspaceId) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
@@ -639,7 +656,15 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
 router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!._id.toString();
+    const workspaceId = req.headers['x-workspace-id'] as string;
     const { status, limit = 10, offset = 0 } = req.query;
+    
+    if (!workspaceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workspace ID is required'
+      });
+    }
 
     // Get queue statistics for this user's jobs
     const aiQueue = queueService.getQueue('ai-optimization');
@@ -649,7 +674,9 @@ router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
     
     if (!status || status === 'waiting') {
       const waitingJobs = await aiQueue.getWaiting();
-      const userJobs = waitingJobs.filter(job => job.data.userId === userId);
+      const userJobs = waitingJobs.filter(job => 
+        job.data.userId === userId && job.data.workspaceId === workspaceId
+      );
       jobs.push(...userJobs.map(job => ({
         id: job.id,
         status: 'waiting',
@@ -661,7 +688,9 @@ router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
     
     if (!status || status === 'active') {
       const activeJobs = await aiQueue.getActive();
-      const userJobs = activeJobs.filter(job => job.data.userId === userId);
+      const userJobs = activeJobs.filter(job => 
+        job.data.userId === userId && job.data.workspaceId === workspaceId
+      );
       jobs.push(...userJobs.map(job => ({
         id: job.id,
         status: 'active',
@@ -674,7 +703,9 @@ router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
     
     if (!status || status === 'completed') {
       const completedJobs = await aiQueue.getCompleted();
-      const userJobs = completedJobs.filter(job => job.data.userId === userId);
+      const userJobs = completedJobs.filter(job => 
+        job.data.userId === userId && job.data.workspaceId === workspaceId
+      );
       jobs.push(...userJobs.map(job => ({
         id: job.id,
         status: 'completed',
@@ -688,7 +719,9 @@ router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
     
     if (!status || status === 'failed') {
       const failedJobs = await aiQueue.getFailed();
-      const userJobs = failedJobs.filter(job => job.data.userId === userId);
+      const userJobs = failedJobs.filter(job => 
+        job.data.userId === userId && job.data.workspaceId === workspaceId
+      );
       jobs.push(...userJobs.map(job => ({
         id: job.id,
         status: 'failed',
