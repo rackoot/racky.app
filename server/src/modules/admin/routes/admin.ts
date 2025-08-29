@@ -331,20 +331,6 @@ router.put('/users/:id/role', async (req: AuthenticatedRequest, res: Response) =
   }
 });
 
-// PUT /api/admin/users/:id/subscription - DEPRECATED: Subscriptions moved to workspace level
-router.put('/users/:id/subscription', async (req: AuthenticatedRequest, res: Response) => {
-  res.status(410).json({
-    success: false,
-    message: 'This endpoint is deprecated. Subscriptions are now managed at the workspace level.',
-    deprecated: true,
-    migrationInfo: {
-      newEndpoints: [
-        'GET /api/workspaces/:workspaceId/subscription',
-        'PUT /api/workspaces/:workspaceId/subscription'
-      ]
-    }
-  });
-});
 
 // DELETE /api/admin/users/:id - Delete user account (with cascading)
 router.delete('/users/:id', async (req: AuthenticatedRequest, res: Response) => {
@@ -469,13 +455,7 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
       });
     }
     
-    if (status) {
-      matchStages.push({ 'user.subscriptionStatus': status });
-    }
-    
-    if (plan) {
-      matchStages.push({ 'user.subscriptionPlan': plan });
-    }
+    // Note: User-level subscription filters removed as subscriptions moved to workspace level
 
     if (matchStages.length > 0) {
       pipeline.push({
@@ -489,10 +469,6 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
     const sortStage: any = {};
     if (sortBy === 'email') {
       sortStage['user.email'] = sortOrder === 'desc' ? -1 : 1;
-    } else if (sortBy === 'status') {
-      sortStage['user.subscriptionStatus'] = sortOrder === 'desc' ? -1 : 1;
-    } else if (sortBy === 'plan') {
-      sortStage['user.subscriptionPlan'] = sortOrder === 'desc' ? -1 : 1;
     } else {
       sortStage[sortBy] = sortOrder === 'desc' ? -1 : 1;
     }
@@ -530,10 +506,7 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
           email: '$user.email',
           firstName: '$user.firstName',
           lastName: '$user.lastName',
-          subscriptionStatus: '$user.subscriptionStatus',
-          subscriptionPlan: '$user.subscriptionPlan',
-          trialEndsAt: '$user.trialEndsAt',
-          subscriptionEndsAt: '$user.subscriptionEndsAt',
+          // Note: User subscription fields removed as subscriptions moved to workspace level
           isActive: '$user.isActive'
         }
       }
@@ -559,13 +532,8 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
         $group: {
           _id: null,
           totalSubscriptions: { $sum: 1 },
-          activeSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'ACTIVE'] }, 1, 0] } },
-          trialSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'TRIAL'] }, 1, 0] } },
-          suspendedSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'SUSPENDED'] }, 1, 0] } },
-          cancelledSubscriptions: { $sum: { $cond: [{ $eq: ['$user.subscriptionStatus', 'CANCELLED'] }, 1, 0] } },
-          basicPlan: { $sum: { $cond: [{ $eq: ['$user.subscriptionPlan', 'BASIC'] }, 1, 0] } },
-          proPlan: { $sum: { $cond: [{ $eq: ['$user.subscriptionPlan', 'PRO'] }, 1, 0] } },
-          enterprisePlan: { $sum: { $cond: [{ $eq: ['$user.subscriptionPlan', 'ENTERPRISE'] }, 1, 0] } }
+          // Note: User-level subscription analytics removed as subscriptions moved to workspace level
+          totalUsers: { $sum: 1 }
         }
       }
     ]);

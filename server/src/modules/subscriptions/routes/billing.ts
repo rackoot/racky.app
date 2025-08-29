@@ -255,38 +255,4 @@ router.post('/update-contributors', protect, async (req: AuthenticatedRequest, r
 
 // Note: Stripe webhook handler moved to main app routing to avoid JWT auth middleware
 
-router.get('/subscription', (req: AuthenticatedRequest, res: Response) => {
-  res.status(503).json({
-    success: false,
-    message: 'Subscription information temporarily unavailable',
-    maintenanceInfo: {
-      reason: 'Migration to workspace-based subscriptions in progress',
-      status: 'TEMPORARILY_DISABLED'
-    }
-  });
-});
-
-router.post('/cancel-subscription', (req: AuthenticatedRequest, res: Response) => {
-  res.status(503).json({
-    success: false,
-    message: 'Subscription management temporarily unavailable',
-    maintenanceInfo: {
-      reason: 'Migration to workspace-based subscriptions in progress',
-      status: 'TEMPORARILY_DISABLED',
-      alternativeAction: 'Please contact support for cancellation requests'
-    }
-  });
-});
-
-router.get('/invoices', (req: AuthenticatedRequest, res: Response) => {
-  res.status(503).json({
-    success: false,
-    message: 'Invoice access temporarily unavailable',
-    maintenanceInfo: {
-      reason: 'Migration to workspace-based subscriptions in progress',
-      status: 'TEMPORARILY_DISABLED'
-    }
-  });
-});
-
 export default router;

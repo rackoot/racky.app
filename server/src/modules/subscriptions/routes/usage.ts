@@ -1,7 +1,7 @@
 import express, { Response } from 'express';
 import { AuthenticatedRequest } from '@/common/types/express';
 import { asString } from '@/common/utils/queryParams';
-import { protect, trackUsage } from '@/common/middleware/auth';
+import { protect, trackUsage, requireWorkspace, requireWorkspacePermission } from '@/common/middleware/auth';
 import Usage from '../models/Usage';
 import User from '@/auth/models/User';
 import StoreConnection from '@/stores/models/StoreConnection';
@@ -10,6 +10,7 @@ import Product from '@/products/models/Product';
 const router = express.Router();
 
 router.use(protect);
+router.use(requireWorkspace);
 
 interface TrackUsageBody {
   metric: string;
@@ -331,6 +332,69 @@ router.post('/track', async (req: AuthenticatedRequest, res: Response) => {
       success: false,
       message: 'Error tracking usage',
       error: error.message
+    });
+  }
+});
+
+// GET /api/usage/:workspaceId - Get workspace usage statistics
+router.get('/:workspaceId', requireWorkspacePermission('workspace:read'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Get current month usage
+    const currentDate = new Date();
+    const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    
+    const [currentUsage, storeCount, productCount] = await Promise.all([
+      Usage.findOne({
+        workspaceId: req.workspace!._id,
+        date: {
+          $gte: startOfMonth,
+          $lt: new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 1)
+        }
+      }),
+      StoreConnection.countDocuments({ workspaceId: req.workspace!._id, isActive: true }),
+      Product.countDocuments({ workspaceId: req.workspace!._id })
+    ]);
+
+    const currentPlan = await req.workspace!.getCurrentPlan();
+    
+    const usageData = {
+      workspaceId: req.workspace!._id,
+      workspaceName: req.workspace!.name,
+      currentPeriod: {
+        month: currentDate.toISOString().slice(0, 7), // YYYY-MM format
+        apiCalls: currentUsage?.apiCalls || 0,
+        productSyncs: currentUsage?.productSyncs || 0,
+        storesConnected: storeCount,
+        totalProducts: productCount,
+        features: {
+          aiSuggestions: currentUsage?.aiSuggestions || 0,
+          opportunityScans: currentUsage?.opportunityScans || 0,
+          bulkOperations: currentUsage?.bulkOperations || 0
+        }
+      },
+      limits: currentPlan ? {
+        maxStores: currentPlan.limits.maxStores,
+        maxProducts: currentPlan.limits.maxProducts,
+        maxMarketplaces: currentPlan.limits.maxMarketplaces,
+        apiCallsPerMonth: currentPlan.limits.apiCallsPerMonth
+      } : null,
+      percentageUsed: currentPlan ? {
+        stores: Math.round((storeCount / currentPlan.limits.maxStores) * 100),
+        products: Math.round((productCount / currentPlan.limits.maxProducts) * 100),
+        apiCalls: Math.round(((currentUsage?.apiCalls || 0) / currentPlan.limits.apiCallsPerMonth) * 100)
+      } : null
+    };
+    
+    res.json({
+      success: true,
+      message: 'Workspace usage retrieved successfully',
+      data: usageData
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving workspace usage',
+      error: (error as Error).message
     });
   }
 });

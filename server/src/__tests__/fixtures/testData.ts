@@ -46,8 +46,13 @@ export const testPlans = {
     name: 'BASIC',
     displayName: 'Basic Plan',
     description: 'Basic plan for small businesses',
-    monthlyPrice: 2900, // $29.00 in cents
-    yearlyPrice: 29000, // $290.00 in cents (12 months * $29 - 2 months discount)
+    contributorType: 'JUNIOR',
+    actionsPerContributor: 1000,
+    maxContributorsPerWorkspace: 5,
+    isContactSalesOnly: false,
+    monthlyPrice: 2900, // $29.00 in cents per contributor
+    yearlyPrice: 29000, // $290.00 in cents per contributor
+    currency: 'USD',
     stripeMonthlyPriceId: 'price_test_basic_monthly',
     stripeYearlyPriceId: 'price_test_basic_yearly',
     limits: {
@@ -70,14 +75,22 @@ export const testPlans = {
       },
     ],
     isActive: true,
+    isPublic: true,
+    sortOrder: 1,
+    trialDays: 14,
   },
 
   proPlan: {
     name: 'PRO',
     displayName: 'Pro Plan',
     description: 'Professional plan for growing businesses',
-    monthlyPrice: 7900, // $79.00 in cents
-    yearlyPrice: 79000, // $790.00 in cents
+    contributorType: 'SENIOR',
+    actionsPerContributor: 5000,
+    maxContributorsPerWorkspace: 5,
+    isContactSalesOnly: false,
+    monthlyPrice: 7900, // $79.00 in cents per contributor
+    yearlyPrice: 79000, // $790.00 in cents per contributor
+    currency: 'USD',
     stripeMonthlyPriceId: 'price_test_pro_monthly',
     stripeYearlyPriceId: 'price_test_pro_yearly',
     limits: {
@@ -105,6 +118,62 @@ export const testPlans = {
       },
     ],
     isActive: true,
+    isPublic: true,
+    sortOrder: 2,
+    trialDays: 14,
+  },
+
+  enterprisePlan: {
+    name: 'ENTERPRISE',
+    displayName: 'Enterprise Plan',
+    description: 'Enterprise plan for large organizations',
+    contributorType: 'EXECUTIVE',
+    actionsPerContributor: -1, // Unlimited
+    maxContributorsPerWorkspace: 50,
+    isContactSalesOnly: true,
+    monthlyPrice: 0, // Contact sales
+    yearlyPrice: 0, // Contact sales
+    currency: 'USD',
+    stripeMonthlyPriceId: 'price_test_enterprise_monthly',
+    stripeYearlyPriceId: 'price_test_enterprise_yearly',
+    limits: {
+      maxStores: 50,
+      maxProducts: 10000,
+      maxMarketplaces: 10,
+      maxSyncFrequency: 6, // hours
+      apiCallsPerMonth: 100000,
+    },
+    features: [
+      {
+        name: 'Product Management',
+        description: 'Manage your products across marketplaces',
+        enabled: true,
+      },
+      {
+        name: 'Advanced Analytics',
+        description: 'Detailed analytics and reporting',
+        enabled: true,
+      },
+      {
+        name: 'AI Suggestions',
+        description: 'AI-powered optimization suggestions',
+        enabled: true,
+      },
+      {
+        name: 'Priority Support',
+        description: '24/7 priority customer support',
+        enabled: true,
+      },
+      {
+        name: 'Custom Integrations',
+        description: 'Custom marketplace integrations',
+        enabled: true,
+      },
+    ],
+    isActive: true,
+    isPublic: true,
+    sortOrder: 3,
+    trialDays: 30,
   },
 };
 
