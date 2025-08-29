@@ -26,6 +26,10 @@ import { AdminUsers } from '@/pages/admin/users'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import Workspaces from '@/pages/workspaces'
 import AIOptimizationPage from '@/pages/ai-optimization'
+import AIOpportunitiesPage from '@/pages/ai-optimization/opportunities'
+import AIStartScanPage from '@/pages/ai-optimization/start-scan'
+import AIScanHistoryPage from '@/pages/ai-optimization/scan-history'
+import { AIScanResultsPage } from '@/pages/ai-scan-results'
 
 function App() {
   return (
@@ -115,11 +119,51 @@ function App() {
         />
         <Route
           path="/ai-optimization"
+          element={<Navigate to="/ai-optimization/opportunities" replace />}
+        />
+        <Route
+          path="/ai-optimization/opportunities"
           element={
             <ProtectedRoute>
               <RequireSubscription>
                 <MainLayout>
-                  <AIOptimizationPage />
+                  <AIOpportunitiesPage />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization/start-scan"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIStartScanPage />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization/scan-history"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIScanHistoryPage />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization/results/:jobId"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIScanResultsPage />
                 </MainLayout>
               </RequireSubscription>
             </ProtectedRoute>

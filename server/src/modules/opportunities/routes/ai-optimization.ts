@@ -42,6 +42,25 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!._id.toString();
     const workspaceId = req.workspace!._id.toString();
 
+    // If marketplace is specified, validate it has products
+    if (marketplace) {
+      const ProductModel = (await import('@/products/models/Product')).default;
+      
+      const productCount = await ProductModel.countDocuments({
+        workspaceId,
+        marketplace
+      });
+
+      if (productCount === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `No products found for marketplace "${marketplace}". Cannot start AI scan for empty marketplace.`
+        });
+      }
+
+      console.log(`Validated marketplace "${marketplace}" has ${productCount} products`);
+    }
+
     // Create AI optimization scan job
     const scanJobData: AIOptimizationScanJobData = {
       userId,
@@ -207,73 +226,178 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
 
     // Get product history entries for this job
     const ProductHistory = (await import('@/products/models/ProductHistory')).default;
-    const Product = (await import('@/products/models/Product')).default;
+    const ProductModel = (await import('@/products/models/Product')).default;
     
-    // Find all products that were part of this scan
+    // Get child batch jobs first to find all related job IDs
+    const allJobs = await aiQueue.getJobs(['completed', 'failed', 'active', 'waiting']);
+    const childBatchJobs = allJobs.filter(j => j.data.parentJobId === jobId && j.name === 'AI_DESCRIPTION_BATCH');
+    
+    // Get all related job IDs (main job + child batch jobs)
+    const relatedJobIds = [jobId, ...childBatchJobs.map(j => j.id!.toString())];
+    console.log(`Looking for history entries with job IDs: ${relatedJobIds.join(', ')}`);
+    
+    // Get ALL products that match the scan filters, not just those with history entries
+    let scanFilters: any = { workspaceId };
+    
+    if (job.data.filters) {
+      if (job.data.filters.marketplace) {
+        scanFilters.marketplace = job.data.filters.marketplace;
+      }
+      if (job.data.filters.createdAfter) {
+        scanFilters.createdAt = { $gte: new Date(job.data.filters.createdAfter) };
+      }
+      // Add description length filters if needed
+      if (job.data.filters.minDescriptionLength || job.data.filters.maxDescriptionLength) {
+        const descConditions: any = {};
+        if (job.data.filters.minDescriptionLength) {
+          descConditions.$gte = job.data.filters.minDescriptionLength;
+        }
+        if (job.data.filters.maxDescriptionLength) {
+          descConditions.$lte = job.data.filters.maxDescriptionLength;
+        }
+        scanFilters.$expr = {
+          $and: [
+            { $gte: [{ $strLenCP: "$description" }, job.data.filters.minDescriptionLength || 0] },
+            ...(job.data.filters.maxDescriptionLength ? [{ $lte: [{ $strLenCP: "$description" }, job.data.filters.maxDescriptionLength] }] : [])
+          ]
+        };
+      }
+    }
+    
+    console.log('Scan filters:', JSON.stringify(scanFilters));
+    
+    // Get all products that should be part of this scan
+    const allScanProducts = await ProductModel.find(scanFilters)
+      .select('title externalId marketplace images description createdAt')
+      .lean();
+    
+    console.log(`Found ${allScanProducts.length} products matching scan criteria`);
+    
+    // Find history entries for products that were processed
     const historyEntries = await ProductHistory.find({
       workspaceId,
-      relatedJobId: jobId,
+      relatedJobId: { $in: relatedJobIds },
       actionType: { $in: ['AI_OPTIMIZATION_GENERATED', 'AI_BULK_SCAN_STARTED', 'AI_BULK_SCAN_COMPLETED'] }
     })
-    .populate('productId', 'title externalId marketplace images')
+    .populate('productId', 'title externalId marketplace images description')
     .sort({ createdAt: 1 })
     .lean();
+    
+    console.log(`Found ${historyEntries.length} history entries for jobs ${relatedJobIds.join(', ')}`);
 
-    // Get child batch jobs if this is a scan job
-    let batchJobs: any[] = [];
-    if (job.name === 'AI_OPTIMIZATION_SCAN' && job.returnvalue) {
-      // Find batch jobs created by this scan
-      const allJobs = await aiQueue.getJobs(['completed', 'failed', 'active', 'waiting']);
-      batchJobs = allJobs
-        .filter(j => j.data.parentJobId === jobId && j.name === 'AI_DESCRIPTION_BATCH')
-        .map(j => ({
-          id: j.id,
-          status: j.finishedOn ? 'completed' : j.processedOn ? 'active' : 'waiting',
-          batchNumber: j.data.batchNumber,
-          totalBatches: j.data.totalBatches,
-          productCount: j.data.productIds?.length || 0,
-          progress: j.progress,
-          result: j.returnvalue,
-          failedReason: j.failedReason,
-          createdAt: j.timestamp,
-          finishedOn: j.finishedOn
-        }));
-    }
+    // Get product IDs from both scan results and history
+    const allProductIds = allScanProducts.map(p => p._id);
+    const historyProductIds = historyEntries.map(entry => entry.productId?._id).filter(Boolean);
+    
+    console.log(`All scan product IDs: ${allProductIds.map(id => id.toString()).join(', ')}`);
+    console.log(`History product IDs: ${historyProductIds.map(id => id.toString()).join(', ')}`);
+    
+    // Get AI-generated opportunities for description suggestions with prompts
+    const OpportunityModel = (await import('@/opportunities/models/Opportunity')).default;
+    const aiOpportunities = await OpportunityModel.find({
+      workspaceId,
+      productId: { $in: allProductIds },
+      category: 'description'
+    }).lean();
+    
+    console.log(`Found ${aiOpportunities.length} AI description opportunities`);
 
-    // Group products by status
-    const products = historyEntries.reduce((acc: any, entry: any) => {
+    // Map child batch jobs to response format (already retrieved above)
+    const batchJobs = childBatchJobs.map(j => ({
+      id: j.id,
+      status: j.finishedOn ? 'completed' : j.processedOn ? 'active' : 'waiting',
+      batchNumber: j.data.batchNumber,
+      totalBatches: j.data.totalBatches,
+      productCount: j.data.productIds?.length || 0,
+      progress: j.progress,
+      result: j.returnvalue,
+      failedReason: j.failedReason,
+      createdAt: j.timestamp,
+      finishedOn: j.finishedOn
+    }));
+
+    // Create maps for AI opportunities data (description and prompt)
+    const aiOpportunityMap = aiOpportunities.reduce((acc: any, opportunity: any) => {
+      const productKey = opportunity.productId.toString();
+      acc[productKey] = {
+        description: opportunity.description,
+        prompt: opportunity.aiMetadata?.prompt || '',
+        confidence: opportunity.aiMetadata?.confidence || 0.8,
+        model: opportunity.aiMetadata?.model || 'gpt-3.5-turbo'
+      };
+      return acc;
+    }, {});
+    
+    // Create a map for history entries
+    const historyMap = historyEntries.reduce((acc: any, entry: any) => {
       if (!entry.productId) return acc;
       
       const productKey = entry.productId._id.toString();
       if (!acc[productKey]) {
-        acc[productKey] = {
-          id: entry.productId._id,
-          title: entry.productId.title,
-          externalId: entry.productId.externalId,
-          marketplace: entry.productId.marketplace,
-          image: entry.productId.images?.[0]?.url,
-          status: 'pending',
-          actions: []
-        };
+        acc[productKey] = [];
       }
-
-      // Update status based on action
-      if (entry.actionType === 'AI_OPTIMIZATION_GENERATED') {
-        acc[productKey].status = entry.actionStatus === 'SUCCESS' ? 'optimized' : 'failed';
-        acc[productKey].optimizedAt = entry.completedAt;
-      }
-
-      acc[productKey].actions.push({
-        type: entry.actionType,
-        status: entry.actionStatus,
-        createdAt: entry.createdAt,
-        completedAt: entry.completedAt
-      });
-
+      acc[productKey].push(entry);
       return acc;
     }, {});
 
-    const productList = Object.values(products) as any[];
+    // Build product list from ALL scanned products, not just those with history
+    const products = allScanProducts.map((product: any) => {
+      const productKey = product._id.toString();
+      const productHistory = historyMap[productKey] || [];
+      const aiData = aiOpportunityMap[productKey];
+      
+      // Determine product status based on history and opportunities
+      let status = 'pending'; // Default status for products in queue
+      let optimizedAt = null;
+      let failedReason = null;
+      
+      // Check if product has been processed
+      const generationEntry = productHistory.find((entry: any) => entry.actionType === 'AI_OPTIMIZATION_GENERATED');
+      if (generationEntry) {
+        if (generationEntry.actionStatus === 'SUCCESS') {
+          status = aiData ? 'optimized' : 'failed';
+          optimizedAt = generationEntry.completedAt;
+        } else {
+          status = 'failed';
+          failedReason = generationEntry.metadata?.errorMessage || 'AI generation failed';
+        }
+      } else if (productHistory.length > 0) {
+        // Product is in processing if it has scan history but no generation result yet
+        status = 'processing';
+      }
+      
+      return {
+        id: product._id,
+        title: product.title,
+        externalId: product.externalId,
+        marketplace: product.marketplace,
+        image: product.images?.[0]?.url,
+        status,
+        optimizedAt,
+        failedReason,
+        descriptions: {
+          original: product.description || '',
+          current: product.description || '',
+          aiGenerated: aiData?.description || '',
+          wasModified: false, // We'll calculate this if needed
+          aiPrompt: aiData?.prompt || '' // Include AI prompt
+        },
+        aiMetadata: aiData ? {
+          model: aiData.model,
+          confidence: aiData.confidence,
+          prompt: aiData.prompt
+        } : null,
+        actions: productHistory.map((entry: any) => ({
+          type: entry.actionType,
+          status: entry.actionStatus,
+          createdAt: entry.createdAt,
+          completedAt: entry.completedAt,
+          metadata: entry.metadata
+        }))
+      };
+    });
+
+    const productList = products;
 
     res.json({
       success: true,
@@ -296,6 +420,7 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
           totalProducts: productList.length,
           optimized: productList.filter(p => p.status === 'optimized').length,
           failed: productList.filter(p => p.status === 'failed').length,
+          processing: productList.filter(p => p.status === 'processing').length,
           pending: productList.filter(p => p.status === 'pending').length
         }
       }
@@ -401,6 +526,94 @@ router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get AI optimization jobs',
+      error: error.message
+    });
+  }
+});
+
+
+/**
+ * POST /api/opportunities/ai/regenerate/:productId
+ * Regenerate AI suggestion for a product
+ */
+router.post('/regenerate/:productId', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!._id.toString();
+    const workspaceId = req.workspace!._id.toString();
+    const { productId } = req.params;
+
+    // Import required models and services
+    const ProductModel = (await import('@/products/models/Product')).default;
+    const aiService = (await import('@/opportunities/services/aiService')).default;
+    const ProductHistoryService = (await import('@/products/services/ProductHistoryService')).default;
+
+    // Get the product
+    const product = await ProductModel.findOne({
+      _id: productId,
+      userId,
+      workspaceId
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Convert to AI service format
+    const aiProduct = {
+      title: product.title,
+      description: product.description || '',
+      price: product.price || 0,
+      marketplace: product.marketplace || 'unknown',
+      inventory: product.inventory || 0,
+      sku: product.sku || product.externalId,
+      productType: product.productType || product.category,
+      images: product.images && product.images.length > 0 ? product.images.map(img => img.url) : [],
+      tags: product.tags || [],
+    };
+
+    // Create history entry for regeneration attempt
+    const regenerationHistory = await ProductHistoryService.createAIOptimizationHistory({
+      workspaceId,
+      userId,
+      productId: productId,
+      actionType: 'AI_OPTIMIZATION_GENERATED',
+      marketplace: product.marketplace,
+      aiModel: 'gpt-3.5-turbo',
+      originalContent: product.description || '',
+      jobId: `regenerate-${Date.now()}`
+    });
+
+    // Generate new AI opportunities
+    const opportunities = await aiService.generateProductOpportunities(aiProduct, [product.marketplace]);
+
+    // Update history with results
+    await ProductHistoryService.markCompleted(
+      regenerationHistory._id.toString(),
+      'SUCCESS',
+      {
+        confidence: opportunities.length > 0 ? opportunities[0].confidence : 0.8,
+        tokensUsed: opportunities[0]?.aiMetadata?.tokens || 0,
+        newContent: opportunities.find(o => o.category === 'description')?.description || ''
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'AI suggestion regenerated successfully',
+      data: {
+        productId,
+        suggestions: opportunities.filter(o => o.category === 'description')
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error regenerating AI suggestion:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to regenerate AI suggestion',
       error: error.message
     });
   }

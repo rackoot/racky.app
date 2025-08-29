@@ -1265,6 +1265,76 @@ async function updateFacebookShopProductDescriptionDirect(
   }
 }
 
+/**
+ * PUT /api/products/:productId/description
+ * Update product description (accept AI suggestion)
+ */
+router.put('/:productId/description', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { productId } = req.params;
+    const { description } = req.body;
+
+    if (!description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Description is required'
+      });
+    }
+
+    // Update product description
+    const updatedProduct = await Product.findOneAndUpdate(
+      {
+        _id: productId,
+        workspaceId: req.workspace!._id
+      },
+      {
+        $set: {
+          description: description,
+          updatedAt: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Create history entry for accepted AI suggestion
+    await ProductHistoryService.createAIOptimizationHistory({
+      workspaceId: req.workspace!._id.toString(),
+      userId: req.user!._id.toString(),
+      productId: productId,
+      actionType: 'AI_OPTIMIZATION_APPLIED',
+      marketplace: updatedProduct.marketplace,
+      aiModel: 'gpt-3.5-turbo',
+      originalContent: '', // We could track the old description if needed
+      newContent: description,
+      confidence: 0.9
+    });
+
+    res.json({
+      success: true,
+      message: 'Product description updated successfully',
+      data: {
+        productId,
+        description: updatedProduct.description
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error updating product description:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update product description',
+      error: error.message
+    });
+  }
+});
+
 // Add sync routes
 router.use('/sync', syncRoutes);
 

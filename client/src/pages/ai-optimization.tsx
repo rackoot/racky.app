@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '@/components/workspace/workspace-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -60,11 +61,18 @@ interface JobDetails {
     image?: string;
     status: 'pending' | 'optimized' | 'failed';
     optimizedAt?: string;
+    descriptions?: {
+      original: string;
+      current: string;
+      wasModified: boolean;
+      aiGenerated?: string;
+    };
     actions: Array<{
       type: string;
       status: string;
       createdAt: string;
       completedAt?: string;
+      metadata?: any;
     }>;
   }>;
   summary: {
@@ -76,6 +84,7 @@ interface JobDetails {
 }
 
 const AIOptimizationPage = () => {
+  const navigate = useNavigate();
   const { currentWorkspace } = useWorkspace();
   const [jobs, setJobs] = useState<AIJob[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,6 +94,8 @@ const AIOptimizationPage = () => {
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scanSuccess, setScanSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
   
   // Connected marketplaces
   const [connectedMarketplaces, setConnectedMarketplaces] = useState<Marketplace[]>([]);
@@ -101,11 +112,26 @@ const AIOptimizationPage = () => {
     return activeJob?.data.filters?.marketplace;
   };
   
-  // Helper function to get available marketplaces (connected but not running scans)
-  const getAvailableMarketplaces = () => {
-    const activeMarketplace = getActiveMarketplace();
-    return connectedMarketplaces.filter(mp => mp.id !== activeMarketplace);
-  };
+  // Helper function to get available marketplaces (connected, has products, and not running scans)
+  const getAvailableMarketplaces = React.useCallback(() => {
+    // Get all marketplaces that have active or waiting scans
+    const busyMarketplaces = jobs
+      .filter(job => job.status === 'waiting' || job.status === 'active')
+      .map(job => job.data.filters?.marketplace)
+      .filter(Boolean);
+    
+    console.log('Busy marketplaces:', busyMarketplaces);
+    console.log('Connected marketplaces:', connectedMarketplaces.map(mp => mp.id));
+    
+    // Return marketplaces that are connected, have products, and not busy
+    const available = connectedMarketplaces.filter(mp => 
+      !busyMarketplaces.includes(mp.id) && 
+      mp.connectionInfo && 
+      mp.connectionInfo.productsCount > 0
+    );
+    console.log('Available marketplaces:', available.map(mp => mp.id));
+    return available;
+  }, [jobs, connectedMarketplaces]);
   
   // Scan filters
   const [marketplace, setMarketplace] = useState<string>('');
@@ -123,8 +149,10 @@ const AIOptimizationPage = () => {
     
     try {
       const marketplaces = await marketplaceService.getMarketplaceStatus();
-      // Filter to only connected marketplaces
-      const connected = marketplaces.filter(m => m.connectionInfo);
+      // Filter to only connected marketplaces with products
+      const connected = marketplaces.filter(m => 
+        m.connectionInfo && m.connectionInfo.productsCount > 0
+      );
       setConnectedMarketplaces(connected);
       
       // Auto-select first available marketplace if none selected or current selection is unavailable
@@ -166,10 +194,12 @@ const AIOptimizationPage = () => {
       }
       
       const data = await response.json();
-      setJobs(data.data?.jobs || []);
+      console.log('Jobs API response:', data); // Debug log
+      setJobs(data.data?.jobs || data.data || []);
       
       // Find active job for monitoring
-      const active = data.data?.jobs?.find((job: AIJob) => job.status === 'active');
+      const jobsList = data.data?.jobs || data.data || [];
+      const active = jobsList.find((job: AIJob) => job.status === 'active');
       if (active) {
         setActiveJob(active);
       }
@@ -221,8 +251,16 @@ const AIOptimizationPage = () => {
 
   // Start AI scan
   const startAIScan = async () => {
+    console.log('startAIScan called');
+    
     if (!currentWorkspace || !currentWorkspace._id) {
       setError('No workspace selected');
+      return;
+    }
+    
+    // Prevent multiple calls while already loading
+    if (scanLoading) {
+      console.log('Scan already in progress, ignoring call');
       return;
     }
     
@@ -270,16 +308,56 @@ const AIOptimizationPage = () => {
       const data = await response.json();
       console.log('AI scan started:', data);
       
-      // Reload jobs to show the new scan
-      await loadJobs();
+      // Show success feedback
+      setScanSuccess(true);
+      setSuccessMessage(data.message || 'AI scan started successfully! Processing products...');
+      setError(null);
       
-      // Clear form (keep marketplace selected since it's required)
+      // Store the marketplace that was used for the scan
+      const usedMarketplace = marketplace;
+      
+      // Clear form
+      setMarketplace('');
       setMinDescriptionLength('');
       setMaxDescriptionLength('');
       setCreatedAfter('');
       
+      // Reload jobs and marketplaces to ensure form is updated
+      console.log('Reloading jobs and marketplaces after scan start...');
+      await Promise.all([
+        loadJobs(),
+        loadConnectedMarketplaces()
+      ]);
+      
+      // Small delay to ensure the new job appears in the backend
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Reload jobs again to make sure we have the latest state
+      await loadJobs();
+      
+      // Force a re-evaluation by triggering a state update
+      setTimeout(() => {
+        const currentlyAvailable = getAvailableMarketplaces();
+        console.log(`Final check - Used marketplace: ${usedMarketplace}`);
+        console.log('Available marketplaces after final reload:', currentlyAvailable.map(mp => mp.id));
+        console.log('Current jobs:', jobs.map(j => ({ id: j.id, status: j.status, marketplace: j.data.filters?.marketplace })));
+        
+        // If the used marketplace is still showing as available, something went wrong
+        if (currentlyAvailable.find(mp => mp.id === usedMarketplace)) {
+          console.warn(`WARNING: Marketplace ${usedMarketplace} is still showing as available after starting a scan!`);
+        }
+      }, 100);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => {
+        setScanSuccess(false);
+        setSuccessMessage('');
+      }, 5000);
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to start AI scan');
+      setScanSuccess(false);
+      setSuccessMessage('');
       console.error('Error starting AI scan:', err);
     } finally {
       setScanLoading(false);
@@ -527,7 +605,31 @@ const AIOptimizationPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {scanSuccess && (
+                  <Alert className="mb-4 border-green-200 bg-green-50 text-green-900">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">
+                      {successMessage}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {/* Show message when no marketplaces are available */}
+                {connectedMarketplaces.length > 0 && getAvailableMarketplaces().length === 0 && !marketplacesLoading ? (
+                  <Alert>
+                    <Clock className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="space-y-2">
+                        <p className="font-medium">All marketplaces are currently running scans</p>
+                        <p className="text-sm">
+                          Please wait for existing scans to complete before starting a new one. 
+                          You can monitor the progress in the <strong>Scan History</strong> tab.
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="marketplace">
                     Marketplace <span className="text-red-500">*</span>
@@ -560,7 +662,7 @@ const AIOptimizationPage = () => {
                   </Select>
                   {connectedMarketplaces.length === 0 && !marketplacesLoading && (
                     <p className="text-sm text-muted-foreground">
-                      No connected marketplaces found. Please connect a marketplace first.
+                      No marketplaces with products found. Please connect a marketplace and sync products first.
                     </p>
                   )}
                   {hasActiveScan() && getAvailableMarketplaces().length < connectedMarketplaces.length && (
@@ -600,42 +702,35 @@ const AIOptimizationPage = () => {
                     value={maxDescriptionLength}
                     onChange={(e) => setMaxDescriptionLength(e.target.value)}
                   />
-                </div>
-              </div>
+                  </div>
 
-              <div className="flex justify-end">
-                <Button 
-                  onClick={startAIScan} 
-                  disabled={
-                    scanLoading || 
-                    getAvailableMarketplaces().length === 0 || 
-                    !marketplace
-                  }
-                  className="flex items-center gap-2"
-                >
-                  <Brain className="h-4 w-4" />
-                  {scanLoading ? 'Starting Scan...' : 'Start AI Scan'}
-                </Button>
-              </div>
-              
-              {getAvailableMarketplaces().length === 0 && !marketplacesLoading && (
-                <Alert>
-                  <Store className="h-4 w-4" />
-                  <AlertDescription>
-                    {connectedMarketplaces.length === 0 ? (
-                      <>
-                        You need to connect at least one marketplace before running an AI scan. 
-                        Go to the <strong>Stores</strong> page to connect your first marketplace.
-                      </>
-                    ) : (
-                      <>
-                        All connected marketplaces are currently running scans. 
-                        Please wait for them to complete or check the <strong>Scan History</strong> tab.
-                      </>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
+                    <div className="flex justify-end">
+                      <Button 
+                        onClick={startAIScan} 
+                        disabled={
+                          scanLoading || 
+                          getAvailableMarketplaces().length === 0 || 
+                          !marketplace
+                        }
+                        className="flex items-center gap-2"
+                      >
+                        <Brain className="h-4 w-4" />
+                        {scanLoading ? 'Starting Scan...' : 'Start AI Scan'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Show alert for no connected marketplaces with products */}
+                {connectedMarketplaces.length === 0 && !marketplacesLoading && (
+                  <Alert>
+                    <Store className="h-4 w-4" />
+                    <AlertDescription>
+                      You need at least one marketplace with products before running an AI scan. 
+                      Go to the <strong>Stores</strong> page to connect a marketplace and sync your products.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
           )}
@@ -710,12 +805,11 @@ const AIOptimizationPage = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => fetchJobDetails(job.id)}
-                            disabled={detailsLoading}
+                            onClick={() => navigate(`/ai-optimization/results/${job.id}`)}
                             className="flex items-center gap-2"
                           >
                             <Eye className="h-4 w-4" />
-                            View Details
+                            View Results
                           </Button>
                         )}
                       </div>
@@ -836,7 +930,7 @@ const AIOptimizationPage = () => {
                       {selectedJobDetails.products.map((product) => (
                         <Card key={product.id}>
                           <CardContent className="p-3">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-3">
                                 {product.image && (
                                   <img 
@@ -870,6 +964,31 @@ const AIOptimizationPage = () => {
                                 {product.status}
                               </Badge>
                             </div>
+                            
+                            {/* Description comparison */}
+                            {product.descriptions && product.descriptions.wasModified && (
+                              <div className="border-t pt-3 space-y-3">
+                                <h4 className="text-sm font-medium">Description Changes</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground mb-2">Before (Original)</p>
+                                    <div className="bg-red-50 border border-red-200 rounded-md p-2 max-h-24 overflow-y-auto">
+                                      <p className="text-xs text-red-800">
+                                        {product.descriptions.original || 'No description'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-muted-foreground mb-2">After (Current)</p>
+                                    <div className="bg-green-50 border border-green-200 rounded-md p-2 max-h-24 overflow-y-auto">
+                                      <p className="text-xs text-green-800">
+                                        {product.descriptions.current}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       ))}
