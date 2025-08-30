@@ -39,9 +39,10 @@ export class ProductCountService {
       if (!marketplace) continue;
       
       // Count products for this store connection
+      // Note: storeConnectionId in products is stored as ObjectId, not string
       const products = await Product.find({ 
         workspaceId,
-        storeConnectionId: connectionId 
+        storeConnectionId: connection._id // Use ObjectId directly, not string
       }).sort({ createdAt: -1 });
       
       const productCount = products.length;
@@ -84,9 +85,10 @@ export class ProductCountService {
       const marketplace = (connection as any).marketplaceType || 'unknown';
       
       // Count products for this store connection
+      // Note: storeConnectionId in products is stored as ObjectId, not string
       const products = await Product.find({ 
         workspaceId,
-        storeConnectionId: connectionId 
+        storeConnectionId: connection._id // Use ObjectId directly, not string
       }).sort({ createdAt: -1 });
       
       const productCount = products.length;
@@ -117,10 +119,14 @@ export class ProductCountService {
    */
   static async getProductCountForStore(workspaceId: string, storeConnectionId: string): Promise<number> {
     const { default: Product } = await import('../models/Product');
+    const mongoose = await import('mongoose');
+    
+    // Convert string ID to ObjectId if needed
+    const connectionObjectId = new mongoose.Types.ObjectId(storeConnectionId);
     
     return await Product.countDocuments({ 
       workspaceId,
-      storeConnectionId 
+      storeConnectionId: connectionObjectId
     });
   }
 }

@@ -257,17 +257,20 @@ export class AIOptimizationProcessor {
             jobId: job.id!.toString()
           });
 
-          // Generate AI opportunities (includes description improvements)
+          // Generate AI opportunities AND description
           console.log(`🤖 Generating AI opportunities for product: ${product.title}`);
-          const opportunities = await aiService.generateProductOpportunities(aiProduct, [product.marketplace]);
+          const [opportunities, descriptionResult] = await Promise.all([
+            aiService.generateProductOpportunities(aiProduct, [product.marketplace]),
+            aiService.generateProductDescription(aiProduct)
+          ]);
 
           // Update history with results
           await ProductHistoryService.markCompleted(
             generationHistory._id.toString(),
             'SUCCESS',
             {
-              confidence: opportunities.length > 0 ? opportunities[0].confidence : 0.8,
-              tokensUsed: opportunities[0]?.aiMetadata?.tokens || 0
+              confidence: descriptionResult.confidence,
+              tokensUsed: descriptionResult.tokens
             }
           );
 
@@ -305,6 +308,42 @@ export class AIOptimizationProcessor {
               await opportunity.save();
             }
           }
+
+          // Save the generated description as a special "description" opportunity
+          // First, remove any existing description opportunities for this product to avoid duplicates
+          await Opportunity.deleteMany({
+            userId,
+            workspaceId,
+            productId: product._id,
+            category: 'description',
+            aiGenerated: true
+          });
+
+          const descriptionOpportunity = new Opportunity({
+            userId,
+            workspaceId,
+            productId: product._id,
+            title: "AI-Generated Product Description",
+            description: descriptionResult.description, // This is the ACTUAL generated description
+            category: 'description',
+            marketplace: product.marketplace || 'shopify',
+            priority: 'high',
+            potentialImpact: { revenue: 0, percentage: 30 },
+            actionRequired: "Review and apply the generated description",
+            status: 'open',
+            confidence: descriptionResult.confidence,
+            aiGenerated: true,
+            aiMetadata: {
+              model: descriptionResult.model,
+              prompt: descriptionResult.prompt,
+              tokens: descriptionResult.tokens,
+              confidence: descriptionResult.confidence
+            },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+
+          await descriptionOpportunity.save();
 
           // Update product's last sync timestamp
           await Product.findByIdAndUpdate(product._id, {
