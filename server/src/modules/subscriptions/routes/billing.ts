@@ -60,6 +60,38 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
           await existingSubscription.save();
         }
         break;
+
+      case 'subscription_schedule.completed':
+        const completedSchedule = event.data.object as Stripe.SubscriptionSchedule;
+        console.log('Subscription schedule completed:', completedSchedule.id);
+        
+        // Find subscription with this schedule ID and clear it
+        const subscriptionWithSchedule = await Subscription.findOne({ 
+          stripeScheduleId: completedSchedule.id 
+        });
+        
+        if (subscriptionWithSchedule) {
+          console.log('Clearing completed schedule ID from subscription:', subscriptionWithSchedule._id);
+          subscriptionWithSchedule.stripeScheduleId = undefined;
+          await subscriptionWithSchedule.save();
+        }
+        break;
+
+      case 'subscription_schedule.canceled':
+        const cancelledSchedule = event.data.object as Stripe.SubscriptionSchedule;
+        console.log('Subscription schedule cancelled:', cancelledSchedule.id);
+        
+        // Find subscription with this schedule ID and clear it
+        const subscriptionWithCancelledSchedule = await Subscription.findOne({ 
+          stripeScheduleId: cancelledSchedule.id 
+        });
+        
+        if (subscriptionWithCancelledSchedule) {
+          console.log('Clearing cancelled schedule ID from subscription:', subscriptionWithCancelledSchedule._id);
+          subscriptionWithCancelledSchedule.stripeScheduleId = undefined;
+          await subscriptionWithCancelledSchedule.save();
+        }
+        break;
         
       case 'invoice.payment_succeeded':
         const invoice = event.data.object as Stripe.Invoice;

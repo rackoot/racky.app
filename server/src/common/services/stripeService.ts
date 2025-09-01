@@ -395,55 +395,53 @@ export const scheduleSubscriptionDowngrade = async (
       metadata
     });
 
-    // Get current subscription to determine the next billing date
-    const currentSubscription = await stripeInstance.subscriptions.retrieve(subscriptionId) as any;
-    const nextBillingDate = currentSubscription.current_period_end;
-
-    console.log('Retrieved current subscription for schedule:', {
-      id: currentSubscription.id,
-      status: currentSubscription.status,
-      current_period_start: currentSubscription.current_period_start,
-      current_period_end: currentSubscription.current_period_end,
-      items: currentSubscription.items.data.length
+    // Create subscription schedule from existing subscription
+    const schedule = await stripeInstance.subscriptionSchedules.create({
+      from_subscription: subscriptionId
     });
 
-    if (!nextBillingDate || !currentSubscription.current_period_start) {
-      throw new Error('Invalid subscription period dates - cannot create schedule');
-    }
+    console.log('Created initial schedule from subscription:', {
+      scheduleId: schedule.id,
+      subscription: schedule.subscription,
+      currentPhases: schedule.phases?.length
+    });
 
-    // Create a subscription schedule for the downgrade
-    const schedule = await stripeInstance.subscriptionSchedules.create({
-      from_subscription: subscriptionId,
+    // Update the schedule with proper phases
+    const updatedSchedule = await stripeInstance.subscriptionSchedules.update(schedule.id, {
       phases: [
         {
-          // Current phase - keep existing subscription until next billing
-          start_date: currentSubscription.current_period_start,
-          end_date: nextBillingDate,
-          items: currentSubscription.items.data.map((item: any) => ({
-            price: item.price.id,
-            quantity: item.quantity || 1,
-          })),
+          // Current phase - preserve existing subscription until end of period
+          items: [
+            {
+              price: schedule.phases[0].items[0].price as string,
+              quantity: schedule.phases[0].items[0].quantity
+            }
+          ],
+          start_date: schedule.phases[0].start_date,
+          end_date: schedule.phases[0].end_date
         },
         {
-          // New phase - start the downgraded plan from next billing period  
-          start_date: nextBillingDate,
-          items: [{
-            price: newPriceId,
-            quantity: newQuantity,
-          }],
-          metadata: metadata,
+          // New phase - downgraded plan starts at next billing period
+          items: [
+            {
+              price: newPriceId,
+              quantity: newQuantity
+            }
+          ],
+          iterations: 1,
+          metadata: metadata
         }
-      ],
-    } as any);
-
-    console.log('Subscription schedule created successfully:', {
-      id: schedule.id,
-      status: schedule.status,
-      phases: schedule.phases?.length,
-      subscription: schedule.subscription,
-      nextPhaseDate: schedule.phases?.[1]?.start_date
+      ]
     });
-    return schedule;
+
+    console.log('Subscription schedule updated successfully:', {
+      id: updatedSchedule.id,
+      status: updatedSchedule.status,
+      phases: updatedSchedule.phases?.length,
+      subscription: updatedSchedule.subscription
+    });
+    
+    return updatedSchedule;
     
   } catch (error: any) {
     console.error('Error scheduling subscription downgrade:', error);
@@ -516,6 +514,52 @@ export const calculateProration = async (
   } catch (error: any) {
     console.error('Error calculating proration:', error);
     throw new Error(`Failed to calculate proration: ${error.message}`);
+  }
+};
+
+/**
+ * Cancel existing subscription schedule
+ */
+export const cancelExistingSchedule = async (stripeScheduleId: string): Promise<void> => {
+  const stripeInstance = getStripeInstance();
+  
+  try {
+    console.log('Cancelling existing subscription schedule:', stripeScheduleId);
+    
+    // Cancel the existing schedule
+    await stripeInstance.subscriptionSchedules.cancel(stripeScheduleId);
+    
+    console.log('Schedule cancelled successfully:', stripeScheduleId);
+  } catch (error: any) {
+    console.error('Error cancelling subscription schedule:', error);
+    // If schedule doesn't exist or is already cancelled, we can continue
+    if (error.code === 'resource_missing' || error.message.includes('already been')) {
+      console.log('Schedule was already cancelled or missing, continuing...');
+      return;
+    }
+    throw new Error(`Failed to cancel subscription schedule: ${error.message}`);
+  }
+};
+
+/**
+ * Check if subscription schedule is completed
+ */
+export const checkSubscriptionScheduleIsCompleted = async (stripeScheduleId: string): Promise<boolean> => {
+  const stripeInstance = getStripeInstance();
+  
+  try {
+    const stripeSchedule = await stripeInstance.subscriptionSchedules.retrieve(stripeScheduleId);
+    const scheduleLastPhaseEndDate = stripeSchedule.phases[stripeSchedule.phases.length - 1].end_date;
+    const scheduleCurrentPhaseEndDate = stripeSchedule.current_phase?.end_date;
+    
+    return scheduleLastPhaseEndDate === scheduleCurrentPhaseEndDate;
+  } catch (error: any) {
+    console.error('Error checking subscription schedule completion:', error);
+    // If schedule doesn't exist, consider it completed
+    if (error.code === 'resource_missing') {
+      return true;
+    }
+    throw new Error(`Failed to check subscription schedule completion: ${error.message}`);
   }
 };
 

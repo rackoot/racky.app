@@ -5,7 +5,9 @@ import {
   updateSubscriptionImmediate, 
   scheduleSubscriptionDowngrade, 
   calculateProration,
-  isStripeConfigured 
+  isStripeConfigured,
+  cancelExistingSchedule,
+  checkSubscriptionScheduleIsCompleted
 } from '@/common/services/stripeService';
 import Subscription from '../models/Subscription';
 import Plan from '../models/Plan';
@@ -281,6 +283,32 @@ export class SubscriptionController {
       const isUpgrade = priceDifference > 0;
       const isDowngrade = priceDifference < 0;
 
+      // Check and cancel existing schedule if one exists
+      if (currentSubscription.stripeScheduleId) {
+        console.log('Found existing schedule, checking if completed:', currentSubscription.stripeScheduleId);
+        try {
+          const scheduleCompleted = await checkSubscriptionScheduleIsCompleted(currentSubscription.stripeScheduleId);
+          if (scheduleCompleted) {
+            // Schedule is completed, clear the ID
+            currentSubscription.stripeScheduleId = undefined;
+            await currentSubscription.save();
+            console.log('Schedule was completed, cleared from subscription');
+          } else {
+            // Schedule is still active, cancel it
+            console.log('Schedule is active, cancelling before new update');
+            await cancelExistingSchedule(currentSubscription.stripeScheduleId);
+            currentSubscription.stripeScheduleId = undefined;
+            await currentSubscription.save();
+            console.log('Existing schedule cancelled successfully');
+          }
+        } catch (error: any) {
+          console.warn('Error handling existing schedule:', error.message);
+          // Clear the schedule ID if it's invalid
+          currentSubscription.stripeScheduleId = undefined;
+          await currentSubscription.save();
+        }
+      }
+
       // Get the new Stripe price ID
       const newPriceId = billingCycle === 'annual' ? plan.stripeYearlyPriceId : plan.stripeMonthlyPriceId;
       
@@ -332,6 +360,12 @@ export class SubscriptionController {
             scheduleId: schedule.id,
             phases: schedule.phases?.length
           });
+          
+          // Save schedule ID to subscription for tracking
+          currentSubscription.stripeScheduleId = schedule.id;
+          await currentSubscription.save();
+          console.log('Schedule ID saved to subscription:', schedule.id);
+          
           result = { type: 'downgrade', timing: 'scheduled', scheduleId: schedule.id };
           // For downgrades, we keep the current subscription active until the schedule takes effect
           stripeSubscription = null; // We don't update immediately
@@ -359,6 +393,10 @@ export class SubscriptionController {
         // For downgrades, we only update the database when the schedule takes effect
         // For upgrades and no-change scenarios, we update immediately
         if (!isDowngrade) {
+          // Clear any schedule ID since we're processing immediately
+          if (currentSubscription.stripeScheduleId && !isDowngrade) {
+            currentSubscription.stripeScheduleId = undefined;
+          }
           console.log('Updating subscription in database for:', result.type, {
             stripeSubscriptionExists: !!stripeSubscription,
             planId: plan._id,
@@ -510,23 +548,41 @@ export class SubscriptionController {
    */
   async cancelWorkspaceSubscription(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
+      // First find the active subscription to check for pending schedules
+      const activeSubscription = await Subscription.findOne({
+        workspaceId: req.workspace!._id, 
+        status: 'ACTIVE'
+      });
       
-      const subscription = await Subscription.findOneAndUpdate(
-        { workspaceId: req.workspace!._id, status: 'ACTIVE' },
-        { 
-          status: 'CANCELLED',
-          cancelledAt: new Date()
-        },
-        { new: true }
-      ).populate('planId');
-      
-      if (!subscription) {
+      if (!activeSubscription) {
         res.status(404).json({
           success: false,
           message: 'No active subscription found for this workspace'
         });
         return;
       }
+
+      // Cancel any pending schedule before cancelling subscription
+      if (activeSubscription.stripeScheduleId) {
+        console.log('Cancelling pending schedule before subscription cancellation:', activeSubscription.stripeScheduleId);
+        try {
+          await cancelExistingSchedule(activeSubscription.stripeScheduleId);
+          console.log('Pending schedule cancelled successfully');
+        } catch (error: any) {
+          console.warn('Error cancelling pending schedule:', error.message);
+          // Continue with subscription cancellation even if schedule cancellation fails
+        }
+      }
+      
+      const subscription = await Subscription.findOneAndUpdate(
+        { workspaceId: req.workspace!._id, status: 'ACTIVE' },
+        { 
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          stripeScheduleId: undefined // Clear any schedule reference
+        },
+        { new: true }
+      ).populate('planId');
       
       res.json({
         success: true,
