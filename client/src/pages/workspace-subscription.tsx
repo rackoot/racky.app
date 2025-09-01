@@ -41,6 +41,7 @@ import { SubscriptionChangeModal } from "@/components/workspace/subscription-cha
 import { SuccessModal } from "@/components/ui/success-modal"
 import { useNavigate } from "react-router-dom"
 import { Slider } from "@/components/ui/slider"
+import { CancelledSubscriptionView } from "@/components/workspace/cancelled-subscription-view"
 
 interface Plan {
   name: string
@@ -294,6 +295,19 @@ export default function WorkspaceSubscriptionPage() {
           </Button>
         </div>
       </div>
+    )
+  }
+
+  // Check if subscription is cancelled and show appropriate view
+  if (subscription?.subscription.status === 'CANCELLED') {
+    return (
+      <CancelledSubscriptionView
+        workspaceName={currentWorkspace.name}
+        workspaceId={currentWorkspace._id}
+        cancelledAt={subscription.subscription.cancelledAt}
+        cancellationReason={subscription.subscription.cancellationReason}
+        onReactivate={loadSubscriptionData}
+      />
     )
   }
 

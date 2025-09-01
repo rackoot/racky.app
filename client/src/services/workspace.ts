@@ -10,6 +10,8 @@ export interface WorkspaceSubscription {
     hasActiveSubscription: boolean;
     endsAt: string | null;
     planLimits: any;
+    cancelledAt?: string;
+    cancellationReason?: string;
   };
   currentPlan: any;
   hasActiveSubscription: boolean;
@@ -129,6 +131,37 @@ export const updateWorkspaceSubscription = async (
 
 export const cancelWorkspaceSubscription = async (workspaceId: string): Promise<any> => {
   return subscriptionApi.cancelSubscription(workspaceId)
+};
+
+export const reactivateWorkspaceSubscription = async (
+  workspaceId: string, 
+  subscriptionData: UpdateSubscriptionRequest
+): Promise<any> => {
+  try {
+    console.log('Reactivating workspace subscription:', { workspaceId, subscriptionData });
+    
+    // Use a dedicated reactivation endpoint if it exists, otherwise use create
+    const response = await fetch(`/api/subscription/${workspaceId}/reactivate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify(subscriptionData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('Subscription reactivation successful:', result);
+    return result;
+  } catch (error) {
+    console.error('Subscription reactivation failed in service:', error);
+    throw error;
+  }
 };
 
 export const getWorkspaceUsage = async (workspaceId: string): Promise<WorkspaceUsage> => {

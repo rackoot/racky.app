@@ -44,4 +44,12 @@ router.delete('/:workspaceId',
   subscriptionController.cancelWorkspaceSubscription.bind(subscriptionController)
 );
 
+// POST /api/subscription/:workspaceId/reactivate - Reactivate workspace subscription
+router.post('/:workspaceId/reactivate', 
+  protect, 
+  requireWorkspace, 
+  requireWorkspacePermission('workspace:manage_subscription'), 
+  subscriptionController.reactivateWorkspaceSubscription.bind(subscriptionController)
+);
+
 export default router;

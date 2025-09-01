@@ -13,6 +13,7 @@ interface EmbeddedCheckoutProps {
   billingCycle: 'monthly' | 'yearly'
   onBack: () => void
   onSuccess?: () => void
+  isReactivation?: boolean
 }
 
 // Initialize Stripe (you'll need to add your publishable key)
@@ -23,7 +24,8 @@ export function EmbeddedCheckoutWrapper({
   contributorCount, 
   billingCycle, 
   onBack, 
-  onSuccess 
+  onSuccess,
+  isReactivation = false
 }: EmbeddedCheckoutProps) {
   const [clientSecret, setClientSecret] = useState<string>("")
   const [loading, setLoading] = useState(true)

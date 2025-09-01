@@ -96,12 +96,16 @@ interface ContributorSelectorProps {
   showHeader?: boolean
   title?: string
   description?: string
+  onSubscriptionComplete?: () => void
+  isReactivation?: boolean
 }
 
 export function ContributorSelector({ 
   showHeader = true, 
   title = "Hire AI Contributors for Your Marketplace",
-  description = "Choose the right contributors to automate your marketplace operations. Each contributor performs actions on your behalf."
+  description = "Choose the right contributors to automate your marketplace operations. Each contributor performs actions on your behalf.",
+  onSubscriptionComplete,
+  isReactivation = false
 }: ContributorSelectorProps) {
   const [selectedPlan, setSelectedPlan] = useState<ContributorPlan | null>(null)
   const [contributorCount, setContributorCount] = useState([1])
@@ -170,8 +174,13 @@ export function ContributorSelector({
   }
 
   const handleCheckoutSuccess = () => {
-    // Redirect to dashboard with success message
-    navigate('/dashboard?checkout=success&plan=' + selectedPlan?.name)
+    // Call the completion callback if provided (for reactivation)
+    if (onSubscriptionComplete) {
+      onSubscriptionComplete()
+    } else {
+      // Redirect to dashboard with success message
+      navigate('/dashboard?checkout=success&plan=' + selectedPlan?.name)
+    }
   }
 
   const handleCheckoutBack = () => {
@@ -187,6 +196,7 @@ export function ContributorSelector({
         billingCycle={billingCycle}
         onBack={handleCheckoutBack}
         onSuccess={handleCheckoutSuccess}
+        isReactivation={isReactivation}
       />
     )
   }

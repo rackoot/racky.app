@@ -743,6 +743,121 @@ export class SubscriptionController {
       });
     }
   }
+
+  /**
+   * POST /api/subscription/:workspaceId/reactivate - Reactivate workspace subscription
+   */
+  async reactivateWorkspaceSubscription(req: AuthenticatedRequest<UpdateSubscriptionDto>, res: Response): Promise<void> {
+    try {
+      const { error } = updateSubscriptionSchema.validate(req.body);
+      if (error) {
+        res.status(400).json({
+          success: false,
+          message: 'Validation error',
+          error: error.details[0].message
+        });
+        return;
+      }
+
+      // Check if workspace has a cancelled subscription
+      const cancelledSubscription = await Subscription.findOne({
+        workspaceId: req.workspace!._id,
+        status: 'CANCELLED'
+      });
+
+      if (!cancelledSubscription) {
+        res.status(400).json({
+          success: false,
+          message: 'No cancelled subscription found. Use regular subscription update instead.'
+        });
+        return;
+      }
+
+      // Get the requested plan
+      const plan = await Plan.findOne({ name: req.body.planName });
+      if (!plan) {
+        res.status(404).json({
+          success: false,
+          message: 'Plan not found'
+        });
+        return;
+      }
+
+      // Validate contributor count
+      const contributorCount = req.body.contributorCount || 1;
+      if (contributorCount > plan.maxContributorsPerWorkspace) {
+        res.status(400).json({
+          success: false,
+          message: `Maximum ${plan.maxContributorsPerWorkspace} contributors allowed for this plan`
+        });
+        return;
+      }
+
+      // Calculate new subscription details
+      const billingCycle = req.body.billingCycle || 'monthly';
+      const amount = billingCycle === 'annual' ? 
+        plan.getTotalYearlyPrice(contributorCount) : 
+        plan.getTotalMonthlyPrice(contributorCount);
+      const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
+      
+      // Set end date (1 month or 1 year from now)
+      const endsAt = new Date();
+      if (billingCycle === 'annual') {
+        endsAt.setFullYear(endsAt.getFullYear() + 1);
+      } else {
+        endsAt.setMonth(endsAt.getMonth() + 1);
+      }
+
+      // Create new subscription (reactivation)
+      const newSubscription = new Subscription({
+        workspaceId: req.workspace!._id,
+        planId: plan._id,
+        contributorCount,
+        totalMonthlyActions,
+        amount,
+        currency: 'usd',
+        interval: billingCycle === 'annual' ? 'year' : 'month',
+        startsAt: new Date(),
+        endsAt,
+        nextBillingDate: endsAt,
+        status: 'ACTIVE'
+      });
+
+      await newSubscription.save();
+      await newSubscription.populate('planId');
+
+      // Update the old cancelled subscription to mark it as replaced
+      await Subscription.findByIdAndUpdate(cancelledSubscription._id, {
+        metadata: { 
+          ...cancelledSubscription.metadata,
+          reactivatedAt: new Date(),
+          reactivatedBy: req.user!._id,
+          replacedBySubscription: newSubscription._id
+        }
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Workspace subscription reactivated successfully',
+        data: {
+          workspaceId: req.workspace!._id,
+          subscription: newSubscription,
+          planName: plan.name,
+          planDisplayName: plan.displayName,
+          contributorCount,
+          totalMonthlyActions,
+          monthlyPrice: billingCycle === 'annual' ? amount / 100 / 12 : amount / 100,
+          billingCycle: billingCycle
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Error reactivating workspace subscription',
+        error: (error as Error).message
+      });
+    }
+  }
 }
 
 export const subscriptionController = new SubscriptionController();
