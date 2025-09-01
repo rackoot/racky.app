@@ -28,16 +28,23 @@ export interface SubscriptionInfo {
     description: string;
     enabled: boolean;
   }> | null;
+  scheduledDowngrade?: {
+    planName: string;
+    planDisplayName: string;
+    contributorCount: number;
+    effectiveDate: string;
+    scheduleId: string;
+  } | null;
 }
 
 export interface SubscriptionUpdateRequest {
-  planName: 'BASIC' | 'PRO' | 'ENTERPRISE';
+  planName: 'JUNIOR' | 'SENIOR';
   billingCycle?: 'monthly' | 'annual';
   contributorCount?: number;
 }
 
 export interface SubscriptionPreviewRequest {
-  planName: 'BASIC' | 'PRO' | 'ENTERPRISE';
+  planName: 'JUNIOR' | 'SENIOR';
   billingCycle: 'monthly' | 'annual';
   contributorCount: number;
 }
@@ -100,5 +107,12 @@ export const subscriptionApi = {
    */
   async cancelSubscription(workspaceId: string): Promise<any> {
     return apiDelete<any>(ENDPOINTS.SUBSCRIPTIONS.CANCEL(workspaceId))
+  },
+
+  /**
+   * Cancel scheduled downgrade
+   */
+  async cancelScheduledDowngrade(workspaceId: string): Promise<any> {
+    return apiDelete<any>(ENDPOINTS.SUBSCRIPTIONS.CANCEL_DOWNGRADE(workspaceId))
   },
 }

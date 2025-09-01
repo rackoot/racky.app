@@ -28,6 +28,14 @@ router.put('/:workspaceId',
   subscriptionController.updateWorkspaceSubscription.bind(subscriptionController)
 );
 
+// DELETE /api/subscription/:workspaceId/downgrade - Cancel scheduled downgrade
+router.delete('/:workspaceId/downgrade', 
+  protect, 
+  requireWorkspace, 
+  requireWorkspacePermission('workspace:manage_subscription'), 
+  subscriptionController.cancelWorkspaceSubscriptionDowngrade.bind(subscriptionController)
+);
+
 // DELETE /api/subscription/:workspaceId - Cancel workspace subscription
 router.delete('/:workspaceId', 
   protect, 

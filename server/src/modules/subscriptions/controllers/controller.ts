@@ -36,6 +36,47 @@ export class SubscriptionController {
           (currentSubscription.amount / 100)
       ) : 0;
 
+      // Check for scheduled downgrade information
+      let scheduledDowngrade = null;
+      if (currentSubscription?.stripeScheduleId) {
+        try {
+          // Get schedule details from Stripe to get the future plan information
+          const { getStripeInstance } = await import('@/common/services/stripeService');
+          const stripeInstance = getStripeInstance();
+          const schedule = await stripeInstance.subscriptionSchedules.retrieve(currentSubscription.stripeScheduleId);
+          
+          // The second phase contains the downgrade info
+          const downgradePhase = schedule.phases?.[1];
+          if (downgradePhase && downgradePhase.items?.[0]) {
+            const newPriceId = downgradePhase.items[0].price as string;
+            const newQuantity = downgradePhase.items[0].quantity || 1;
+            
+            // Find the plan that matches the new price ID
+            const allPlans = await Plan.find({});
+            const targetPlan = allPlans.find(plan => 
+              plan.stripeMonthlyPriceId === newPriceId || plan.stripeYearlyPriceId === newPriceId
+            );
+            
+            if (targetPlan) {
+              scheduledDowngrade = {
+                planName: targetPlan.name,
+                planDisplayName: targetPlan.displayName,
+                contributorCount: newQuantity,
+                effectiveDate: new Date(downgradePhase.start_date * 1000).toISOString(),
+                scheduleId: currentSubscription.stripeScheduleId
+              };
+            }
+          }
+        } catch (error: any) {
+          console.warn('Error fetching schedule details:', error.message);
+          // If schedule no longer exists, clear it from our database
+          if (error.code === 'resource_missing') {
+            currentSubscription.stripeScheduleId = undefined;
+            await currentSubscription.save();
+          }
+        }
+      }
+
       res.json({
         success: true,
         message: 'Workspace subscription retrieved successfully',
@@ -50,7 +91,8 @@ export class SubscriptionController {
           currentMonthlyPrice,
           billingCycle: currentSubscription?.interval === 'year' ? 'annual' : 'monthly',
           limits: currentPlan ? currentPlan.limits : null,
-          features: currentPlan ? currentPlan.features : null
+          features: currentPlan ? currentPlan.features : null,
+          scheduledDowngrade
         }
       });
     } catch (error) {
@@ -86,6 +128,17 @@ export class SubscriptionController {
         res.status(404).json({
           success: false,
           message: 'Subscription plan not found'
+        });
+        return;
+      }
+
+      // Check if the plan requires contacting sales (Executive plan)
+      if (newPlan.isContactSalesOnly) {
+        res.status(400).json({
+          success: false,
+          message: 'This plan requires contacting sales',
+          requiresContactSales: true,
+          contactFormUrl: 'https://forms.monday.com/forms/226e77aa9d94bc45ae4ec3dd8518b5c0?r=use1'
         });
         return;
       }
@@ -230,6 +283,17 @@ export class SubscriptionController {
         res.status(404).json({
           success: false,
           message: 'Subscription plan not found'
+        });
+        return;
+      }
+
+      // Check if the plan requires contacting sales (Executive plan)
+      if (plan.isContactSalesOnly) {
+        res.status(400).json({
+          success: false,
+          message: 'This plan requires contacting sales',
+          requiresContactSales: true,
+          contactFormUrl: 'https://forms.monday.com/forms/226e77aa9d94bc45ae4ec3dd8518b5c0?r=use1'
         });
         return;
       }
@@ -538,6 +602,83 @@ export class SubscriptionController {
       res.status(500).json({
         success: false,
         message: 'Error updating workspace subscription',
+        error: (error as Error).message
+      });
+    }
+  }
+
+  /**
+   * DELETE /api/subscription/:workspaceId/downgrade - Cancel scheduled downgrade
+   */
+  async cancelWorkspaceSubscriptionDowngrade(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      // Find the active subscription with a scheduled downgrade
+      const activeSubscription = await Subscription.findOne({
+        workspaceId: req.workspace!._id, 
+        status: 'ACTIVE'
+      });
+      
+      if (!activeSubscription) {
+        res.status(404).json({
+          success: false,
+          message: 'No active subscription found for this workspace'
+        });
+        return;
+      }
+
+      if (!activeSubscription.stripeScheduleId) {
+        res.status(404).json({
+          success: false,
+          message: 'No scheduled downgrade found for this workspace'
+        });
+        return;
+      }
+
+      console.log('Cancelling scheduled downgrade:', activeSubscription.stripeScheduleId);
+
+      try {
+        // Cancel the scheduled downgrade in Stripe
+        await cancelExistingSchedule(activeSubscription.stripeScheduleId);
+        
+        // Clear the schedule ID from our database
+        activeSubscription.stripeScheduleId = undefined;
+        await activeSubscription.save();
+        
+        console.log('Scheduled downgrade cancelled successfully');
+
+        res.json({
+          success: true,
+          message: 'Scheduled downgrade cancelled successfully',
+          data: {
+            workspaceId: req.workspace!._id,
+            scheduleCancelled: true
+          }
+        });
+      } catch (stripeError: any) {
+        console.error('Error cancelling schedule in Stripe:', stripeError);
+        
+        // If schedule doesn't exist in Stripe, clean up our database
+        if (stripeError.message?.includes('resource_missing') || stripeError.code === 'resource_missing') {
+          activeSubscription.stripeScheduleId = undefined;
+          await activeSubscription.save();
+          
+          res.json({
+            success: true,
+            message: 'Scheduled downgrade was already cancelled or completed',
+            data: {
+              workspaceId: req.workspace!._id,
+              scheduleCancelled: true
+            }
+          });
+        } else {
+          throw stripeError;
+        }
+      }
+    } catch (error) {
+      console.error('Error cancelling workspace subscription downgrade:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error cancelling scheduled downgrade',
         error: (error as Error).message
       });
     }

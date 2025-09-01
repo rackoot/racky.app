@@ -4,6 +4,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog"
+import { 
   CreditCard, 
   Calendar, 
   TrendingUp, 
@@ -28,6 +36,7 @@ import {
   type WorkspaceUsage,
   type SubscriptionPreview 
 } from "@/services/workspace"
+import { subscriptionApi } from "@/api/subscription"
 import { SubscriptionChangeModal } from "@/components/workspace/subscription-change-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { useNavigate } from "react-router-dom"
@@ -73,6 +82,8 @@ export default function WorkspaceSubscriptionPage() {
   const [successTitle, setSuccessTitle] = useState('Success!')
   const [errorMessage, setErrorMessage] = useState('')
   const [showErrorAlert, setShowErrorAlert] = useState(false)
+  const [isCancellingDowngrade, setIsCancellingDowngrade] = useState(false)
+  const [showCancelDowngradeModal, setShowCancelDowngradeModal] = useState(false)
 
   useEffect(() => {
     if (!currentWorkspace) {
@@ -111,7 +122,7 @@ export default function WorkspaceSubscriptionPage() {
   // Initialize form values when subscription data is loaded
   useEffect(() => {
     if (subscription) {
-      setSelectedPlan(subscription.currentPlan?.name || 'BASIC')
+      setSelectedPlan(subscription.currentPlan?.name || 'JUNIOR')
       setBillingCycle(subscription.billingCycle)
       setContributorCount([subscription.contributorCount])
     }
@@ -136,7 +147,7 @@ export default function WorkspaceSubscriptionPage() {
     try {
       setIsPreviewLoading(true)
       const preview = await previewWorkspaceSubscriptionChange(currentWorkspace._id, {
-        planName: selectedPlan as 'BASIC' | 'PRO' | 'ENTERPRISE',
+        planName: selectedPlan as 'JUNIOR' | 'SENIOR',
         billingCycle,
         contributorCount: contributorCount[0]
       })
@@ -157,7 +168,7 @@ export default function WorkspaceSubscriptionPage() {
     try {
       setIsUpdating(true)
       const result = await updateWorkspaceSubscription(currentWorkspace._id, {
-        planName: selectedPlan as 'BASIC' | 'PRO' | 'ENTERPRISE',
+        planName: selectedPlan as 'JUNIOR' | 'SENIOR',
         billingCycle,
         contributorCount: contributorCount[0]
       })
@@ -193,6 +204,32 @@ export default function WorkspaceSubscriptionPage() {
       showError(error instanceof Error ? error.message : 'Failed to update subscription')
     } finally {
       setIsUpdating(false)
+    }
+  }
+
+  const handleCancelDowngradeClick = () => {
+    if (!currentWorkspace || !subscription?.scheduledDowngrade || isCancellingDowngrade) return
+    setShowCancelDowngradeModal(true)
+  }
+
+  const handleConfirmCancelDowngrade = async () => {
+    if (!currentWorkspace || !subscription?.scheduledDowngrade || isCancellingDowngrade) return
+
+    try {
+      setIsCancellingDowngrade(true)
+      await subscriptionApi.cancelScheduledDowngrade(currentWorkspace._id)
+      
+      // Close the modal first
+      setShowCancelDowngradeModal(false)
+      
+      // Reload subscription data to reflect the cancellation
+      await loadSubscriptionData()
+      showSuccess('Downgrade Cancelled', 'Your scheduled downgrade has been cancelled successfully. You will remain on your current plan.')
+    } catch (error) {
+      console.error('Error cancelling scheduled downgrade:', error)
+      showError(error instanceof Error ? error.message : 'Failed to cancel scheduled downgrade')
+    } finally {
+      setIsCancellingDowngrade(false)
     }
   }
 
@@ -295,6 +332,67 @@ export default function WorkspaceSubscriptionPage() {
           Manage subscription for <strong>{currentWorkspace.name}</strong> workspace
         </p>
       </div>
+
+      {/* Scheduled Downgrade Alert */}
+      {subscription?.scheduledDowngrade && (
+        <Card className="mb-8 border-orange-200 bg-orange-50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-6 w-6 text-orange-600 mt-0.5" />
+              </div>
+              <div className="flex-grow">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-orange-900">Downgrade Scheduled</h3>
+                  <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {new Date(subscription.scheduledDowngrade.effectiveDate).toLocaleDateString()}
+                  </Badge>
+                </div>
+                <p className="text-orange-800 mb-4">
+                  Your workspace will downgrade from <strong>{subscription.currentPlan?.displayName}</strong> ({subscription.contributorCount} contributor{subscription.contributorCount > 1 ? 's' : ''}) to <strong>{subscription.scheduledDowngrade.planDisplayName}</strong> ({subscription.scheduledDowngrade.contributorCount} contributor{subscription.scheduledDowngrade.contributorCount > 1 ? 's' : ''}) on {new Date(subscription.scheduledDowngrade.effectiveDate).toLocaleDateString('en-US', { 
+                    weekday: 'long',
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}.
+                </p>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleCancelDowngradeClick}
+                    disabled={isCancellingDowngrade}
+                    variant="outline"
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                  >
+                    {isCancellingDowngrade ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                        Cancelling...
+                      </div>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        Cancel Downgrade
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-orange-700 hover:text-orange-900 hover:bg-orange-100"
+                    onClick={() => {
+                      // Scroll to the manage subscription section
+                      document.getElementById('manage-subscription')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Learn More
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Subscription Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -425,7 +523,7 @@ export default function WorkspaceSubscriptionPage() {
       )}
 
       {/* Subscription Manager */}
-      <Card>
+      <Card id="manage-subscription">
         <CardHeader>
           <CardTitle>Manage Subscription</CardTitle>
           <CardDescription>
@@ -437,35 +535,61 @@ export default function WorkspaceSubscriptionPage() {
           <div className="space-y-4">
             <h4 className="text-sm font-medium">Plan Selection</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {availablePlans.map((plan) => (
-                <Card 
-                  key={plan.name} 
-                  className={`cursor-pointer transition-all ${
-                    selectedPlan === plan.name ? 'ring-2 ring-primary' : 'hover:shadow-md'
-                  }`}
-                  onClick={() => setSelectedPlan(plan.name)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h5 className="font-semibold">{plan.displayName}</h5>
-                        <div className="text-2xl font-bold">
-                          ${billingCycle === 'monthly' ? formatPrice(plan.monthlyPrice) : formatYearlyPrice(plan.yearlyPrice)}
-                          <span className="text-xs text-muted-foreground">
-                            /contributor/{billingCycle === 'monthly' ? 'month' : 'year'}
-                          </span>
+              {availablePlans.map((plan) => {
+                const isExecutive = plan.contributorType === 'EXECUTIVE';
+                const isSelectable = !isExecutive;
+                
+                return (
+                  <Card 
+                    key={plan.name} 
+                    className={`relative transition-all ${
+                      isExecutive 
+                        ? 'cursor-not-allowed opacity-75' 
+                        : `cursor-pointer ${selectedPlan === plan.name ? 'ring-2 ring-primary' : 'hover:shadow-md'}`
+                    }`}
+                    onClick={isSelectable ? () => setSelectedPlan(plan.name) : undefined}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h5 className="font-semibold">{plan.displayName}</h5>
+                          <div className="text-2xl font-bold">
+                            {isExecutive ? (
+                              <span className="text-muted-foreground">Contact Sales</span>
+                            ) : (
+                              <>
+                                ${billingCycle === 'monthly' ? formatPrice(plan.monthlyPrice) : formatYearlyPrice(plan.yearlyPrice)}
+                                <span className="text-xs text-muted-foreground">
+                                  /contributor/{billingCycle === 'monthly' ? 'month' : 'year'}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
+                        {currentPlan?.name === plan.name && (
+                          <Badge variant="secondary" className="text-xs">Current</Badge>
+                        )}
                       </div>
-                      {currentPlan?.name === plan.name && (
-                        <Badge variant="secondary" className="text-xs">Current</Badge>
+                      <div className="text-xs text-muted-foreground mb-3">
+                        {isExecutive ? 'Unlimited actions per contributor' : `${plan.limits.apiCallsPerMonth.toLocaleString()} actions per contributor`}
+                      </div>
+                      
+                      {isExecutive && (
+                        <Button 
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open('https://forms.monday.com/forms/226e77aa9d94bc45ae4ec3dd8518b5c0?r=use1', '_blank');
+                          }}
+                        >
+                          Contact Sales
+                        </Button>
                       )}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {plan.limits.apiCallsPerMonth.toLocaleString()} actions per contributor
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
 
@@ -611,6 +735,65 @@ export default function WorkspaceSubscriptionPage() {
         title={successTitle}
         message={successMessage}
       />
+
+      {/* Cancel Downgrade Confirmation Modal */}
+      <Dialog open={showCancelDowngradeModal} onOpenChange={setShowCancelDowngradeModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              Cancel Scheduled Downgrade
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              {subscription?.scheduledDowngrade && (
+                <>
+                  You are about to cancel your scheduled downgrade from{' '}
+                  <strong>{subscription.currentPlan?.displayName}</strong> ({subscription.contributorCount} contributor{subscription.contributorCount > 1 ? 's' : ''}) to{' '}
+                  <strong>{subscription.scheduledDowngrade.planDisplayName}</strong> ({subscription.scheduledDowngrade.contributorCount} contributor{subscription.scheduledDowngrade.contributorCount > 1 ? 's' : ''}).
+                  <br /><br />
+                  <strong>This means:</strong>
+                  <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                    <li>You will remain on your current <strong>{subscription.currentPlan?.displayName}</strong> plan</li>
+                    <li>Your billing will continue at the current rate</li>
+                    <li>The downgrade scheduled for {new Date(subscription.scheduledDowngrade.effectiveDate).toLocaleDateString('en-US', { 
+                      weekday: 'long',
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })} will be removed</li>
+                  </ul>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDowngradeModal(false)}
+              disabled={isCancellingDowngrade}
+            >
+              Keep Downgrade
+            </Button>
+            <Button
+              onClick={handleConfirmCancelDowngrade}
+              disabled={isCancellingDowngrade}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {isCancellingDowngrade ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Cancelling...
+                </div>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Yes, Cancel Downgrade
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Error Alert */}
       {showErrorAlert && (

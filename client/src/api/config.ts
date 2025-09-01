@@ -80,6 +80,7 @@ export const ENDPOINTS = {
     PREVIEW: (workspaceId: string) => `/subscription/${workspaceId}/preview`,
     UPDATE: (workspaceId: string) => `/subscription/${workspaceId}`,
     CANCEL: (workspaceId: string) => `/subscription/${workspaceId}`,
+    CANCEL_DOWNGRADE: (workspaceId: string) => `/subscription/${workspaceId}/downgrade`,
   },
 
   // Usage (workspace-based)

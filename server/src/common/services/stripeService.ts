@@ -518,26 +518,26 @@ export const calculateProration = async (
 };
 
 /**
- * Cancel existing subscription schedule
+ * Release existing subscription schedule (removes schedule while keeping subscription active)
  */
 export const cancelExistingSchedule = async (stripeScheduleId: string): Promise<void> => {
   const stripeInstance = getStripeInstance();
   
   try {
-    console.log('Cancelling existing subscription schedule:', stripeScheduleId);
+    console.log('Releasing existing subscription schedule:', stripeScheduleId);
     
-    // Cancel the existing schedule
-    await stripeInstance.subscriptionSchedules.cancel(stripeScheduleId);
+    // Release the existing schedule (removes schedule but keeps subscription active)
+    await stripeInstance.subscriptionSchedules.release(stripeScheduleId);
     
-    console.log('Schedule cancelled successfully:', stripeScheduleId);
+    console.log('Schedule released successfully:', stripeScheduleId);
   } catch (error: any) {
-    console.error('Error cancelling subscription schedule:', error);
-    // If schedule doesn't exist or is already cancelled, we can continue
+    console.error('Error releasing subscription schedule:', error);
+    // If schedule doesn't exist or is already released, we can continue
     if (error.code === 'resource_missing' || error.message.includes('already been')) {
-      console.log('Schedule was already cancelled or missing, continuing...');
+      console.log('Schedule was already released or missing, continuing...');
       return;
     }
-    throw new Error(`Failed to cancel subscription schedule: ${error.message}`);
+    throw new Error(`Failed to release subscription schedule: ${error.message}`);
   }
 };
 
