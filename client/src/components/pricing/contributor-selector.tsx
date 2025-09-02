@@ -14,6 +14,7 @@ import {
 import { useNavigate } from "react-router-dom"
 import { getCurrentUser } from "@/lib/auth"
 import { getAuthHeaders } from "@/lib/utils"
+import { EmbeddedCheckoutWrapper } from "./embedded-checkout"
 
 interface ContributorPlan {
   name: string
@@ -106,6 +107,7 @@ export function ContributorSelector({
   const [contributorCount, setContributorCount] = useState([1])
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
   const [loading, setLoading] = useState(false)
+  const [showCheckout, setShowCheckout] = useState(false)
   const navigate = useNavigate()
   const user = getCurrentUser()
 
@@ -164,37 +166,29 @@ export function ContributorSelector({
       return
     }
 
-    setLoading(true)
-    
-    try {
-      // Create Stripe checkout session with contributor count
-      const response = await fetch('http://localhost:5000/api/billing/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          planName: selectedPlan.name,
-          contributorCount: contributorCount[0],
-          billingCycle
-        })
-      })
+    setShowCheckout(true)
+  }
 
-      const data = await response.json()
-      
-      if (data.success && data.data.url) {
-        window.location.href = data.data.url
-      } else {
-        console.error('Failed to create checkout session:', data.message)
-        navigate('/subscription')
-      }
-    } catch (error) {
-      console.error('Error creating checkout session:', error)
-      navigate('/subscription')
-    } finally {
-      setLoading(false)
-    }
+  const handleCheckoutSuccess = () => {
+    // Redirect to dashboard with success message
+    navigate('/dashboard?checkout=success&plan=' + selectedPlan?.name)
+  }
+
+  const handleCheckoutBack = () => {
+    setShowCheckout(false)
+  }
+
+  // Show checkout if user has selected plan and clicked hire
+  if (showCheckout && selectedPlan && user) {
+    return (
+      <EmbeddedCheckoutWrapper
+        planName={selectedPlan.name}
+        contributorCount={contributorCount[0]}
+        billingCycle={billingCycle}
+        onBack={handleCheckoutBack}
+        onSuccess={handleCheckoutSuccess}
+      />
+    )
   }
 
   return (

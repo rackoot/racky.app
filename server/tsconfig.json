@@ -8,6 +8,7 @@
     "baseUrl": "./src",
     "paths": {
       "@/common/*": ["common/*"],
+      "@/jobs/*": ["jobs/*"],
       "@/auth/*": ["modules/auth/*"],
       "@/admin/*": ["modules/admin/*"],
       "@/dashboard/*": ["modules/dashboard/*"],
@@ -17,7 +18,8 @@
       "@/opportunities/*": ["modules/opportunities/*"],
       "@/products/*": ["modules/products/*"],
       "@/stores/*": ["modules/stores/*"],
-      "@/subscriptions/*": ["modules/subscriptions/*"]
+      "@/subscriptions/*": ["modules/subscriptions/*"],
+      "@/workspaces/*": ["modules/workspaces/*"]
     },
     "strict": false,
     "esModuleInterop": true,

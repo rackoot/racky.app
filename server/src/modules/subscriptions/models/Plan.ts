@@ -69,7 +69,7 @@ const planSchema = new Schema<IPlan>({
   name: {
     type: String,
     required: true,
-    enum: ['BASIC', 'PRO', 'ENTERPRISE']
+    enum: ['BASIC', 'PRO', 'ENTERPRISE', 'JUNIOR', 'SENIOR', 'EXECUTIVE']
   },
   displayName: {
     type: String,
@@ -82,8 +82,8 @@ const planSchema = new Schema<IPlan>({
   // Contributor-based fields
   contributorType: {
     type: String,
-    required: true,
-    enum: ['JUNIOR', 'SENIOR', 'EXECUTIVE']
+    required: false,
+    enum: ['JUNIOR', 'SENIOR', 'EXECUTIVE', 'junior', 'senior', 'executive']
   },
   actionsPerContributor: {
     type: Number,

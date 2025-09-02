@@ -20,6 +20,7 @@ import productRoutes from '@/products/routes/products';
 import dashboardRoutes from '@/dashboard/routes/dashboard';
 import optimizationRoutes from '@/opportunities/routes/optimizations';
 import opportunityRoutes from '@/opportunities/routes/opportunities';
+import aiOptimizationRoutes from '@/opportunities/routes/ai-optimization';
 import adminRoutes from '@/admin/routes/admin';
 import planRoutes from '@/subscriptions/routes/plans';
 import usageRoutes from '@/subscriptions/routes/usage';
@@ -28,11 +29,14 @@ import demoRoutes from '@/demo/routes/demo';
 import workspaceRoutes from './modules/workspaces/routes/workspaces';
 import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
 import { protect, requireWorkspace } from '@/common/middleware/auth';
+import { stripeWebhookHandler } from '@/subscriptions/routes/billing';
+import queueService from '@/common/services/queueService';
+import { setupJobProcessors } from '@/jobs/jobSetup';
 
 
 const app = express();
 
-// Initialize notification scheduler after database connection
+// Initialize notification scheduler and queue service after database connection
 let notificationCleanup: (() => void) | undefined;
 
 const limiter = rateLimit({
@@ -41,18 +45,34 @@ const limiter = rateLimit({
 });
 
 app.use(helmet());
+// Handle multiple CLIENT_URLs separated by commas
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+// Add CLIENT_URL(s) from environment
+const clientUrl = getEnv().CLIENT_URL;
+if (clientUrl) {
+  const clientUrls = clientUrl.split(',').map(url => url.trim());
+  allowedOrigins.push(...clientUrls);
+}
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    getEnv().CLIENT_URL
-  ],
+  origin: allowedOrigins,
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Workspace-ID', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count']
 }));
 app.use(morgan('tiny'));
 app.use(limiter);
+
+// Stripe webhook route (must be before JSON middleware and without auth)
+app.post('/api/billing/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -71,6 +91,7 @@ app.use('/api/products', protect, requireWorkspace, productRoutes);
 app.use('/api/dashboard', protect, requireWorkspace, dashboardRoutes);
 app.use('/api/optimizations', protect, requireWorkspace, optimizationRoutes);
 app.use('/api/opportunities', protect, requireWorkspace, opportunityRoutes);
+app.use('/api/opportunities/ai', protect, requireWorkspace, aiOptimizationRoutes);
 app.use('/api/usage', protect, requireWorkspace, usageRoutes);
 app.use('/api/billing', protect, requireWorkspace, billingRoutes);
 app.use('/api/demo', protect, requireWorkspace, demoRoutes);
@@ -87,6 +108,12 @@ const startServer = async () => {
     // Connect to database first
     await connectDB();
     
+    // Initialize queue service
+    await queueService.initialize();
+    
+    // Set up job processors
+    setupJobProcessors();
+    
     const PORT = getEnv().PORT;
     const server = app.listen(PORT, () => {
       console.log(`🚀 Racky server running on port ${PORT}`);
@@ -98,11 +125,12 @@ const startServer = async () => {
     });
 
     // Graceful shutdown handlers
-    const gracefulShutdown = () => {
+    const gracefulShutdown = async () => {
       console.log('Shutting down gracefully...');
       if (notificationCleanup) {
         notificationCleanup();
       }
+      await queueService.shutdown();
       server.close(() => {
         console.log('Server closed.');
         process.exit(0);

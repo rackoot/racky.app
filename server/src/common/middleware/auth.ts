@@ -359,7 +359,10 @@ const checkSyncFrequency = () => {
         if (connection && connection.lastSync) {
           const timeSinceLastSync = (Date.now() - connection.lastSync.getTime()) / (1000 * 60 * 60); // hours
           
-          if (timeSinceLastSync < minSyncInterval) {
+          // Check if force sync is enabled (bypasses frequency limits)
+          const force = req.body.force === true;
+          
+          if (timeSinceLastSync < minSyncInterval && !force) {
             const hoursRemaining = Math.ceil(minSyncInterval - timeSinceLastSync);
             return res.status(429).json({
               success: false,

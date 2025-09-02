@@ -8,6 +8,7 @@ import Product from '@/products/models/Product';
 import Suggestion from '../models/Suggestion';
 import * as marketplaceService from '../../marketplaces/services/marketplaceService';
 import { protect } from '@/common/middleware/auth';
+import ProductHistoryService from '@/products/services/ProductHistoryService';
 
 const router = express.Router();
 
@@ -56,6 +57,50 @@ interface AIResult {
   tokens: number;
   confidence: number;
   keywords: string[];
+}
+
+// Helper to check if a product is in AI optimization queue
+async function getProductAIOptimizationStatus(productId: string, workspaceId: string, platform?: string) {
+  const queueService = (await import('@/common/services/queueService')).default;
+  const aiQueue = queueService.getQueue('ai-optimization');
+  
+  const [waitingJobs, activeJobs] = await Promise.all([
+    aiQueue.getWaiting(),
+    aiQueue.getActive()
+  ]);
+
+  // Check if this product is in any active or waiting batch jobs
+  for (const job of [...activeJobs, ...waitingJobs]) {
+    if (job.data.productIds?.includes(productId)) {
+      return {
+        status: job.opts?.delay ? 'queued' : 'processing',
+        jobId: job.id,
+        batchNumber: job.data.batchNumber,
+        totalBatches: job.data.totalBatches,
+        marketplace: job.data.marketplace
+      };
+    }
+  }
+
+  // Check if there's a recent AI optimization in history (last 24 hours)
+  const ProductHistory = (await import('@/products/models/ProductHistory')).default;
+  const recentOptimization = await ProductHistory.findOne({
+    productId,
+    workspaceId,
+    actionType: 'AI_OPTIMIZATION_GENERATED',
+    createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    ...(platform && { 'metadata.marketplace': platform })
+  }).sort({ createdAt: -1 });
+
+  if (recentOptimization) {
+    return {
+      status: 'recently_optimized',
+      optimizedAt: recentOptimization.createdAt,
+      marketplace: recentOptimization.metadata?.marketplace
+    };
+  }
+
+  return null;
 }
 
 // Platform-specific prompts for AI generation
@@ -198,6 +243,18 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
         });
       }
 
+      // Check if product is in an AI optimization queue
+      const queueStatus = await getProductAIOptimizationStatus(productId, workspaceId.toString(), platform);
+      if (queueStatus) {
+        return res.json({
+          success: true,
+          data: {
+            queueStatus,
+            cached: false
+          }
+        });
+      }
+
       // Check for existing cached description
       const existingCachedDescription = product.cachedDescriptions?.find(
         (cached: any) => cached.platform === platform
@@ -226,8 +283,31 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
         });
       }
 
+      // Create history entry for AI optimization generation
+      const generationHistory = await ProductHistoryService.createAIOptimizationHistory({
+        workspaceId: workspaceId.toString(),
+        userId: req.user!._id.toString(),
+        productId,
+        actionType: 'AI_OPTIMIZATION_GENERATED',
+        marketplace: platform,
+        aiModel: 'gpt-3.5-turbo',
+        originalContent: product.description || ''
+      });
+
       // Generate new suggestion
       const aiResult = await generateOptimizedDescription(platform, product);
+      
+      // Update history with results
+      await ProductHistoryService.markCompleted(
+        generationHistory._id.toString(),
+        'SUCCESS',
+        {
+          confidence: aiResult.confidence,
+          tokensUsed: aiResult.tokens,
+          newContent: aiResult.content,
+          keywords: aiResult.keywords
+        }
+      );
       
       // Add to cached descriptions
       const newCachedDescription: any = {
@@ -382,7 +462,33 @@ router.patch('/products/:id/description/:platform', async (req: AuthenticatedReq
       }
 
       // Update status
+      const oldStatus = cachedDescription.status;
       cachedDescription.status = status;
+
+      // Track history for accept/reject actions
+      if (status === 'accepted' && oldStatus !== 'accepted') {
+        await ProductHistoryService.createAIOptimizationHistory({
+          workspaceId: workspaceId.toString(),
+          userId: req.user!._id.toString(),
+          productId,
+          actionType: 'AI_OPTIMIZATION_ACCEPTED',
+          marketplace: platform,
+          originalContent: product.description || '',
+          newContent: cachedDescription.content,
+          confidence: cachedDescription.confidence
+        });
+      } else if (status === 'rejected' && oldStatus !== 'rejected') {
+        await ProductHistoryService.createAIOptimizationHistory({
+          workspaceId: workspaceId.toString(),
+          userId: req.user!._id.toString(),
+          productId,
+          actionType: 'AI_OPTIMIZATION_REJECTED',
+          marketplace: platform,
+          originalContent: product.description || '',
+          newContent: cachedDescription.content,
+          confidence: cachedDescription.confidence
+        });
+      }
 
       await product.save();
 
@@ -458,8 +564,30 @@ router.post('/products/:id/description/:platform/apply', async (req: Authenticat
 
           // Only update local description if marketplace update was successful
           if (storeUpdateResult.success) {
+            // Track successful application to marketplace
+            await ProductHistoryService.createAIOptimizationHistory({
+              workspaceId: workspaceId.toString(),
+              userId: req.user!._id.toString(),
+              productId,
+              actionType: 'AI_OPTIMIZATION_APPLIED',
+              marketplace: platform,
+              originalContent: product.description || '',
+              newContent: cachedDescription.content,
+              confidence: cachedDescription.confidence
+            });
+
             product.description = cachedDescription.content;
             await product.save();
+          } else {
+            // Track failed application
+            await ProductHistoryService.createErrorHistory({
+              workspaceId: workspaceId.toString(),
+              userId: req.user!._id.toString(),
+              productId,
+              actionType: 'SYNC_FAILED',
+              errorMessage: storeUpdateResult.message,
+              marketplace: platform
+            });
           }
         } catch (error: any) {
           console.error('Failed to update product in store:', error);
@@ -470,6 +598,17 @@ router.post('/products/:id/description/:platform/apply', async (req: Authenticat
         }
       } else {
         // If no store connection, just update locally
+        await ProductHistoryService.createProductUpdateHistory({
+          workspaceId: workspaceId.toString(),
+          userId: req.user!._id.toString(),
+          productId,
+          actionType: 'DESCRIPTION_UPDATED',
+          fieldChanged: 'description',
+          oldValue: product.description,
+          newValue: cachedDescription.content,
+          marketplace: platform
+        });
+
         product.description = cachedDescription.content;
         await product.save();
         storeUpdateResult = {
@@ -748,6 +887,79 @@ router.get('/products/:id/suggestions', async (req: AuthenticatedRequest, res: R
     res.status(500).json({
       success: false,
       message: 'Failed to fetch suggestion history'
+    });
+  }
+});
+
+// GET /api/products/:id/optimizations/status - Get AI optimization status for a product
+router.get('/products/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await protect(req, res, async () => {
+      const { id: productId } = req.params;
+      const workspaceId = req.workspace!._id;
+      
+      // Verify product ownership
+      const product = await Product.findOne({ _id: productId, workspaceId });
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: 'Product not found'
+        });
+      }
+
+      // Get available platforms for this product
+      const availablePlatforms: string[] = [];
+      if (product.marketplace) {
+        availablePlatforms.push(product.marketplace);
+      }
+      if (product.platforms) {
+        Object.keys(product.platforms).forEach(platform => {
+          if (!availablePlatforms.includes(platform)) {
+            availablePlatforms.push(platform);
+          }
+        });
+      }
+
+      // Check status for each platform
+      const platformStatuses: Record<string, any> = {};
+      
+      for (const platform of availablePlatforms) {
+        // Check if in queue
+        const queueStatus = await getProductAIOptimizationStatus(productId, workspaceId.toString(), platform);
+        
+        // Check for cached description
+        const cachedDescription = product.cachedDescriptions?.find(
+          (cached: any) => cached.platform === platform
+        );
+
+        platformStatuses[platform] = {
+          inQueue: queueStatus?.status === 'queued' || queueStatus?.status === 'processing',
+          queueStatus,
+          hasOptimization: !!cachedDescription,
+          optimization: cachedDescription ? {
+            id: (cachedDescription as any)._id,
+            content: cachedDescription.content,
+            status: cachedDescription.status,
+            confidence: cachedDescription.confidence,
+            createdAt: cachedDescription.createdAt
+          } : null
+        };
+      }
+
+      res.json({
+        success: true,
+        data: {
+          productId,
+          platforms: platformStatuses,
+          availablePlatforms
+        }
+      });
+    });
+  } catch (error: any) {
+    console.error('Error getting optimization status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get optimization status'
     });
   }
 });

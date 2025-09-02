@@ -1,0 +1,110 @@
+// Environment-based API configuration
+export const API_CONFIG = {
+  // In development, we rely on Vite's proxy configuration
+  // In production, this should be set via environment variables
+  BASE_URL: import.meta.env.VITE_API_BASE_URL || '/api',
+  
+  // Timeout configurations
+  TIMEOUT: 30000, // 30 seconds
+  
+  // Environment detection
+  IS_DEVELOPMENT: import.meta.env.DEV,
+  IS_PRODUCTION: import.meta.env.PROD,
+} as const
+
+// API endpoints configuration
+export const ENDPOINTS = {
+  // Authentication
+  AUTH: {
+    LOGIN: '/auth/login',
+    REGISTER: '/auth/register',
+    PROFILE: '/auth/profile',
+  },
+  
+  // Workspaces
+  WORKSPACES: {
+    LIST: '/workspaces',
+    CREATE: '/workspaces',
+    GET: (id: string) => `/workspaces/${id}`,
+    UPDATE: (id: string) => `/workspaces/${id}`,
+    DELETE: (id: string) => `/workspaces/${id}`,
+    SUBSCRIPTION: (id: string) => `/workspaces/${id}/subscription`,
+    USAGE: (id: string) => `/workspaces/${id}/usage`,
+  },
+  
+  // Marketplaces
+  MARKETPLACES: {
+    LIST: '/marketplaces',
+    STATUS: '/marketplaces/status',
+    TEST: '/marketplaces/test',
+    CONNECT: '/marketplaces/connect',
+    CREATE_STORE: '/marketplaces/create-store',
+    TEST_CONNECTION: (connectionId: string) => `/marketplaces/${connectionId}/test`,
+    TOGGLE: (connectionId: string) => `/marketplaces/${connectionId}/toggle`,
+  },
+  
+  // Products
+  PRODUCTS: {
+    LIST: '/products',
+    GET: (id: string) => `/products/${id}`,
+    STORE_PRODUCTS: (connectionId: string) => `/products/store/${connectionId}`,
+    STORE_COUNT: (connectionId: string) => `/products/store/${connectionId}/count`,
+    SYNC: (connectionId: string) => `/products/sync/${connectionId}`,
+  },
+  
+  // Store Connections
+  CONNECTIONS: {
+    LIST: '/connections',
+    GET: (id: string) => `/connections/${id}`,
+    DELETE: (id: string) => `/connections/${id}`,
+  },
+  
+  // Dashboard
+  DASHBOARD: {
+    ANALYTICS: '/dashboard/analytics',
+    SUGGESTIONS: '/dashboard/suggestions',
+  },
+  
+  // Opportunities
+  OPPORTUNITIES: {
+    LIST: '/opportunities',
+    GET: (id: string) => `/opportunities/${id}`,
+    GENERATE: (id: string) => `/opportunities/${id}/generate`,
+    OPTIMIZE: (id: string) => `/opportunities/${id}/optimize`,
+  },
+  
+  // Subscriptions & Billing
+  BILLING: {
+    CHECKOUT_SESSION: '/billing/create-checkout-session',
+    PORTAL: '/billing/portal',
+  },
+  
+  // Usage
+  USAGE: {
+    CURRENT: '/usage/current',
+    TRENDS: '/usage/trends',
+    HISTORY: '/usage/history',
+  },
+  
+  // Plans
+  PLANS: {
+    LIST: '/plans',
+    GET: (name: string) => `/plans/${name}`,
+    USER_CURRENT: '/plans/user/current',
+  },
+  
+  // Admin
+  ADMIN: {
+    USERS: '/admin/users',
+    USER: (id: string) => `/admin/users/${id}`,
+    USER_STATUS: (id: string) => `/admin/users/${id}/status`,
+    USER_ROLE: (id: string) => `/admin/users/${id}/role`,
+    ANALYTICS: '/admin/analytics',
+    SUBSCRIPTIONS: '/admin/subscriptions',
+  },
+  
+  // Demo
+  DEMO: {
+    UPGRADE_SUBSCRIPTION: '/demo/upgrade-subscription',
+  },
+} as const

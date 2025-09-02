@@ -1,13 +1,4 @@
-function getAuthHeaders() {
-  const token = localStorage.getItem('token');
-  const workspaceId = localStorage.getItem('currentWorkspaceId');
-  return {
-    'Content-Type': 'application/json',
-    'Cache-Control': 'no-cache',
-    ...(token && { 'Authorization': `Bearer ${token}` }),
-    ...(workspaceId && { 'X-Workspace-ID': workspaceId })
-  };
-}
+import { dashboardApi } from '@/api'
 
 export interface DashboardMetrics {
   totalProducts: number;
@@ -54,43 +45,17 @@ export interface AISuggestionsResponse {
 
 export const dashboardService = {
   async getAnalytics(): Promise<DashboardAnalytics> {
-    const response = await fetch('/api/dashboard/analytics', {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch dashboard analytics');
-    }
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.message || 'Failed to fetch dashboard analytics');
-    }
-
-    return data.data;
+    return dashboardApi.getAnalytics() as Promise<DashboardAnalytics>
   },
 
   async getAISuggestions(forceRefresh = false): Promise<AISuggestionsResponse> {
-    const url = new URL('/api/dashboard/suggestions', window.location.origin);
-    if (forceRefresh) {
-      url.searchParams.set('refresh', 'true');
+    const params = forceRefresh ? { refresh: 'true' } : undefined
+    const suggestions = await dashboardApi.getSuggestions(params)
+    
+    return {
+      suggestions: suggestions as AISuggestion[],
+      generatedAt: new Date().toISOString(),
+      cached: !forceRefresh
     }
-
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch AI suggestions');
-    }
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.message || 'Failed to fetch AI suggestions');
-    }
-
-    return data.data;
   }
 };

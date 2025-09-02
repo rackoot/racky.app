@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, CreditCard, Lock } from "lucide-react"
 import { getAuthHeaders } from "@/lib/utils"
+import { demoApi } from "@/api"
 
 export function DemoCheckout() {
   const [searchParams] = useSearchParams()
@@ -25,27 +26,15 @@ export function DemoCheckout() {
     
     try {
       // In demo mode, we'll simulate successful payment by upgrading the user
-      const response = await fetch('http://localhost:5000/api/demo/upgrade-subscription', {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          planName: plan,
-          billingCycle
-        })
+      await demoApi.upgradeSubscription({
+        planName: plan
       })
-
-      if (response.ok) {
-        // Redirect to success page
-        navigate('/subscription?success=true&demo=true')
-      } else {
-        // Fallback to subscription page
-        navigate('/subscription')
-      }
+      
+      // Redirect to success page
+      navigate('/subscription?success=true&demo=true')
     } catch (error) {
-      console.error('Demo payment error:', error)
+      console.error('Demo upgrade failed:', error)
+      // Fallback to subscription page
       navigate('/subscription')
     }
   }

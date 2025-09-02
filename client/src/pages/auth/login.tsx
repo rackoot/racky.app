@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { refreshWorkspacesAfterLogin } from "@/components/workspace/workspace-context"
+import { authApi } from "@/api"
 
 export function Login() {
   const [email, setEmail] = useState("")
@@ -19,38 +20,25 @@ export function Login() {
     setError("")
     
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
-
-      const responseData = await response.json()
+      const authData = await authApi.login({ email, password })
       
-      if (response.ok && responseData.success && responseData.data) {
-        localStorage.setItem('token', responseData.data.token)
-        localStorage.setItem('user', JSON.stringify(responseData.data))
-        console.log('Login successful, redirecting...')
-        
-        // Trigger workspace refresh after login
-        refreshWorkspacesAfterLogin()
-        
-        // Redirect SUPERADMIN users to admin panel, regular users to dashboard
-        if (responseData.data.role === 'SUPERADMIN') {
-          navigate('/admin')
-        } else {
-          navigate('/dashboard')
-        }
+      localStorage.setItem('token', authData.token)
+      localStorage.setItem('user', JSON.stringify(authData.user))
+      console.log('Login successful, redirecting...')
+      
+      // Trigger workspace refresh after login
+      refreshWorkspacesAfterLogin()
+      
+      // Redirect SUPERADMIN users to admin panel, regular users to dashboard
+      if (authData.user.role === 'SUPERADMIN') {
+        navigate('/admin')
       } else {
-        const errorMessage = responseData.message || 'Login failed'
-        setError(errorMessage)
-        console.error('Login failed:', errorMessage)
+        navigate('/dashboard')
       }
     } catch (error) {
       console.error('Login error:', error)
-      setError('Network error. Please try again.')
+      const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.'
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }
