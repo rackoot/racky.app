@@ -59,6 +59,50 @@ interface AIResult {
   keywords: string[];
 }
 
+// Helper to check if a product is in AI optimization queue
+async function getProductAIOptimizationStatus(productId: string, workspaceId: string, platform?: string) {
+  const queueService = (await import('@/common/services/queueService')).default;
+  const aiQueue = queueService.getQueue('ai-optimization');
+  
+  const [waitingJobs, activeJobs] = await Promise.all([
+    aiQueue.getWaiting(),
+    aiQueue.getActive()
+  ]);
+
+  // Check if this product is in any active or waiting batch jobs
+  for (const job of [...activeJobs, ...waitingJobs]) {
+    if (job.data.productIds?.includes(productId)) {
+      return {
+        status: job.opts?.delay ? 'queued' : 'processing',
+        jobId: job.id,
+        batchNumber: job.data.batchNumber,
+        totalBatches: job.data.totalBatches,
+        marketplace: job.data.marketplace
+      };
+    }
+  }
+
+  // Check if there's a recent AI optimization in history (last 24 hours)
+  const ProductHistory = (await import('@/products/models/ProductHistory')).default;
+  const recentOptimization = await ProductHistory.findOne({
+    productId,
+    workspaceId,
+    actionType: 'AI_OPTIMIZATION_GENERATED',
+    createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    ...(platform && { 'metadata.marketplace': platform })
+  }).sort({ createdAt: -1 });
+
+  if (recentOptimization) {
+    return {
+      status: 'recently_optimized',
+      optimizedAt: recentOptimization.createdAt,
+      marketplace: recentOptimization.metadata?.marketplace
+    };
+  }
+
+  return null;
+}
+
 // Platform-specific prompts for AI generation
 const platformPrompts: Record<string, string> = {
   amazon: `Create an Amazon-optimized product description with:
@@ -196,6 +240,18 @@ router.get('/products/:id/description/:platform', async (req: AuthenticatedReque
         return res.status(404).json({
           success: false,
           message: 'Product not found'
+        });
+      }
+
+      // Check if product is in an AI optimization queue
+      const queueStatus = await getProductAIOptimizationStatus(productId, workspaceId.toString(), platform);
+      if (queueStatus) {
+        return res.json({
+          success: true,
+          data: {
+            queueStatus,
+            cached: false
+          }
         });
       }
 
@@ -831,6 +887,79 @@ router.get('/products/:id/suggestions', async (req: AuthenticatedRequest, res: R
     res.status(500).json({
       success: false,
       message: 'Failed to fetch suggestion history'
+    });
+  }
+});
+
+// GET /api/products/:id/optimizations/status - Get AI optimization status for a product
+router.get('/products/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await protect(req, res, async () => {
+      const { id: productId } = req.params;
+      const workspaceId = req.workspace!._id;
+      
+      // Verify product ownership
+      const product = await Product.findOne({ _id: productId, workspaceId });
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: 'Product not found'
+        });
+      }
+
+      // Get available platforms for this product
+      const availablePlatforms: string[] = [];
+      if (product.marketplace) {
+        availablePlatforms.push(product.marketplace);
+      }
+      if (product.platforms) {
+        Object.keys(product.platforms).forEach(platform => {
+          if (!availablePlatforms.includes(platform)) {
+            availablePlatforms.push(platform);
+          }
+        });
+      }
+
+      // Check status for each platform
+      const platformStatuses: Record<string, any> = {};
+      
+      for (const platform of availablePlatforms) {
+        // Check if in queue
+        const queueStatus = await getProductAIOptimizationStatus(productId, workspaceId.toString(), platform);
+        
+        // Check for cached description
+        const cachedDescription = product.cachedDescriptions?.find(
+          (cached: any) => cached.platform === platform
+        );
+
+        platformStatuses[platform] = {
+          inQueue: queueStatus?.status === 'queued' || queueStatus?.status === 'processing',
+          queueStatus,
+          hasOptimization: !!cachedDescription,
+          optimization: cachedDescription ? {
+            id: (cachedDescription as any)._id,
+            content: cachedDescription.content,
+            status: cachedDescription.status,
+            confidence: cachedDescription.confidence,
+            createdAt: cachedDescription.createdAt
+          } : null
+        };
+      }
+
+      res.json({
+        success: true,
+        data: {
+          productId,
+          platforms: platformStatuses,
+          availablePlatforms
+        }
+      });
+    });
+  } catch (error: any) {
+    console.error('Error getting optimization status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get optimization status'
     });
   }
 });

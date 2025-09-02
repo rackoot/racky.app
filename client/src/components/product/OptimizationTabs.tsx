@@ -20,6 +20,26 @@ import {
 import { optimizationsService, type OptimizationSuggestion } from "@/services/optimizations"
 import type { ProductDetail } from "@/types/product"
 
+interface PlatformOptimizationStatus {
+  inQueue: boolean;
+  queueStatus: {
+    status: 'queued' | 'processing' | 'recently_optimized';
+    jobId?: string;
+    batchNumber?: number;
+    totalBatches?: number;
+    marketplace?: string;
+    optimizedAt?: string;
+  } | null;
+  hasOptimization: boolean;
+  optimization: {
+    id: string;
+    content: string;
+    status: 'pending' | 'accepted' | 'rejected';
+    confidence: number;
+    createdAt: string;
+  } | null;
+}
+
 const platformColors = {
   shopify: 'bg-green-100 text-green-800 border-green-200',
   amazon: 'bg-orange-100 text-orange-800 border-orange-200',
@@ -67,69 +87,117 @@ interface OptimizationTabsProps {
   product: ProductDetail;
 }
 
-// Simulate different AI optimization states for demonstration
+// Determine AI optimization state from status data
 type AIOptimizationState = 'available' | 'processing' | 'queued' | 'none'
 
-const getAIOptimizationState = (product: ProductDetail, platform: string, suggestion: OptimizationSuggestion | null): AIOptimizationState => {
-  if (suggestion) return 'available'
-  // For demo purposes, simulate different states based on platform
-  if (platform === 'shopify') return 'processing'
-  if (platform === 'amazon') return 'queued' 
+const getAIOptimizationState = (status: PlatformOptimizationStatus | undefined): AIOptimizationState => {
+  if (!status) return 'none'
+  if (status.hasOptimization) return 'available'
+  if (status.queueStatus?.status === 'processing') return 'processing'
+  if (status.queueStatus?.status === 'queued') return 'queued'
   return 'none'
 }
 
 export function OptimizationTabs({ product }: OptimizationTabsProps) {
   const navigate = useNavigate()
-  const [suggestions, setSuggestions] = useState<Record<string, OptimizationSuggestion | null>>({})
+  const [platformStatuses, setPlatformStatuses] = useState<Record<string, PlatformOptimizationStatus>>({})
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [queuePosition] = useState<Record<string, number>>({ amazon: 1247 }) // Mock queue data
-  const hasLoadedCachedDescriptions = useRef(false)
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false)
   
   // Get platforms available for this specific product (memoized to prevent infinite loops)
   const availablePlatforms = useMemo(() => getAvailablePlatforms(product), [product.marketplace, product.platforms])
 
-  // Load existing cached descriptions on mount (only once per product)
+  // Load optimization status for all platforms on mount
   useEffect(() => {
-    const loadCachedDescriptions = async () => {
-      if (hasLoadedCachedDescriptions.current) return
-      
-      hasLoadedCachedDescriptions.current = true
-      
-      for (const platform of availablePlatforms) {
-        try {
-          const result = await optimizationsService.getDescriptionOptimization(product._id, platform)
-          if (result.cached) {
-            setSuggestions(prev => ({ ...prev, [platform]: result.suggestion }))
+    const loadOptimizationStatus = async () => {
+      try {
+        const statusData = await optimizationsService.getProductOptimizationStatus(product._id)
+        setPlatformStatuses(statusData.platforms || {})
+        setInitialLoadComplete(true)
+      } catch (error) {
+        console.debug('Could not load optimization status, using fallback:', error)
+        // Initialize empty statuses for each platform as fallback
+        const fallbackStatuses: Record<string, PlatformOptimizationStatus> = {}
+        availablePlatforms.forEach(platform => {
+          fallbackStatuses[platform] = {
+            inQueue: false,
+            queueStatus: null,
+            hasOptimization: false,
+            optimization: null
           }
-        } catch (error) {
-          // Silently fail for platforms without cached descriptions
-          console.debug(`No cached description for ${platform}:`, error)
-        }
+        })
+        setPlatformStatuses(fallbackStatuses)
+        setInitialLoadComplete(true)
       }
     }
 
-    if (availablePlatforms.length > 0 && !hasLoadedCachedDescriptions.current) {
-      loadCachedDescriptions()
-    }
+    loadOptimizationStatus()
   }, [product._id, availablePlatforms])
 
-  // Reset the flag when product changes
-  useEffect(() => {
-    hasLoadedCachedDescriptions.current = false
-    setSuggestions({})
-  }, [product._id])
+  // Refresh optimization status after changes
+  const refreshOptimizationStatus = async () => {
+    try {
+      const statusData = await optimizationsService.getProductOptimizationStatus(product._id)
+      setPlatformStatuses(statusData.platforms)
+    } catch (error) {
+      // Silently fail - the status will remain as it was
+      console.debug('Could not refresh optimization status:', error)
+    }
+  }
 
   const loadSuggestion = async (platform: string, forceRegenerate = false) => {
+    console.log('loadSuggestion called:', { platform, forceRegenerate, productId: product._id })
+    
+    if (!platform || !product._id) {
+      console.error('Missing required parameters:', { platform, productId: product._id })
+      return
+    }
+    
     setLoadingStates(prev => ({ ...prev, [platform]: true }))
     setErrors(prev => ({ ...prev, [platform]: '' }))
 
     try {
+      console.log('Calling optimization service...')
       const result = forceRegenerate 
         ? await optimizationsService.regenerateDescriptionOptimization(product._id, platform)
         : await optimizationsService.getDescriptionOptimization(product._id, platform)
       
-      setSuggestions(prev => ({ ...prev, [platform]: result.suggestion }))
+      console.log('Optimization service result:', result)
+      
+      // Check if we got a queue status instead of a suggestion
+      if (result.queueStatus) {
+        // Update platform status to show it's in queue
+        setPlatformStatuses(prev => ({
+          ...prev,
+          [platform]: {
+            inQueue: true,
+            queueStatus: result.queueStatus,
+            hasOptimization: false,
+            optimization: null
+          }
+        }))
+      } else if (result.suggestion) {
+        // Update platform status with the new suggestion
+        setPlatformStatuses(prev => ({
+          ...prev,
+          [platform]: {
+            inQueue: false,
+            queueStatus: null,
+            hasOptimization: true,
+            optimization: {
+              id: result.suggestion.id,
+              content: result.suggestion.suggestedContent,
+              status: result.suggestion.status,
+              confidence: result.suggestion.metadata.confidence,
+              createdAt: result.suggestion.createdAt
+            }
+          }
+        }))
+      }
+      
+      // After loading/regenerating, refresh the status
+      await refreshOptimizationStatus()
     } catch (error) {
       setErrors(prev => ({ 
         ...prev, 
@@ -214,32 +282,13 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
         try {
           const result = await optimizationsService.applyDescriptionToStore(product._id, platform, suggestionId)
           
-          // Update local state with success
-          setSuggestions(prev => ({
-            ...prev,
-            [platform]: prev[platform] ? { 
-              ...prev[platform], 
-              status,
-              storeUpdateResult: result 
-            } : null
-          }))
+          // Refresh status after applying
+          await refreshOptimizationStatus()
           
           // Clear any previous errors
           setErrors(prev => ({ ...prev, [platform]: '' }))
           
         } catch (storeError) {
-          // Update status but show store update error
-          setSuggestions(prev => ({
-            ...prev,
-            [platform]: prev[platform] ? { 
-              ...prev[platform], 
-              status,
-              storeUpdateResult: { 
-                success: false, 
-                message: storeError instanceof Error ? storeError.message : 'Failed to update store'
-              }
-            } : null
-          }))
           setErrors(prev => ({ 
             ...prev, 
             [platform]: `Description accepted but store update failed: ${storeError instanceof Error ? storeError.message : 'Unknown error'}`
@@ -251,11 +300,8 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
         // For rejected status, just update the status
         await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
         
-        // Update local state
-        setSuggestions(prev => ({
-          ...prev,
-          [platform]: prev[platform] ? { ...prev[platform], status } : null
-        }))
+        // Refresh status after rejecting
+        await refreshOptimizationStatus()
       }
     } catch (error) {
       setErrors(prev => ({ 
@@ -274,12 +320,19 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
             AI-Powered Content Optimization
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Generate platform-specific content optimizations using AI to improve your product performance across different marketplaces.
+            View and manage AI-generated optimizations from bulk scans or generate individual optimizations for your products.
           </p>
         </CardHeader>
       </Card>
 
-      {availablePlatforms.length === 0 ? (
+      {!initialLoadComplete ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading optimization status...</p>
+          </CardContent>
+        </Card>
+      ) : availablePlatforms.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <Sparkles className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
@@ -292,8 +345,22 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
       ) : (
         <div className="space-y-6">
           {availablePlatforms.map((platform) => {
-            const aiState = getAIOptimizationState(product, platform, suggestions[platform])
-            const suggestion = suggestions[platform]
+            const status = platformStatuses[platform]
+            const aiState = getAIOptimizationState(status)
+            const suggestion = status?.optimization ? {
+              id: status.optimization.id,
+              originalContent: product.description,
+              suggestedContent: status.optimization.content,
+              status: status.optimization.status,
+              metadata: {
+                model: 'gpt-3.5-turbo',
+                tokens: 0,
+                confidence: status.optimization.confidence,
+                keywords: [],
+                prompt: ''
+              },
+              createdAt: status.optimization.createdAt
+            } as OptimizationSuggestion : null
             
             return (
           <Card key={platform} className="overflow-hidden">
@@ -353,9 +420,15 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                   )}
                   {(aiState === 'processing' || aiState === 'queued' || aiState === 'none') && (
                     <Button
+                      type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => loadSuggestion(platform, false)}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        console.log('Generate button clicked for platform:', platform, 'aiState:', aiState)
+                        loadSuggestion(platform, false)
+                      }}
                       disabled={loadingStates[platform] || aiState === 'processing'}
                     >
                       {loadingStates[platform] ? (
@@ -524,26 +597,20 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                     <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-orange-600" />
                     <h3 className="text-lg font-semibold mb-2 text-orange-800">🔄 AI Optimization in Progress</h3>
                     <p className="text-orange-700 mb-4">
-                      We're generating optimized descriptions for this product.<br />
+                      This product is currently being processed in batch {status?.queueStatus?.batchNumber} of {status?.queueStatus?.totalBatches}.<br />
                       This usually takes 2-5 minutes.
                     </p>
                     <div className="flex items-center justify-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                      <Button variant="outline" size="sm" onClick={() => refreshOptimizationStatus()}>
                         <RefreshCw className="w-4 h-4 mr-2" />
                         Refresh Status
                       </Button>
                       <Button 
+                        variant="outline"
                         size="sm" 
-                        className="bg-orange-600 hover:bg-orange-700"
-                        onClick={() => handleIndividualOptimization(platform)}
-                        disabled={loadingStates[`${platform}_individual`]}
+                        onClick={() => navigate(`/ai-optimization/results/${status?.queueStatus?.jobId}`)}
                       >
-                        {loadingStates[`${platform}_individual`] ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Crown className="w-4 h-4 mr-2" />
-                        )}
-                        Priority Queue (Pro Feature)
+                        View Bulk Scan Progress
                       </Button>
                     </div>
                   </div>
@@ -557,30 +624,25 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                     <Timer className="w-12 h-12 mx-auto mb-4 text-yellow-600" />
                     <h3 className="text-lg font-semibold mb-2 text-yellow-800">⏳ Queued for AI Optimization</h3>
                     <div className="text-yellow-700 mb-4">
-                      <p className="mb-2">Position in queue: <strong>{queuePosition[platform] || 0} products ahead</strong></p>
-                      <p>Estimated time: <strong>3-4 hours</strong></p>
+                      <p className="mb-2">This product is in batch <strong>{status?.queueStatus?.batchNumber}</strong> of <strong>{status?.queueStatus?.totalBatches}</strong></p>
+                      <p>The AI scan is currently processing earlier batches.</p>
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <Button 
-                        size="sm" 
-                        className="bg-blue-600 hover:bg-blue-700"
-                        onClick={() => handleIndividualOptimization(platform)}
-                        disabled={loadingStates[`${platform}_individual`]}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => refreshOptimizationStatus()}
                       >
-                        {loadingStates[`${platform}_individual`] ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <Zap className="w-4 h-4 mr-2" />
-                        )}
-                        Start Individual Optimization (Pro)
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Check Status
                       </Button>
                       <Button 
                         variant="outline" 
                         size="sm"
-                        onClick={() => handleBulkOptimization(platform)}
+                        onClick={() => navigate(`/ai-optimization/results/${status?.queueStatus?.jobId}`)}
                       >
                         <Sparkles className="w-4 h-4 mr-2" />
-                        Bulk Optimization
+                        View Bulk Scan
                       </Button>
                     </div>
                   </div>
@@ -592,12 +654,33 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                 <div className="bg-slate-50 rounded-lg p-8 border border-slate-200">
                   <div className="text-center text-muted-foreground">
                     <Lightbulb className="w-12 h-12 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">AI Optimization Available</h3>
-                    <p className="mb-4">Generate an AI-optimized description for this product on {platformNames[platform as keyof typeof platformNames]}.</p>
-                    <Button onClick={() => loadSuggestion(platform, false)}>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Generate AI Optimization
-                    </Button>
+                    <h3 className="text-lg font-semibold mb-2">No AI Optimization Available</h3>
+                    <p className="mb-4">
+                      This product hasn't been included in an AI optimization scan yet.<br />
+                      Start a new AI scan to generate optimized descriptions.
+                    </p>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button 
+                        onClick={() => handleBulkOptimization(platform)}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Start AI Scan
+                      </Button>
+                      <Button 
+                        type="button"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          console.log('Generate Individual clicked for platform:', platform)
+                          loadSuggestion(platform, false)
+                        }}
+                      >
+                        <Zap className="w-4 h-4 mr-2" />
+                        Generate Individual (Quick)
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}

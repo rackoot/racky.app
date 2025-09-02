@@ -3,11 +3,17 @@ import { opportunitiesApi, apiClient } from '@/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('token')
   const workspaceId = localStorage.getItem('currentWorkspaceId')
-  return {
+  const headers = {
     'Content-Type': 'application/json',
     'Authorization': token ? `Bearer ${token}` : '',
     'X-Workspace-ID': workspaceId || ''
   }
+  console.log('Auth headers:', { 
+    hasToken: !!token, 
+    hasWorkspace: !!workspaceId, 
+    workspaceId: workspaceId?.substring(0, 8) + '...' 
+  })
+  return headers
 }
 
 export interface OptimizationSuggestion {
@@ -47,13 +53,19 @@ export interface SuggestionHistory {
 export const optimizationsService = {
   // Get or generate description optimization for a platform
   async getDescriptionOptimization(productId: string, platform: string, retryCount = 0): Promise<{
-    suggestion: OptimizationSuggestion;
+    suggestion?: OptimizationSuggestion;
+    queueStatus?: any;
     cached: boolean;
   }> {
-    const response = await fetch(`/api/optimizations/products/${productId}/description/${platform}`, {
+    const url = `/api/optimizations/products/${productId}/description/${platform}`
+    console.log('getDescriptionOptimization - fetching:', url)
+    
+    const response = await fetch(url, {
       method: 'GET',
       headers: getAuthHeaders(),
     });
+    
+    console.log('getDescriptionOptimization - response status:', response.status)
 
     if (!response.ok) {
       if (response.status >= 500 && retryCount < 3) {
@@ -226,6 +238,50 @@ export const optimizationsService = {
     const data = await response.json();
     if (!data.success) {
       throw new Error(data.message || 'Failed to get job status');
+    }
+
+    return data.data;
+  },
+
+  // Get AI optimization status for a product across all platforms
+  async getProductOptimizationStatus(productId: string): Promise<{
+    productId: string;
+    platforms: Record<string, {
+      inQueue: boolean;
+      queueStatus: {
+        status: 'queued' | 'processing' | 'recently_optimized';
+        jobId?: string;
+        batchNumber?: number;
+        totalBatches?: number;
+        marketplace?: string;
+        optimizedAt?: string;
+      } | null;
+      hasOptimization: boolean;
+      optimization: {
+        id: string;
+        content: string;
+        status: 'pending' | 'accepted' | 'rejected';
+        confidence: number;
+        createdAt: string;
+      } | null;
+    }>;
+    availablePlatforms: string[];
+  }> {
+    const response = await fetch(`/api/optimizations/products/${productId}/status`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(`Product optimization status not found (HTTP ${response.status})`);
+      }
+      throw new Error(`Failed to get optimization status (HTTP ${response.status})`);
+    }
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to get optimization status');
     }
 
     return data.data;
