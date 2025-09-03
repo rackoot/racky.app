@@ -491,7 +491,7 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
       $project: {
         _id: 1,
         userId: 1,
-        planName: 1,
+        contributorType: 1,
         status: 1,
         startDate: 1,
         endDate: 1,

@@ -29,7 +29,7 @@ export interface SubscriptionInfo {
     enabled: boolean;
   }> | null;
   scheduledDowngrade?: {
-    planName: string;
+    contributorType: string;
     planDisplayName: string;
     contributorCount: number;
     effectiveDate: string;
@@ -38,13 +38,13 @@ export interface SubscriptionInfo {
 }
 
 export interface SubscriptionUpdateRequest {
-  planName: 'JUNIOR' | 'SENIOR';
+  contributorType: 'JUNIOR' | 'SENIOR';
   billingCycle?: 'monthly' | 'annual';
   contributorCount?: number;
 }
 
 export interface SubscriptionPreviewRequest {
-  planName: 'JUNIOR' | 'SENIOR';
+  contributorType: 'JUNIOR' | 'SENIOR';
   billingCycle: 'monthly' | 'annual';
   contributorCount: number;
 }
@@ -57,14 +57,14 @@ export interface SubscriptionPreview {
     billingCycleChange: boolean;
   };
   current: {
-    planName: string;
+    contributorType: string;
     contributorCount: number;
     billingCycle: string;
     monthlyPrice: number;
     totalActions: number;
   };
   new: {
-    planName: string;
+    contributorType: string;
     contributorCount: number;
     billingCycle: string;
     monthlyPrice: number;

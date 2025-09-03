@@ -49,7 +49,7 @@ const mapStripeStatusToDbStatus = (stripeStatus: string): SubscriptionStatus => 
 };
 
 export interface CreateCheckoutSessionParams {
-  planName: string;
+  contributorType: string;
   contributorCount: number;
   billingCycle: 'monthly' | 'yearly';
   workspace: IWorkspace;
@@ -71,7 +71,7 @@ export const createEmbeddedCheckoutSession = async (params: CreateCheckoutSessio
   const stripeInstance = getStripeInstance();
   
   const {
-    planName,
+    contributorType,
     contributorCount,
     billingCycle,
     workspace,
@@ -81,13 +81,13 @@ export const createEmbeddedCheckoutSession = async (params: CreateCheckoutSessio
   } = params;
 
   // Get the plan details
-  const plan = await Plan.findByName(planName);
+  const plan = await Plan.findByContributorType(contributorType);
   if (!plan) {
-    throw new Error(`Plan ${planName} not found`);
+    throw new Error(`Plan ${contributorType} not found`);
   }
 
   if (plan.isContactSalesOnly) {
-    throw new Error(`Plan ${planName} requires contacting sales`);
+    throw new Error(`Plan ${contributorType} requires contacting sales`);
   }
 
   // Validate contributor count
@@ -101,7 +101,7 @@ export const createEmbeddedCheckoutSession = async (params: CreateCheckoutSessio
       metadata: {
         workspaceId: workspace._id.toString(),
         userId: userId,
-        planName: plan.name,
+        contributorType: plan.contributorType,
       },
     });
     customerId = customer.id;
@@ -125,16 +125,15 @@ export const createEmbeddedCheckoutSession = async (params: CreateCheckoutSessio
     subscription_data: {
       metadata: {
         workspaceId: workspace._id.toString(),
-        planName: plan.name,
-        contributorCount: validContributorCount.toString(),
         contributorType: plan.contributorType,
+        contributorCount: validContributorCount.toString(),
         billingCycle: billingCycle,
       },
     },
     return_url: successUrl,
     metadata: {
       workspaceId: workspace._id.toString(),
-      planName: plan.name,
+      contributorType: plan.contributorType,
       contributorCount: validContributorCount.toString(),
       userId: userId,
     },
@@ -154,7 +153,7 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
   const stripeInstance = getStripeInstance();
   
   const {
-    planName,
+    contributorType,
     contributorCount,
     billingCycle,
     workspace,
@@ -164,13 +163,13 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
   } = params;
 
   // Get the plan details
-  const plan = await Plan.findByName(planName);
+  const plan = await Plan.findByContributorType(contributorType);
   if (!plan) {
-    throw new Error(`Plan ${planName} not found`);
+    throw new Error(`Plan ${contributorType} not found`);
   }
 
   if (plan.isContactSalesOnly) {
-    throw new Error(`Plan ${planName} requires contacting sales`);
+    throw new Error(`Plan ${contributorType} requires contacting sales`);
   }
 
   // Validate contributor count
@@ -184,7 +183,7 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
       metadata: {
         workspaceId: workspace._id.toString(),
         userId: userId,
-        planName: plan.name,
+        contributorType: plan.contributorType,
       },
     });
     customerId = customer.id;
@@ -210,15 +209,14 @@ export const createCheckoutSession = async (params: CreateCheckoutSessionParams)
     subscription_data: {
       metadata: {
         workspaceId: workspace._id.toString(),
-        planName: plan.name,
-        contributorCount: validContributorCount.toString(),
         contributorType: plan.contributorType,
+        contributorCount: validContributorCount.toString(),
         billingCycle: billingCycle,
       },
     },
     metadata: {
       workspaceId: workspace._id.toString(),
-      planName: plan.name,
+      contributorType: plan.contributorType,
       contributorCount: validContributorCount.toString(),
       userId: userId,
     },
@@ -237,19 +235,19 @@ export const handleSuccessfulPayment = async (stripeSubscription: Stripe.Subscri
   try {
     const metadata = stripeSubscription.metadata;
     const workspaceId = metadata.workspaceId;
-    const planName = metadata.planName;
+    const contributorType = metadata.contributorType;
     const contributorCount = parseInt(metadata.contributorCount) || 1;
 
     console.log('Processing subscription:', {
       subscriptionId: stripeSubscription.id,
       workspaceId,
-      planName,
+      contributorType,
       contributorCount,
       status: stripeSubscription.status
     });
 
-    if (!workspaceId || !planName) {
-      throw new Error(`Missing required metadata - workspaceId: ${workspaceId}, planName: ${planName}`);
+    if (!workspaceId || !contributorType) {
+      throw new Error(`Missing required metadata - workspaceId: ${workspaceId}, contributorType: ${contributorType}`);
     }
 
     // Validate workspace exists
@@ -259,9 +257,9 @@ export const handleSuccessfulPayment = async (stripeSubscription: Stripe.Subscri
     }
 
     // Get plan details
-    const plan = await Plan.findByName(planName);
+    const plan = await Plan.findByContributorType(contributorType);
     if (!plan) {
-      throw new Error(`Plan not found: ${planName}`);
+      throw new Error(`Plan not found: ${contributorType}`);
     }
 
     // Check if subscription already exists

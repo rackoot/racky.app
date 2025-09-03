@@ -60,7 +60,7 @@ export class SubscriptionController {
             
             if (targetPlan) {
               scheduledDowngrade = {
-                planName: targetPlan.name,
+                contributorType: targetPlan.contributorType,
                 planDisplayName: targetPlan.displayName,
                 contributorCount: newQuantity,
                 effectiveDate: new Date(downgradePhase.start_date * 1000).toISOString(),
@@ -120,10 +120,10 @@ export class SubscriptionController {
         });
         return;
       }
-      const { planName, billingCycle, contributorCount }: SubscriptionPreviewDto = req.body;
+      const { contributorType, billingCycle, contributorCount }: SubscriptionPreviewDto = req.body;
       
       // Find the new plan
-      const newPlan = await Plan.findByName(planName);
+      const newPlan = await Plan.findByContributorType(contributorType);
       
       if (!newPlan) {
         res.status(404).json({
@@ -147,7 +147,7 @@ export class SubscriptionController {
       if (contributorCount! > newPlan.maxContributorsPerWorkspace) {
         res.status(400).json({
           success: false,
-          message: `Maximum ${newPlan.maxContributorsPerWorkspace} contributors allowed for ${planName} plan`
+          message: `Maximum ${newPlan.maxContributorsPerWorkspace} contributors allowed for ${contributorType} plan`
         });
         return;
       }
@@ -176,7 +176,7 @@ export class SubscriptionController {
       const priceDifference = newMonthlyPrice - currentMonthlyPrice;
       const isUpgrade = priceDifference > 0;
       const isDowngrade = priceDifference < 0;
-      const isPlanChange = !currentPlan || currentPlan.name !== planName;
+      const isPlanChange = !currentPlan || currentPlan.name !== contributorType;
       const isContributorChange = currentContributorCount !== contributorCount;
       const isBillingCycleChange = currentBillingCycle !== billingCycle;
       
@@ -221,14 +221,14 @@ export class SubscriptionController {
             billingCycleChange: isBillingCycleChange
           },
           current: {
-            planName: currentPlan?.name || 'None',
+            contributorType: currentPlan?.contributorType || 'None',
             contributorCount: currentContributorCount,
             billingCycle: currentBillingCycle,
             monthlyPrice: currentMonthlyPrice,
             totalActions: currentTotalActions
           },
           new: {
-            planName,
+            contributorType,
             contributorCount,
             billingCycle,
             monthlyPrice: newMonthlyPrice,
@@ -275,10 +275,10 @@ export class SubscriptionController {
         });
         return;
       }
-      const { planName, billingCycle, contributorCount }: UpdateSubscriptionDto = req.body;
+      const { contributorType, billingCycle, contributorCount }: UpdateSubscriptionDto = req.body;
       
       // Find the plan
-      const plan = await Plan.findByName(planName);
+      const plan = await Plan.findByContributorType(contributorType);
       
       if (!plan) {
         res.status(404).json({
@@ -302,7 +302,7 @@ export class SubscriptionController {
       if (contributorCount! > plan.maxContributorsPerWorkspace) {
         res.status(400).json({
           success: false,
-          message: `Maximum ${plan.maxContributorsPerWorkspace} contributors allowed for ${planName} plan`
+          message: `Maximum ${plan.maxContributorsPerWorkspace} contributors allowed for ${contributorType} plan`
         });
         return;
       }
@@ -380,9 +380,8 @@ export class SubscriptionController {
       // Metadata for Stripe
       const stripeMetadata = {
         workspaceId: req.workspace!._id.toString(),
-        planName: plan.name,
-        contributorCount: contributorCount!.toString(),
         contributorType: plan.contributorType,
+        contributorCount: contributorCount!.toString(),
         billingCycle: billingCycle!,
         updatedBy: req.user!._id.toString()
       };
@@ -534,8 +533,8 @@ export class SubscriptionController {
         res.json({
           success: true,
           message: isDowngrade ? 
-            `Downgrade to ${planName} scheduled for next billing period` :
-            `Workspace subscription updated to ${planName} plan with ${contributorCount} contributor${contributorCount! > 1 ? 's' : ''}`,
+            `Downgrade to ${contributorType} scheduled for next billing period` :
+            `Workspace subscription updated to ${contributorType} plan with ${contributorCount} contributor${contributorCount! > 1 ? 's' : ''}`,
           data: {
             workspaceId: req.workspace!._id,
             subscription: currentSubscription,
@@ -836,7 +835,7 @@ export class SubscriptionController {
       }
 
       // Get the requested plan
-      const plan = await Plan.findOne({ name: req.body.planName });
+      const plan = await Plan.findOne({ contributorType: req.body.contributorType });
       if (!plan) {
         res.status(404).json({
           success: false,
@@ -904,7 +903,7 @@ export class SubscriptionController {
         data: {
           workspaceId: req.workspace!._id,
           subscription: newSubscription,
-          planName: plan.name,
+          contributorType: plan.contributorType,
           planDisplayName: plan.displayName,
           contributorCount,
           totalMonthlyActions,

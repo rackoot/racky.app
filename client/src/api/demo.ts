@@ -2,7 +2,7 @@ import { apiPost } from './client'
 import { ENDPOINTS } from './config'
 
 export interface DemoUpgradeRequest {
-  planName: string
+  contributorType: string
   // Add any other demo-specific fields as needed
 }
 

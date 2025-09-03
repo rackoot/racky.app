@@ -168,9 +168,9 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
 // POST /api/billing/create-checkout-session - Create checkout session for contributor-based plans
 router.post('/create-checkout-session', protect, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { planName, contributorCount = 1, billingCycle = 'monthly', embedded = true } = req.body;
+    const { contributorType, contributorCount = 1, billingCycle = 'monthly', embedded = true } = req.body;
 
-    if (!planName) {
+    if (!contributorType) {
       return res.status(400).json({
         success: false,
         message: 'Plan name is required'
@@ -198,7 +198,7 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
       }
       
       // Fallback to mock for development/testing
-      const plan = await Plan.findByName(planName);
+      const plan = await Plan.findByContributorType(contributorType);
       if (!plan) {
         return res.status(404).json({
           success: false,
@@ -228,10 +228,9 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
         message: 'Checkout session created (mock mode)',
         data: {
           sessionId: 'mock_session_id',
-          url: `/subscription?plan=${planName}&contributors=${count}&cycle=${billingCycle}`,
-          planName: plan.name,
-          planDisplayName: plan.displayName,
+          url: `/subscription?plan=${contributorType}&contributors=${count}&cycle=${billingCycle}`,
           contributorType: plan.contributorType,
+          planDisplayName: plan.displayName,
           contributorCount: count,
           totalAmount,
           totalActions: totalActions === -1 ? 'Unlimited' : totalActions,
@@ -244,7 +243,7 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
 
     // Create real Stripe checkout session
     const checkoutParams = {
-      planName,
+      contributorType,
       contributorCount,
       billingCycle,
       workspace: req.workspace,

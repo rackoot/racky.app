@@ -43,7 +43,6 @@ export const testWorkspaces = {
 
 export const testPlans = {
   basicPlan: {
-    name: 'BASIC',
     displayName: 'Basic Plan',
     description: 'Basic plan for small businesses',
     contributorType: 'JUNIOR',
@@ -81,7 +80,6 @@ export const testPlans = {
   },
 
   proPlan: {
-    name: 'PRO',
     displayName: 'Pro Plan',
     description: 'Professional plan for growing businesses',
     contributorType: 'SENIOR',
@@ -124,7 +122,6 @@ export const testPlans = {
   },
 
   enterprisePlan: {
-    name: 'ENTERPRISE',
     displayName: 'Enterprise Plan',
     description: 'Enterprise plan for large organizations',
     contributorType: 'EXECUTIVE',

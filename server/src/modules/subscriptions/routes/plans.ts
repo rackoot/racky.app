@@ -28,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:name', async (req: Request<{ name: string }>, res: Response) => {
   try {
     const { name } = req.params;
-        const plan = await Plan.findByName(name);
+        const plan = await Plan.findByContributorType(name);
     
     if (!plan) {
       return res.status(404).json({

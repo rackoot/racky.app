@@ -15,7 +15,7 @@ erDiagram
         String role "ENUM: USER|SUPERADMIN, default USER"
         Boolean isActive "Default true"
         String subscriptionStatus "ENUM: TRIAL|ACTIVE|SUSPENDED|CANCELLED, default TRIAL"
-        String subscriptionPlan "ENUM: BASIC|PRO|ENTERPRISE, default BASIC"
+        String subscriptionPlan "ENUM: JUNIOR|SENIOR|EXECUTIVE, default JUNIOR"
         Date trialEndsAt "Optional"
         Date subscriptionEndsAt "Optional"
         String companyName "Optional, trimmed"
@@ -147,7 +147,7 @@ erDiagram
 
     Plan {
         ObjectId _id PK
-        String name UK "ENUM: BASIC|PRO|ENTERPRISE"
+        String name UK "ENUM: JUNIOR|SENIOR|EXECUTIVE"
         String displayName "Required"
         String description "Required"
         Number monthlyPrice "Required, price in cents"
@@ -311,7 +311,7 @@ erDiagram
   - Autenticación con bcrypt (contraseña hasheada)
   - Roles: USER (default) y SUPERADMIN 
   - Estados de suscripción: TRIAL (default), ACTIVE, SUSPENDED, CANCELLED
-  - Planes: BASIC (default), PRO, ENTERPRISE
+  - Planes: JUNIOR (default), SENIOR, EXECUTIVE
   - Integración completa con Stripe para facturación
   - Configuración de zona horaria y idioma
 - **Relaciones**: Entidad raíz con relaciones 1:N hacia todas las entidades del sistema
@@ -369,7 +369,7 @@ erDiagram
 #### Plan
 - **Propósito**: Define los planes de suscripción disponibles para la plataforma SaaS
 - **Características**: 
-  - Tres planes: BASIC, PRO, ENTERPRISE
+  - Tres planes: JUNIOR, SENIOR, EXECUTIVE
   - Precios mensuales y anuales en centavos
   - Integración completa con Stripe (price IDs)
   - Límites detallados por plan: tiendas, productos, marketplaces, frecuencia sync, calls API

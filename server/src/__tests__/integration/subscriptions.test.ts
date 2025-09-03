@@ -51,7 +51,7 @@ describe('Subscription Plans Integration Tests', () => {
         success: true,
         data: expect.arrayContaining([
           expect.objectContaining({
-            name: 'BASIC',
+            name: 'JUNIOR',
             displayName: 'Basic Plan',
             monthlyPrice: 2900,
             yearlyPrice: 29000,
@@ -70,7 +70,7 @@ describe('Subscription Plans Integration Tests', () => {
             isPublic: true,
           }),
           expect.objectContaining({
-            name: 'PRO',
+            name: 'SENIOR',
             displayName: 'Pro Plan',
             monthlyPrice: 7900,
             yearlyPrice: 79000,
@@ -97,7 +97,7 @@ describe('Subscription Plans Integration Tests', () => {
     it('should return plans in correct sort order', async () => {
       // Update one plan with different sort order
       await Plan.findOneAndUpdate(
-        { name: 'PRO' },
+        { name: 'SENIOR' },
         { sortOrder: 1 }
       );
 
@@ -106,7 +106,7 @@ describe('Subscription Plans Integration Tests', () => {
         .expect(200);
 
       // PRO plan should come first due to lower sortOrder
-      expect(response.body.data[0].name).toBe('PRO');
+      expect(response.body.data[0].name).toBe('SENIOR');
     });
 
     it('should handle error when database fails', async () => {
@@ -140,7 +140,7 @@ describe('Subscription Plans Integration Tests', () => {
       expect(response.body).toMatchObject({
         success: true,
         data: expect.objectContaining({
-          name: 'BASIC',
+          name: 'JUNIOR',
           displayName: 'Basic Plan',
           description: 'Basic plan for small businesses',
           monthlyPrice: 2900,
@@ -168,7 +168,7 @@ describe('Subscription Plans Integration Tests', () => {
         .get('/api/plans/basic')
         .expect(200);
 
-      expect(response.body.data.name).toBe('BASIC');
+      expect(response.body.data.name).toBe('JUNIOR');
     });
 
     it('should return 404 for non-existent plan', async () => {
@@ -197,7 +197,7 @@ describe('Subscription Plans Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create subscription for the workspace
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -217,11 +217,11 @@ describe('Subscription Plans Integration Tests', () => {
         success: true,
         data: expect.objectContaining({
           plan: expect.objectContaining({
-            name: 'BASIC',
+            name: 'JUNIOR',
           }),
           userSubscription: expect.objectContaining({
             status: expect.any(String),
-            plan: 'BASIC',
+            plan: 'JUNIOR',
             hasActiveSubscription: true,
           }),
         }),
@@ -268,7 +268,7 @@ describe('Subscription Plans Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create expired subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -294,7 +294,7 @@ describe('Subscription Plans Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create cancelled subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -320,17 +320,17 @@ describe('Subscription Plans Integration Tests', () => {
 
   describe('Plan Model Methods', () => {
     it('should calculate monthly price formatted correctly', async () => {
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       expect(basicPlan!.getMonthlyPriceFormatted()).toBe('29.00');
     });
 
     it('should calculate yearly price formatted correctly', async () => {
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       expect(basicPlan!.getYearlyPriceFormatted()).toBe('290.00');
     });
 
     it('should calculate yearly savings correctly', async () => {
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       const monthlyTotal = basicPlan!.monthlyPrice * 12; // 2900 * 12 = 34800
       const savings = monthlyTotal - basicPlan!.yearlyPrice; // 34800 - 29000 = 5800
       const expectedPercentage = Math.round((savings / monthlyTotal) * 100); // ~17%
@@ -339,18 +339,18 @@ describe('Subscription Plans Integration Tests', () => {
     });
 
     it('should check if plan has specific feature', async () => {
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       expect(basicPlan!.hasFeature('Product Management')).toBe(true);
       expect(basicPlan!.hasFeature('AI Suggestions')).toBe(false);
 
-      const proPlan = await Plan.findByName('PRO');
+      const proPlan = await Plan.findByContributorType('SENIOR');
       expect(proPlan!.hasFeature('AI Suggestions')).toBe(true);
     });
   });
 
   describe('Plan Limits Validation', () => {
     it('should validate plan limits structure', async () => {
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       
       expect(basicPlan!.limits).toMatchObject({
         maxStores: expect.any(Number),
@@ -362,8 +362,8 @@ describe('Subscription Plans Integration Tests', () => {
     });
 
     it('should have different limits between plans', async () => {
-      const basicPlan = await Plan.findByName('BASIC');
-      const proPlan = await Plan.findByName('PRO');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
+      const proPlan = await Plan.findByContributorType('SENIOR');
 
       expect(proPlan!.limits.maxStores).toBeGreaterThan(basicPlan!.limits.maxStores);
       expect(proPlan!.limits.maxProducts).toBeGreaterThan(basicPlan!.limits.maxProducts);
@@ -388,8 +388,8 @@ describe('Subscription Plans Integration Tests', () => {
     });
 
     it('should have more features in higher tier plans', async () => {
-      const basicPlan = await Plan.findByName('BASIC');
-      const proPlan = await Plan.findByName('PRO');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
+      const proPlan = await Plan.findByContributorType('SENIOR');
 
       expect(proPlan!.features.length).toBeGreaterThanOrEqual(basicPlan!.features.length);
       

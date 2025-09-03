@@ -3,7 +3,6 @@ import { ENDPOINTS } from './config'
 
 export interface Plan {
   _id: string
-  name: string
   displayName: string
   description: string
   contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
@@ -51,8 +50,8 @@ export const plansApi = {
   /**
    * Get specific plan by name
    */
-  async getPlan(name: string): Promise<Plan> {
-    return apiGet<Plan>(ENDPOINTS.PLANS.GET(name))
+  async getPlan(contributorType: string): Promise<Plan> {
+    return apiGet<Plan>(ENDPOINTS.PLANS.GET(contributorType))
   },
 
   /**

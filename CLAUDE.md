@@ -159,15 +159,15 @@ npm run e2e:report         # View E2E test report
 - Middleware: `requireSuperAdmin`, `checkSubscriptionStatus`, `checkUsageLimits`
 
 **Subscription Management:**
-- Three subscription tiers: BASIC ($29/month), PRO ($79/month), ENTERPRISE ($199/month)
+- Three subscription tiers: Junior ($29/month), Senior ($79/month), Executive ($199/month)
 - 14-day free trial for all new users (30 days for Enterprise)
 - Usage tracking: API calls, product syncs, store connections
 - Automatic limit enforcement based on subscription tier
 
 **Plan Limits by Tier:**
-- **BASIC**: 1 store, 100 products, 2 marketplaces, 1K API calls/month
-- **PRO**: 5 stores, 1K products, 5 marketplaces, 10K API calls/month  
-- **ENTERPRISE**: 50 stores, 10K products, 10 marketplaces, 100K API calls/month
+- **Junior**: 1 store, 100 products, 2 marketplaces, 1K API calls/month
+- **Senior**: 5 stores, 1K products, 5 marketplaces, 10K API calls/month  
+- **Executive**: 50 stores, 10K products, 10 marketplaces, 100K API calls/month
 
 **Admin Management:**
 - Complete user management via `/api/admin/*` endpoints
