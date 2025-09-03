@@ -126,7 +126,7 @@ export default function WorkspaceSubscriptionPage() {
   // Initialize form values when subscription data is loaded
   useEffect(() => {
     if (subscription) {
-      setSelectedPlan(subscription.currentPlan?.name || 'JUNIOR')
+      setSelectedPlan(subscription.currentPlan?.contributorType || 'JUNIOR')
       setBillingCycle(subscription.billingCycle)
       setContributorCount([subscription.contributorCount])
     }
@@ -151,7 +151,7 @@ export default function WorkspaceSubscriptionPage() {
     try {
       setIsPreviewLoading(true)
       const preview = await previewWorkspaceSubscriptionChange(currentWorkspace._id, {
-        planName: selectedPlan as 'JUNIOR' | 'SENIOR',
+        contributorType: selectedPlan as 'JUNIOR' | 'SENIOR',
         billingCycle,
         contributorCount: contributorCount[0]
       })
@@ -172,7 +172,7 @@ export default function WorkspaceSubscriptionPage() {
     try {
       setIsUpdating(true)
       const result = await updateWorkspaceSubscription(currentWorkspace._id, {
-        planName: selectedPlan as 'JUNIOR' | 'SENIOR',
+        contributorType: selectedPlan as 'JUNIOR' | 'SENIOR',
         billingCycle,
         contributorCount: contributorCount[0]
       })
@@ -189,7 +189,7 @@ export default function WorkspaceSubscriptionPage() {
       await refreshWorkspaces()
       
       // Determine success message based on change type
-      const plan = availablePlans.find(p => p.name === selectedPlan)
+      const plan = availablePlans.find(p => p.contributorType === selectedPlan)
       const isUpgrade = subscriptionPreview?.pricing.isUpgrade
       const isDowngrade = subscriptionPreview?.pricing.isDowngrade
       
@@ -344,7 +344,7 @@ export default function WorkspaceSubscriptionPage() {
   }
 
   const currentPlan = subscription?.currentPlan
-  const planName = currentPlan?.name || 'No Plan'
+  const planName = currentPlan?.contributorType || 'No Plan'
   
   // Helper functions to format prices correctly (convert from cents to dollars)
   const formatPrice = (cents: number) => (cents / 100).toFixed(0)
@@ -352,7 +352,7 @@ export default function WorkspaceSubscriptionPage() {
   
   // Check if there are any changes from current subscription
   const hasChanges = subscription && (
-    selectedPlan !== subscription.currentPlan?.name ||
+    selectedPlan !== subscription.currentPlan?.contributorType ||
     billingCycle !== subscription.billingCycle ||
     contributorCount[0] !== subscription.contributorCount
   )
@@ -574,13 +574,13 @@ export default function WorkspaceSubscriptionPage() {
                 
                 return (
                   <Card 
-                    key={plan.name} 
+                    key={plan.contributorType} 
                     className={`relative transition-all ${
                       isExecutive 
                         ? 'cursor-not-allowed opacity-75' 
-                        : `cursor-pointer ${selectedPlan === plan.name ? 'ring-2 ring-primary' : 'hover:shadow-md'}`
+                        : `cursor-pointer ${selectedPlan === plan.contributorType ? 'ring-2 ring-primary' : 'hover:shadow-md'}`
                     }`}
-                    onClick={isSelectable ? () => setSelectedPlan(plan.name) : undefined}
+                    onClick={isSelectable ? () => setSelectedPlan(plan.contributorType) : undefined}
                   >
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start mb-2">
@@ -599,7 +599,7 @@ export default function WorkspaceSubscriptionPage() {
                             )}
                           </div>
                         </div>
-                        {currentPlan?.name === plan.name && (
+                        {currentPlan?.contributorType === plan.contributorType && (
                           <Badge variant="secondary" className="text-xs">Current</Badge>
                         )}
                       </div>
@@ -659,14 +659,14 @@ export default function WorkspaceSubscriptionPage() {
             <Slider
               value={contributorCount}
               onValueChange={setContributorCount}
-              max={selectedPlan ? availablePlans.find(p => p.name === selectedPlan)?.limits.maxStores || 5 : 5}
+              max={selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.limits.maxStores || 5 : 5}
               min={1}
               step={1}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>1 contributor</span>
-              <span>{selectedPlan ? availablePlans.find(p => p.name === selectedPlan)?.limits.maxStores || 5 : 5} contributors max</span>
+              <span>{selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.limits.maxStores || 5 : 5} contributors max</span>
             </div>
           </div>
 
@@ -675,7 +675,7 @@ export default function WorkspaceSubscriptionPage() {
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Selected plan:</span>
-                <span className="font-medium">{availablePlans.find(p => p.name === selectedPlan)?.displayName}</span>
+                <span className="font-medium">{availablePlans.find(p => p.contributorType === selectedPlan)?.displayName}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Contributors:</span>
@@ -684,15 +684,15 @@ export default function WorkspaceSubscriptionPage() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Total monthly actions:</span>
                 <span className="font-medium">
-                  {((availablePlans.find(p => p.name === selectedPlan)?.limits.apiCallsPerMonth || 0) * contributorCount[0]).toLocaleString()}
+                  {((availablePlans.find(p => p.contributorType === selectedPlan)?.limits.apiCallsPerMonth || 0) * contributorCount[0]).toLocaleString()}
                 </span>
               </div>
               <div className="border-t pt-3 flex justify-between items-center">
                 <span className="text-lg font-semibold">Estimated Monthly Cost:</span>
                 <span className="text-2xl font-bold text-primary">
                   ${billingCycle === 'annual' ? 
-                    ((availablePlans.find(p => p.name === selectedPlan)?.yearlyPrice || 0) * contributorCount[0] / 100 / 12).toFixed(0) :
-                    ((availablePlans.find(p => p.name === selectedPlan)?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)
+                    ((availablePlans.find(p => p.contributorType === selectedPlan)?.yearlyPrice || 0) * contributorCount[0] / 100 / 12).toFixed(0) :
+                    ((availablePlans.find(p => p.contributorType === selectedPlan)?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)
                   }
                 </span>
               </div>

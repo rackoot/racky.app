@@ -19,37 +19,7 @@ import {
   CheckCircle,
   ArrowRight
 } from "lucide-react"
-
-interface SubscriptionPreview {
-  workspaceId: string
-  changes: {
-    planChange: boolean
-    contributorChange: boolean
-    billingCycleChange: boolean
-  }
-  current: {
-    planName: string
-    contributorCount: number
-    billingCycle: string
-    monthlyPrice: number
-    totalActions: number
-  }
-  new: {
-    planName: string
-    contributorCount: number
-    billingCycle: string
-    monthlyPrice: number
-    totalActions: number
-  }
-  pricing: {
-    priceDifference: number
-    isUpgrade: boolean
-    isDowngrade: boolean
-    changeType: 'upgrade' | 'downgrade' | 'no_change'
-    timing: 'immediate' | 'next_billing_period'
-    message: string
-  }
-}
+import { SubscriptionPreview } from "@/services/workspace"
 
 interface SubscriptionChangeModalProps {
   isOpen: boolean
@@ -149,7 +119,7 @@ export function SubscriptionChangeModal({
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm">Plan:</span>
-                      <Badge variant="outline">{current.planName}</Badge>
+                      <Badge variant="outline">{current.contributorType}</Badge>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Contributors:</span>
@@ -179,7 +149,7 @@ export function SubscriptionChangeModal({
                     <div className="flex justify-between">
                       <span className="text-sm">Plan:</span>
                       <Badge className={changes.planChange ? 'bg-primary' : ''}>
-                        {newSubscription.planName}
+                        {newSubscription.contributorType}
                       </Badge>
                     </div>
                     <div className="flex justify-between">
