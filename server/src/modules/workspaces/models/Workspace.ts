@@ -29,6 +29,9 @@ export interface IWorkspace extends Document {
     trialEndsAt?: Date | null;
     isTrialExpired?: boolean;
     planLimits: any;
+    cancelAtPeriodEnd: boolean;
+    cancelledAt?: Date;
+    cancellationReason?: string;
   }>;
 }
 
@@ -274,7 +277,10 @@ workspaceSchema.methods.getSubscriptionInfo = async function() {
     plan: subscription.planId ? subscription.planId.name : null,
     hasActiveSubscription: !isExpired && subscription.status === 'ACTIVE',
     endsAt: subscription.endsAt,
-    planLimits: subscription.planId ? subscription.planId.limits : null
+    planLimits: subscription.planId ? subscription.planId.limits : null,
+    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+    cancelledAt: subscription.cancelledAt,
+    cancellationReason: subscription.cancellationReason
   };
 };
 

@@ -8,7 +8,7 @@ import { getAuthHeaders } from "@/lib/utils"
 import { billingApi } from "@/api"
 
 interface EmbeddedCheckoutProps {
-  planName: string
+  contributorType: string
   contributorCount: number
   billingCycle: 'monthly' | 'yearly'
   onBack: () => void
@@ -20,7 +20,7 @@ interface EmbeddedCheckoutProps {
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_...')
 
 export function EmbeddedCheckoutWrapper({ 
-  planName, 
+  contributorType, 
   contributorCount, 
   billingCycle, 
   onBack, 
@@ -34,7 +34,7 @@ export function EmbeddedCheckoutWrapper({
 
   useEffect(() => {
     createCheckoutSession()
-  }, [planName, contributorCount, billingCycle])
+  }, [contributorType, contributorCount, billingCycle])
 
   const createCheckoutSession = async () => {
     setLoading(true)
@@ -42,7 +42,7 @@ export function EmbeddedCheckoutWrapper({
     
     try {
       const data = await billingApi.createCheckoutSession({
-        planName,
+        contributorType,
         contributorCount: contributorCount,
         billingCycle: billingCycle,
         successUrl: window.location.origin + '/purchase-success?session_id={CHECKOUT_SESSION_ID}',

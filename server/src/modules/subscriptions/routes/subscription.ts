@@ -44,6 +44,14 @@ router.delete('/:workspaceId',
   subscriptionController.cancelWorkspaceSubscription.bind(subscriptionController)
 );
 
+// PUT /api/subscription/:workspaceId/cancel-cancellation - Cancel subscription cancellation
+router.put('/:workspaceId/cancel-cancellation', 
+  protect, 
+  requireWorkspace, 
+  requireWorkspacePermission('workspace:manage_subscription'), 
+  subscriptionController.cancelSubscriptionCancellation.bind(subscriptionController)
+);
+
 // POST /api/subscription/:workspaceId/reactivate - Reactivate workspace subscription
 router.post('/:workspaceId/reactivate', 
   protect, 

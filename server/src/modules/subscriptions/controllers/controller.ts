@@ -8,7 +8,8 @@ import {
   isStripeConfigured,
   cancelExistingSchedule,
   checkSubscriptionScheduleIsCompleted,
-  cancelStripeSubscription
+  cancelStripeSubscription,
+  reactivateStripeSubscription
 } from '@/common/services/stripeService';
 import Subscription from '../models/Subscription';
 import Plan from '../models/Plan';
@@ -800,6 +801,110 @@ export class SubscriptionController {
       res.status(500).json({
         success: false,
         message: 'Error cancelling workspace subscription',
+        error: (error as Error).message
+      });
+    }
+  }
+
+  /**
+   * PUT /api/subscription/:workspaceId/cancel-cancellation - Cancel subscription cancellation
+   */
+  async cancelSubscriptionCancellation(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      // Find the active subscription that is scheduled for cancellation
+      const activeSubscription = await Subscription.findOne({
+        workspaceId: req.workspace!._id, 
+        status: 'ACTIVE'
+      }).populate('planId');
+      
+      if (!activeSubscription) {
+        res.status(404).json({
+          success: false,
+          message: 'No active subscription found for this workspace'
+        });
+        return;
+      }
+
+      // Check if subscription is actually cancelled
+      if (!activeSubscription.cancelledAt) {
+        res.status(400).json({
+          success: false,
+          message: 'Subscription is not scheduled for cancellation'
+        });
+        return;
+      }
+
+      // Check if subscription hasn't already ended
+      if (activeSubscription.endsAt && activeSubscription.endsAt <= new Date()) {
+        res.status(400).json({
+          success: false,
+          message: 'Subscription has already ended and cannot be reactivated'
+        });
+        return;
+      }
+
+      // Reactivate in Stripe first (if Stripe is configured and subscription has Stripe ID)
+      let stripeSubscription = null;
+      if (activeSubscription.stripeSubscriptionId && isStripeConfigured()) {
+        try {
+          console.log('Reactivating subscription in Stripe:', {
+            stripeSubscriptionId: activeSubscription.stripeSubscriptionId
+          });
+          
+          stripeSubscription = await reactivateStripeSubscription(
+            activeSubscription.stripeSubscriptionId
+          );
+          
+          console.log('Stripe reactivation successful:', {
+            id: stripeSubscription.id,
+            status: stripeSubscription.status,
+            cancel_at_period_end: (stripeSubscription as any).cancel_at_period_end
+          });
+          
+        } catch (stripeError: any) {
+          console.error('Failed to reactivate subscription in Stripe:', stripeError.message);
+          
+          // Return error - don't update database if Stripe fails
+          res.status(500).json({
+            success: false,
+            message: 'Failed to reactivate subscription. Please try again or contact support.',
+            error: stripeError.message
+          });
+          return;
+        }
+      }
+
+      // Update subscription in database - remove cancellation
+      const subscription = await Subscription.findOneAndUpdate(
+        {
+          workspaceId: req.workspace!._id,
+          status: 'ACTIVE'
+        },
+        {
+          $unset: {
+            cancelledAt: 1,
+            cancellationReason: 1
+          },
+          cancelAtPeriodEnd: false
+        },
+        { new: true }
+      ).populate('planId');
+      
+      res.json({
+        success: true,
+        message: 'Subscription cancellation cancelled successfully. Your subscription will continue.',
+        data: {
+          workspaceId: req.workspace!._id,
+          subscription: subscription,
+          stripeStatus: stripeSubscription?.status,
+          stripeCancelAtPeriodEnd: stripeSubscription ? (stripeSubscription as any).cancel_at_period_end : null
+        }
+      });
+    } catch (error) {
+      console.error('Error in cancelSubscriptionCancellation:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error cancelling subscription cancellation',
         error: (error as Error).message
       });
     }

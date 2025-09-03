@@ -1,29 +1,6 @@
 import { apiGet } from './client'
 import { ENDPOINTS } from './config'
-
-export interface Plan {
-  _id: string
-  displayName: string
-  description: string
-  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
-  price: {
-    monthly: number
-    yearly?: number
-  }
-  limits: {
-    apiCalls: number
-    productSyncs: number
-    storeConnections: number
-    contributors?: number
-    aiAssistance?: boolean
-  }
-  features: string[]
-  isPopular?: boolean
-  trialDays: number
-  stripePriceId: string
-  createdAt: string
-  updatedAt: string
-}
+import { Plan } from '@/types/plan'
 
 export interface UserPlan {
   currentPlan: Plan

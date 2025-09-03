@@ -10,6 +10,7 @@ export interface WorkspaceSubscription {
     hasActiveSubscription: boolean;
     endsAt: string | null;
     planLimits: any;
+    cancelAtPeriodEnd: boolean;
     cancelledAt?: string;
     cancellationReason?: string;
   };
@@ -167,6 +168,32 @@ export const reactivateWorkspaceSubscription = async (
     return result;
   } catch (error) {
     console.error('Subscription reactivation failed in service:', error);
+    throw error;
+  }
+};
+
+export const cancelSubscriptionCancellation = async (workspaceId: string): Promise<any> => {
+  try {
+    console.log('Cancelling subscription cancellation for workspace:', workspaceId);
+    
+    const response = await fetch(`/api/subscription/${workspaceId}/cancel-cancellation`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('Subscription cancellation cancelled successfully:', result);
+    return result;
+  } catch (error) {
+    console.error('Failed to cancel subscription cancellation:', error);
     throw error;
   }
 };

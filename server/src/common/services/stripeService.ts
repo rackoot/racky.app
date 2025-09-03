@@ -633,4 +633,54 @@ export const cancelStripeSubscription = async (
   }
 };
 
+/**
+ * Reactivate a cancelled Stripe subscription (remove cancel_at_period_end flag)
+ */
+export const reactivateStripeSubscription = async (
+  subscriptionId: string
+): Promise<Stripe.Subscription> => {
+  const stripeInstance = getStripeInstance();
+  
+  try {
+    console.log('Reactivating Stripe subscription:', { subscriptionId });
+
+    // Get current subscription to check status
+    const currentSubscription = await stripeInstance.subscriptions.retrieve(subscriptionId);
+    
+    // Check if subscription is actually scheduled for cancellation
+    if (!(currentSubscription as any).cancel_at_period_end) {
+      console.log('Subscription is not scheduled for cancellation:', subscriptionId);
+      return currentSubscription;
+    }
+
+    // Remove the cancellation by updating cancel_at_period_end to false
+    const reactivatedSubscription = await stripeInstance.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: false
+    });
+
+    console.log('Subscription reactivated successfully:', {
+      id: reactivatedSubscription.id,
+      status: reactivatedSubscription.status,
+      cancel_at_period_end: (reactivatedSubscription as any).cancel_at_period_end,
+      current_period_end: (reactivatedSubscription as any).current_period_end
+    });
+    
+    return reactivatedSubscription;
+    
+  } catch (error: any) {
+    console.error('Error reactivating Stripe subscription:', error);
+    
+    // Handle specific Stripe errors
+    if (error.code === 'resource_missing') {
+      throw new Error(`Subscription not found in Stripe: ${subscriptionId}`);
+    }
+    
+    if (error.code === 'subscription_canceled') {
+      throw new Error(`Subscription is already fully cancelled and cannot be reactivated: ${subscriptionId}`);
+    }
+    
+    throw new Error(`Failed to reactivate subscription in Stripe: ${error.message}`);
+  }
+};
+
 export { getStripeInstance };

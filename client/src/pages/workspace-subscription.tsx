@@ -32,6 +32,7 @@ import {
   previewWorkspaceSubscriptionChange,
   updateWorkspaceSubscription,
   cancelWorkspaceSubscription,
+  cancelSubscriptionCancellation,
   type WorkspaceSubscription,
   type WorkspaceUsage,
   type SubscriptionPreview 
@@ -42,27 +43,7 @@ import { SuccessModal } from "@/components/ui/success-modal"
 import { useNavigate } from "react-router-dom"
 import { Slider } from "@/components/ui/slider"
 import { CancelledSubscriptionView } from "@/components/workspace/cancelled-subscription-view"
-
-interface Plan {
-  name: string
-  displayName: string
-  description: string
-  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
-  monthlyPrice: number
-  yearlyPrice: number
-  limits: {
-    maxStores: number
-    maxProducts: number
-    maxMarketplaces: number
-    maxSyncFrequency: number
-    apiCallsPerMonth: number
-  }
-  features: Array<{
-    name: string
-    description: string
-    enabled: boolean
-  }>
-}
+import { Plan } from "@/types/plan"
 
 export default function WorkspaceSubscriptionPage() {
   const navigate = useNavigate()
@@ -88,6 +69,8 @@ export default function WorkspaceSubscriptionPage() {
   const [showCancelDowngradeModal, setShowCancelDowngradeModal] = useState(false)
   const [showCancelSubscriptionModal, setShowCancelSubscriptionModal] = useState(false)
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false)
+  const [showCancelCancellationModal, setShowCancelCancellationModal] = useState(false)
+  const [isCancellingCancellation, setIsCancellingCancellation] = useState(false)
 
   useEffect(() => {
     if (!currentWorkspace) {
@@ -274,6 +257,36 @@ export default function WorkspaceSubscriptionPage() {
     }
   }
 
+  const handleCancelCancellationClick = () => {
+    if (!currentWorkspace || !subscription?.subscription.cancelAtPeriodEnd || isCancellingCancellation) return
+    setShowCancelCancellationModal(true)
+  }
+
+  const handleConfirmCancelCancellation = async () => {
+    if (!currentWorkspace || !subscription?.subscription.cancelAtPeriodEnd || isCancellingCancellation) return
+
+    try {
+      setIsCancellingCancellation(true)
+      await cancelSubscriptionCancellation(currentWorkspace._id)
+      
+      // Close the modal first
+      setShowCancelCancellationModal(false)
+      
+      // Reload subscription data to reflect the cancellation
+      await loadSubscriptionData()
+      
+      // Refresh workspace context to ensure subscription data is current
+      await refreshWorkspaces()
+      
+      showSuccess('Cancellation Cancelled', 'Your subscription cancellation has been cancelled successfully. Your subscription will continue.')
+    } catch (error) {
+      console.error('Error cancelling subscription cancellation:', error)
+      showError(error instanceof Error ? error.message : 'Failed to cancel subscription cancellation')
+    } finally {
+      setIsCancellingCancellation(false)
+    }
+  }
+
   if (!currentWorkspace) {
     return (
       <div className="container max-w-6xl mx-auto p-6">
@@ -413,6 +426,67 @@ export default function WorkspaceSubscriptionPage() {
                     variant="ghost" 
                     size="sm"
                     className="text-orange-700 hover:text-orange-900 hover:bg-orange-100"
+                    onClick={() => {
+                      // Scroll to the manage subscription section
+                      document.getElementById('manage-subscription')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Learn More
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cancellation Alert */}
+      {subscription?.subscription.cancelAtPeriodEnd === true && subscription?.subscription.endsAt && new Date(subscription.subscription.endsAt) > new Date() && (
+        <Card className="mb-8 border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5" />
+              </div>
+              <div className="flex-grow">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-red-900">Subscription Cancellation Scheduled</h3>
+                  <Badge variant="secondary" className="bg-red-100 text-red-800">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {new Date(subscription.subscription.endsAt).toLocaleDateString()}
+                  </Badge>
+                </div>
+                <p className="text-red-800 mb-4">
+                  Your subscription will be cancelled on {new Date(subscription.subscription.endsAt).toLocaleDateString('en-US', { 
+                    weekday: 'long',
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}. You can still cancel this cancellation if you want to continue your subscription.
+                </p>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleCancelCancellationClick}
+                    disabled={isCancellingCancellation}
+                    variant="outline"
+                    className="border-red-300 text-red-700 hover:bg-red-100"
+                  >
+                    {isCancellingCancellation ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                        Cancelling...
+                      </div>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Continue Subscription
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-700 hover:text-red-900 hover:bg-red-100"
                     onClick={() => {
                       // Scroll to the manage subscription section
                       document.getElementById('manage-subscription')?.scrollIntoView({ behavior: 'smooth' });
@@ -880,6 +954,69 @@ export default function WorkspaceSubscriptionPage() {
                 <>
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   Yes, Cancel Subscription
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Cancellation Confirmation Modal */}
+      <Dialog open={showCancelCancellationModal} onOpenChange={setShowCancelCancellationModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Continue Subscription
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              You are about to cancel your subscription cancellation for <strong>{currentWorkspace?.name}</strong> workspace.
+              <br /><br />
+              <strong>This means:</strong>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>Your subscription will continue as normal</li>
+                <li>You will not be downgraded on {subscription?.subscription.endsAt && new Date(subscription.subscription.endsAt).toLocaleDateString('en-US', { 
+                  weekday: 'long',
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}</li>
+                <li>Your billing will continue at the current rate</li>
+                <li>All features and limits remain the same</li>
+              </ul>
+              <br />
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-800">
+                    <strong>Great choice!</strong> Your subscription will continue uninterrupted and you can cancel again at any time if needed.
+                  </div>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelCancellationModal(false)}
+              disabled={isCancellingCancellation}
+            >
+              Keep Cancellation
+            </Button>
+            <Button
+              onClick={handleConfirmCancelCancellation}
+              disabled={isCancellingCancellation}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isCancellingCancellation ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Continuing...
+                </div>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Yes, Continue Subscription
                 </>
               )}
             </Button>
