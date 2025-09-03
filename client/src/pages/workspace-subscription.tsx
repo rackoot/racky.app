@@ -47,6 +47,7 @@ interface Plan {
   name: string
   displayName: string
   description: string
+  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
   monthlyPrice: number
   yearlyPrice: number
   limits: {
@@ -65,7 +66,7 @@ interface Plan {
 
 export default function WorkspaceSubscriptionPage() {
   const navigate = useNavigate()
-  const { currentWorkspace } = useWorkspace()
+  const { currentWorkspace, refreshWorkspaces } = useWorkspace()
   const [subscription, setSubscription] = useState<WorkspaceSubscription | null>(null)
   const [usage, setUsage] = useState<WorkspaceUsage | null>(null)
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([])
@@ -85,6 +86,8 @@ export default function WorkspaceSubscriptionPage() {
   const [showErrorAlert, setShowErrorAlert] = useState(false)
   const [isCancellingDowngrade, setIsCancellingDowngrade] = useState(false)
   const [showCancelDowngradeModal, setShowCancelDowngradeModal] = useState(false)
+  const [showCancelSubscriptionModal, setShowCancelSubscriptionModal] = useState(false)
+  const [isCancellingSubscription, setIsCancellingSubscription] = useState(false)
 
   useEffect(() => {
     if (!currentWorkspace) {
@@ -182,6 +185,9 @@ export default function WorkspaceSubscriptionPage() {
       // Reload subscription data
       await loadSubscriptionData()
       
+      // Refresh workspace context to ensure subscription data is current
+      await refreshWorkspaces()
+      
       // Determine success message based on change type
       const plan = availablePlans.find(p => p.name === selectedPlan)
       const isUpgrade = subscriptionPreview?.pricing.isUpgrade
@@ -225,6 +231,10 @@ export default function WorkspaceSubscriptionPage() {
       
       // Reload subscription data to reflect the cancellation
       await loadSubscriptionData()
+      
+      // Refresh workspace context to ensure subscription data is current
+      await refreshWorkspaces()
+      
       showSuccess('Downgrade Cancelled', 'Your scheduled downgrade has been cancelled successfully. You will remain on your current plan.')
     } catch (error) {
       console.error('Error cancelling scheduled downgrade:', error)
@@ -234,24 +244,33 @@ export default function WorkspaceSubscriptionPage() {
     }
   }
 
-  const handleCancelSubscription = async () => {
-    if (!currentWorkspace || !subscription?.hasActiveSubscription || isUpdating) return
+  const handleCancelSubscription = () => {
+    if (!currentWorkspace || !subscription?.hasActiveSubscription || isCancellingSubscription) return
+    setShowCancelSubscriptionModal(true)
+  }
 
-    if (!confirm('Are you sure you want to cancel this workspace subscription? This will affect all workspace members.')) {
-      return
-    }
+  const handleConfirmCancelSubscription = async () => {
+    if (!currentWorkspace || !subscription?.hasActiveSubscription || isCancellingSubscription) return
 
     try {
-      setIsUpdating(true)
+      setIsCancellingSubscription(true)
       await cancelWorkspaceSubscription(currentWorkspace._id)
       
+      // Close the modal
+      setShowCancelSubscriptionModal(false)
+      
+      // Reload subscription data to reflect the cancellation
       await loadSubscriptionData()
+      
+      // Refresh workspace context to trigger RequireSubscription re-validation
+      await refreshWorkspaces()
+      
       showSuccess('Subscription Cancelled', 'Your workspace subscription has been cancelled successfully. The workspace will be downgraded to the free tier.')
     } catch (error) {
       console.error('Error cancelling subscription:', error)
       showError(error instanceof Error ? error.message : 'Failed to cancel subscription')
     } finally {
-      setIsUpdating(false)
+      setIsCancellingSubscription(false)
     }
   }
 
@@ -722,9 +741,9 @@ export default function WorkspaceSubscriptionPage() {
             <Button 
               variant="destructive" 
               onClick={handleCancelSubscription}
-              disabled={isUpdating}
+              disabled={isCancellingSubscription || isUpdating}
             >
-              {isUpdating ? 'Cancelling...' : 'Cancel Workspace Subscription'}
+              {isCancellingSubscription ? 'Cancelling...' : 'Cancel Workspace Subscription'}
             </Button>
             <p className="text-sm text-muted-foreground mt-2">
               Cancelling will downgrade the workspace to free tier and affect all workspace members.
@@ -802,6 +821,65 @@ export default function WorkspaceSubscriptionPage() {
                 <>
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   Yes, Cancel Downgrade
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Subscription Confirmation Modal */}
+      <Dialog open={showCancelSubscriptionModal} onOpenChange={setShowCancelSubscriptionModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Cancel Workspace Subscription
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              You are about to cancel the subscription for <strong>{currentWorkspace?.name}</strong> workspace.
+              <br /><br />
+              <strong>This action will:</strong>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>Cancel your subscription immediately</li>
+                <li>Downgrade the workspace to <strong>read-only mode</strong></li>
+                <li>Remove access to premium features</li>
+                <li>Affect <strong>all workspace members</strong></li>
+                <li>Preserve your data (can be reactivated later)</li>
+              </ul>
+              <br />
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-800">
+                    <strong>Good news:</strong> You can reactivate your subscription at any time without losing your workspace data, connections, or products.
+                  </div>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelSubscriptionModal(false)}
+              disabled={isCancellingSubscription}
+            >
+              Keep Subscription
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmCancelSubscription}
+              disabled={isCancellingSubscription}
+            >
+              {isCancellingSubscription ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Cancelling...
+                </div>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Yes, Cancel Subscription
                 </>
               )}
             </Button>

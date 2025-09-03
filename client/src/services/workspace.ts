@@ -1,4 +1,4 @@
-import { workspacesApi, subscriptionApi, workspaceUsageApi } from '@/api'
+import { subscriptionApi, workspaceUsageApi } from '@/api'
 import { getAuthHeaders } from '@/lib/utils'
 
 export interface WorkspaceSubscription {
@@ -30,6 +30,13 @@ export interface WorkspaceSubscription {
     description: string;
     enabled: boolean;
   }> | null;
+  scheduledDowngrade?: {
+    planName: string;
+    planDisplayName: string;
+    contributorCount: number;
+    effectiveDate: string;
+    scheduleId: string;
+  } | null;
 }
 
 export interface WorkspaceUsage {
@@ -61,13 +68,13 @@ export interface WorkspaceUsage {
 }
 
 export interface UpdateSubscriptionRequest {
-  planName: 'BASIC' | 'PRO' | 'ENTERPRISE';
+  planName: 'JUNIOR' | 'SENIOR';
   billingCycle?: 'monthly' | 'annual';
   contributorCount?: number;
 }
 
 export interface SubscriptionPreviewRequest {
-  planName: 'BASIC' | 'PRO' | 'ENTERPRISE';
+  planName: 'JUNIOR' | 'SENIOR';
   billingCycle: 'monthly' | 'annual';
   contributorCount: number;
 }

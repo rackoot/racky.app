@@ -51,13 +51,42 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
         
       case 'customer.subscription.deleted':
         const deletedSubscription = event.data.object as Stripe.Subscription;
-        console.log('Subscription deleted:', deletedSubscription.id);
+        console.log('Subscription deleted webhook received:', {
+          subscriptionId: deletedSubscription.id,
+          status: deletedSubscription.status,
+          canceled_at: deletedSubscription.canceled_at,
+          cancel_at_period_end: (deletedSubscription as any).cancel_at_period_end
+        });
         
-        // Mark subscription as cancelled in our database
+        // Find and update subscription as cancelled in our database
         const existingSubscription = await Subscription.findByStripeId(deletedSubscription.id);
         if (existingSubscription) {
+          console.log('Updating subscription status to CANCELLED:', {
+            dbSubscriptionId: existingSubscription._id,
+            currentStatus: existingSubscription.status,
+            stripeSubscriptionId: deletedSubscription.id
+          });
+          
+          // Update subscription with cancellation details
           existingSubscription.status = 'CANCELLED';
+          
+          // Only set cancelledAt if not already set (avoid overriding API cancellation timestamp)
+          if (!existingSubscription.cancelledAt) {
+            existingSubscription.cancelledAt = deletedSubscription.canceled_at 
+              ? new Date(deletedSubscription.canceled_at * 1000) 
+              : new Date();
+          }
+          
+          // Clear any pending schedule since subscription is now cancelled
+          if (existingSubscription.stripeScheduleId) {
+            console.log('Clearing schedule ID from cancelled subscription:', existingSubscription.stripeScheduleId);
+            existingSubscription.stripeScheduleId = undefined;
+          }
+          
           await existingSubscription.save();
+          console.log('Subscription successfully marked as cancelled via webhook');
+        } else {
+          console.warn('Webhook received for subscription not found in database:', deletedSubscription.id);
         }
         break;
 

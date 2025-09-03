@@ -8,6 +8,8 @@
     "build": "vite build",
     "build-with-types": "tsc -b tsconfig.build.json && vite build",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm run lint",
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",

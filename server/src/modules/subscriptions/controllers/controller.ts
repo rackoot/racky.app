@@ -7,7 +7,8 @@ import {
   calculateProration,
   isStripeConfigured,
   cancelExistingSchedule,
-  checkSubscriptionScheduleIsCompleted
+  checkSubscriptionScheduleIsCompleted,
+  cancelStripeSubscription
 } from '@/common/services/stripeService';
 import Subscription from '../models/Subscription';
 import Plan from '../models/Plan';
@@ -386,8 +387,8 @@ export class SubscriptionController {
         updatedBy: req.user!._id.toString()
       };
 
-      let result;
-      let stripeSubscription;
+      let result: any;
+      let stripeSubscription: any;
 
       console.log('Starting Stripe subscription update:', {
         subscriptionId: currentSubscription.stripeSubscriptionId,
@@ -689,6 +690,10 @@ export class SubscriptionController {
    */
   async cancelWorkspaceSubscription(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
+      // Parse query parameter for immediate cancellation (default: false = cancel at period end)
+      const immediate = req.query.immediate === 'true';
+      const cancelAtPeriodEnd = !immediate;
+
       // First find the active subscription to check for pending schedules
       const activeSubscription = await Subscription.findOne({
         workspaceId: req.workspace!._id, 
@@ -714,28 +719,85 @@ export class SubscriptionController {
           // Continue with subscription cancellation even if schedule cancellation fails
         }
       }
+
+      // 🆕 CRITICAL FIX: Cancel in Stripe FIRST, then update database
+      let stripeSubscription = null;
+      if (activeSubscription.stripeSubscriptionId && isStripeConfigured()) {
+        try {
+          console.log('Cancelling subscription in Stripe:', {
+            stripeSubscriptionId: activeSubscription.stripeSubscriptionId,
+            cancelAtPeriodEnd,
+            immediate
+          });
+          
+          stripeSubscription = await cancelStripeSubscription(
+            activeSubscription.stripeSubscriptionId, 
+            cancelAtPeriodEnd
+          );
+          
+          console.log('Stripe cancellation successful:', {
+            id: stripeSubscription.id,
+            status: stripeSubscription.status,
+            cancel_at_period_end: (stripeSubscription as any).cancel_at_period_end,
+            canceled_at: (stripeSubscription as any).canceled_at
+          });
+          
+        } catch (stripeError: any) {
+          console.error('Failed to cancel subscription in Stripe:', stripeError.message);
+          
+          // Return error - don't update database if Stripe fails
+          res.status(500).json({
+            success: false,
+            message: 'Failed to cancel subscription in payment system',
+            error: stripeError.message,
+            details: 'The subscription could not be cancelled in Stripe. Please contact support.'
+          });
+          return;
+        }
+      } else {
+        console.log('Stripe not configured or no Stripe subscription ID, proceeding with database-only cancellation');
+      }
       
+      // Now update the database (only after Stripe succeeds or is not configured)
+      const updateData: any = {
+        cancelledAt: new Date(),
+        stripeScheduleId: undefined, // Clear any schedule reference
+        cancelAtPeriodEnd: cancelAtPeriodEnd
+      };
+
+      // Set status based on cancellation type
+      if (immediate) {
+        updateData.status = 'CANCELLED';
+      } else {
+        // For period-end cancellation, keep as ACTIVE until period ends
+        // The webhook will mark as CANCELLED when Stripe actually cancels
+        updateData.status = 'ACTIVE';
+      }
+
       const subscription = await Subscription.findOneAndUpdate(
         { workspaceId: req.workspace!._id, status: 'ACTIVE' },
-        { 
-          status: 'CANCELLED',
-          cancelledAt: new Date(),
-          stripeScheduleId: undefined // Clear any schedule reference
-        },
+        updateData,
         { new: true }
       ).populate('planId');
       
       res.json({
         success: true,
-        message: 'Workspace subscription cancelled successfully',
+        message: immediate 
+          ? 'Workspace subscription cancelled immediately'
+          : 'Workspace subscription will be cancelled at the end of the current billing period',
         data: {
           workspaceId: req.workspace!._id,
           subscription: subscription,
           cancelledAt: subscription.cancelledAt,
-          validUntil: subscription.endsAt
+          validUntil: subscription.endsAt,
+          cancelAtPeriodEnd: cancelAtPeriodEnd,
+          immediate: immediate,
+          stripeStatus: stripeSubscription?.status,
+          stripeCanceledAt: stripeSubscription ? (stripeSubscription as any).canceled_at : null
         }
       });
     } catch (error) {
+      console.error('Error in cancelWorkspaceSubscription:', error);
       res.status(500).json({
         success: false,
         message: 'Error cancelling workspace subscription',

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { getCurrentUser } from "@/lib/auth"
 import { Navigate } from "react-router-dom"
 import { getAuthHeaders } from "@/lib/utils"
@@ -15,11 +15,7 @@ export function RequireSubscription({ children, fallback = "/pricing-internal" }
   const user = getCurrentUser()
   const { currentWorkspace } = useWorkspace()
 
-  useEffect(() => {
-    checkSubscription()
-  }, [currentWorkspace])
-
-  const checkSubscription = async () => {
+  const checkSubscription = useCallback(async () => {
     if (!user) {
       setLoading(false)
       return
@@ -69,7 +65,11 @@ export function RequireSubscription({ children, fallback = "/pricing-internal" }
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentWorkspace, user])
+
+  useEffect(() => {
+    checkSubscription()
+  }, [checkSubscription, currentWorkspace?.subscription])
 
   if (!user) {
     return <Navigate to="/login" replace />

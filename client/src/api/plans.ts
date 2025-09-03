@@ -6,6 +6,7 @@ export interface Plan {
   name: string
   displayName: string
   description: string
+  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
   price: {
     monthly: number
     yearly?: number

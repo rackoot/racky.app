@@ -29,6 +29,8 @@ cd client
 npm run dev          # Start development server (usually http://localhost:5173)
 npm run build        # Build for production
 npm run lint         # Run ESLint
+npm run typecheck    # Check TypeScript types without compiling
+npm run validate     # Run both typecheck and lint (MANDATORY after code changes)
 npm run preview      # Preview production build locally
 ```
 
@@ -38,6 +40,8 @@ cd server
 npm run dev          # Start development server with nodemon (http://localhost:5000)
 npm start           # Start production server
 npm test            # Run tests with Jest
+npm run typecheck    # Check TypeScript types without compiling
+npm run validate     # Run both typecheck and tests (MANDATORY after code changes)
 npm run test:watch   # Run tests in watch mode
 npm run test:coverage # Run tests with coverage report
 node scripts/setup.js        # 🚀 Complete setup for contributor-based platform
@@ -358,6 +362,11 @@ PORT=5000
 
 ### Implementation Requirements
 - **Full-Stack Implementation Required**: When implementing new features, ALWAYS work on both backend (`/server`) and frontend (`/client`) components. Features must be complete end-to-end implementations.
+- **🚨 MANDATORY TYPE VALIDATION**: After ANY code changes, you MUST:
+  1. Run `npm run validate` in both client and server directories
+  2. Use `mcp__ide__getDiagnostics` to check for TypeScript errors
+  3. Fix ALL TypeScript errors before marking tasks as completed
+  4. NEVER mark a task as completed if there are TypeScript errors or validation failures
 - **Documentation Updates Required**: When adding new features or making changes to frontend/backend, update relevant documentation including `/RACKY_BACKEND_API.md`
 - **Postman Collection Maintenance**: Always update `/server/postman_collection.json` when new API endpoints are added to the server
 - **Entity Relationship Diagram Maintenance**: **CRITICAL** - When modifying existing entities in `/server/src/modules/*/models/` or creating new entities, MUST update the Entity Relationship Diagram in `/server/ER_DIAGRAM.md`. This includes:

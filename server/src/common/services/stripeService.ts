@@ -563,4 +563,76 @@ export const checkSubscriptionScheduleIsCompleted = async (stripeScheduleId: str
   }
 };
 
+/**
+ * Cancel a Stripe subscription
+ */
+export const cancelStripeSubscription = async (
+  subscriptionId: string,
+  cancelAtPeriodEnd: boolean = true
+): Promise<Stripe.Subscription> => {
+  const stripeInstance = getStripeInstance();
+  
+  try {
+    console.log('Cancelling Stripe subscription:', {
+      subscriptionId,
+      cancelAtPeriodEnd
+    });
+
+    // Get current subscription to check status
+    const currentSubscription = await stripeInstance.subscriptions.retrieve(subscriptionId);
+    
+    // Check if subscription is already cancelled
+    if (currentSubscription.status === 'canceled') {
+      console.log('Subscription already cancelled:', subscriptionId);
+      return currentSubscription;
+    }
+
+    // Cancel the subscription in Stripe
+    const cancelledSubscription = await stripeInstance.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: cancelAtPeriodEnd,
+      ...(cancelAtPeriodEnd ? {} : { 
+        // For immediate cancellation, we actually cancel the subscription
+        proration_behavior: 'none' 
+      })
+    });
+
+    // If immediate cancellation, actually delete the subscription
+    if (!cancelAtPeriodEnd) {
+      const deletedSubscription = await stripeInstance.subscriptions.cancel(subscriptionId, {
+        prorate: false, // Don't prorate charges for immediate cancellation
+      });
+      console.log('Subscription cancelled immediately:', {
+        id: deletedSubscription.id,
+        status: deletedSubscription.status,
+        canceled_at: deletedSubscription.canceled_at
+      });
+      return deletedSubscription;
+    }
+
+    console.log('Subscription scheduled for cancellation at period end:', {
+      id: cancelledSubscription.id,
+      status: cancelledSubscription.status,
+      cancel_at_period_end: (cancelledSubscription as any).cancel_at_period_end,
+      current_period_end: (cancelledSubscription as any).current_period_end
+    });
+    
+    return cancelledSubscription;
+    
+  } catch (error: any) {
+    console.error('Error cancelling Stripe subscription:', error);
+    
+    // Handle specific Stripe errors
+    if (error.code === 'resource_missing') {
+      throw new Error(`Subscription not found in Stripe: ${subscriptionId}`);
+    }
+    
+    if (error.code === 'subscription_canceled') {
+      console.log('Subscription was already cancelled, fetching current state');
+      return await stripeInstance.subscriptions.retrieve(subscriptionId);
+    }
+    
+    throw new Error(`Failed to cancel subscription in Stripe: ${error.message}`);
+  }
+};
+
 export { getStripeInstance };
