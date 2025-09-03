@@ -95,7 +95,6 @@ export const ENDPOINTS = {
   // Billing (payment processing only)
   BILLING: {
     CHECKOUT_SESSION: '/billing/create-checkout-session',
-    UPDATE_CONTRIBUTORS: '/billing/update-contributors',
     PORTAL: '/billing/portal',
   },
   

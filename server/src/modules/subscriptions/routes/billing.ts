@@ -276,59 +276,6 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
   }
 });
 
-// POST /api/billing/update-contributors - Update contributor count for existing subscription
-router.post('/update-contributors', protect, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { contributorCount } = req.body;
-
-    if (!req.workspace) {
-      return res.status(400).json({
-        success: false,
-        message: 'Workspace context required'
-      });
-    }
-
-    if (!contributorCount || contributorCount < 1) {
-      return res.status(400).json({
-        success: false,
-        message: 'Valid contributor count is required'
-      });
-    }
-
-    // Find active subscription for the workspace
-    const subscription = await req.workspace.getActiveSubscription();
-    if (!subscription) {
-      return res.status(404).json({
-        success: false,
-        message: 'No active subscription found for this workspace'
-      });
-    }
-
-    // Update contributor count
-    await subscription.updateContributorCount(contributorCount);
-    await subscription.populate('planId');
-
-    res.json({
-      success: true,
-      message: 'Contributor count updated successfully',
-      data: {
-        contributorCount: subscription.contributorCount,
-        totalMonthlyActions: subscription.totalMonthlyActions,
-        newAmount: subscription.amount,
-        planDisplayName: (subscription.planId as any).displayName
-      }
-    });
-
-  } catch (error: any) {
-    console.error('Error updating contributor count:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update contributor count',
-      error: error.message
-    });
-  }
-});
-
 // Note: Stripe webhook handler moved to main app routing to avoid JWT auth middleware
 
 export default router;

@@ -243,10 +243,18 @@ export const handleSuccessfulPayment = async (stripeSubscription: Stripe.Subscri
       workspaceId,
       contributorType,
       contributorCount,
-      status: stripeSubscription.status
+      status: stripeSubscription.status,
+      allMetadata: metadata // Log all metadata for debugging
     });
 
     if (!workspaceId || !contributorType) {
+      console.error('Missing required metadata:', {
+        subscriptionId: stripeSubscription.id,
+        availableMetadata: Object.keys(metadata),
+        workspaceId,
+        contributorType,
+        fullMetadata: metadata
+      });
       throw new Error(`Missing required metadata - workspaceId: ${workspaceId}, contributorType: ${contributorType}`);
     }
 
@@ -272,7 +280,11 @@ export const handleSuccessfulPayment = async (stripeSubscription: Stripe.Subscri
       existingSubscription.status = mapStripeStatusToDbStatus(stripeSubscription.status);
       existingSubscription.contributorCount = contributorCount;
       existingSubscription.amount = stripeSubscription.items.data[0].price.unit_amount || 0;
+      existingSubscription.planId = plan._id as any;
       existingSubscription.totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
+      existingSubscription.currency = stripeSubscription.currency || 'usd';
+      existingSubscription.interval = stripeSubscription.items.data[0].price.recurring?.interval === 'year' ? 'year' : 'month';
+      existingSubscription.startsAt = new Date((stripeSubscription as any).current_period_start * 1000);
       existingSubscription.endsAt = new Date((stripeSubscription as any).current_period_end * 1000);
       
       await existingSubscription.save();
@@ -395,13 +407,18 @@ export const scheduleSubscriptionDowngrade = async (
 
     // Create subscription schedule from existing subscription
     const schedule = await stripeInstance.subscriptionSchedules.create({
-      from_subscription: subscriptionId
+      from_subscription: subscriptionId 
     });
 
     console.log('Created initial schedule from subscription:', {
       scheduleId: schedule.id,
       subscription: schedule.subscription,
       currentPhases: schedule.phases?.length
+    });
+
+    // Also update the underlying subscription with metadata to ensure it's available when schedule executes
+    await stripeInstance.subscriptions.update(subscriptionId, {
+      metadata: metadata
     });
 
     // Update the schedule with proper phases
@@ -426,10 +443,10 @@ export const scheduleSubscriptionDowngrade = async (
               quantity: newQuantity
             }
           ],
-          iterations: 1,
-          metadata: metadata
+          iterations: 1
         }
-      ]
+      ],
+      metadata: metadata
     });
 
     console.log('Subscription schedule updated successfully:', {
