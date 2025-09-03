@@ -414,6 +414,9 @@ export class SubscriptionController {
           });
           result = { type: 'upgrade', timing: 'immediate' };
         } else if (isDowngrade) {
+          if(currentSubscription.stripeScheduleId){
+            cancelExistingSchedule(currentSubscription.stripeScheduleId)
+          }
           console.log('Scheduling downgrade for next billing period');
           const schedule = await scheduleSubscriptionDowngrade(
             currentSubscription.stripeSubscriptionId,
