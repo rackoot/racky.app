@@ -20,6 +20,7 @@ export interface ISubscription extends Document {
   // Stripe Integration
   stripeSubscriptionId?: string;
   stripeCustomerId?: string;
+  stripeScheduleId?: string; // For tracking subscription schedules (downgrades)
   // Pricing information
   amount: number; // Total amount in cents (contributorCount * plan price)
   currency: string;
@@ -117,6 +118,9 @@ const subscriptionSchema = new Schema<ISubscription>({
     type: String
   },
   stripeCustomerId: {
+    type: String
+  },
+  stripeScheduleId: {
     type: String
   },
   // Pricing information

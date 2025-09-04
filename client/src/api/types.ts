@@ -51,6 +51,8 @@ export interface AuthResponse {
   user: {
     _id: string
     email: string
+    firstName?: string
+    lastName?: string
     name?: string
     role: 'USER' | 'SUPERADMIN'
   }

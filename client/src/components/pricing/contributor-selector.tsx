@@ -15,27 +15,11 @@ import { useNavigate } from "react-router-dom"
 import { getCurrentUser } from "@/lib/auth"
 import { getAuthHeaders } from "@/lib/utils"
 import { EmbeddedCheckoutWrapper } from "./embedded-checkout"
+import { Plan, ContributorType, BillingCycle } from "@/types/plan"
 
-interface ContributorPlan {
-  name: string
-  displayName: string
-  description: string
-  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
-  actionsPerContributor: number
-  maxContributorsPerWorkspace: number
-  isContactSalesOnly: boolean
-  monthlyPrice: number
-  yearlyPrice: number
-  features: Array<{
-    name: string
-    description: string
-    enabled: boolean
-  }>
-}
-
-const contributorPlans: ContributorPlan[] = [
+const contributorPlans: Plan[] = [
   {
-    name: "BASIC",
+    _id: 'junior-plan',
     displayName: "Junior Contributor",
     description: "Perfect for small teams getting started with marketplace automation",
     contributorType: 'JUNIOR',
@@ -44,16 +28,28 @@ const contributorPlans: ContributorPlan[] = [
     isContactSalesOnly: false,
     monthlyPrice: 2900, // $29.00 per contributor
     yearlyPrice: 29000, // $290.00 per contributor
+    stripeMonthlyPriceId: '',
+    stripeYearlyPriceId: '',
+    limits: {
+      maxStores: 5,
+      maxProducts: 100,
+      maxMarketplaces: 2,
+      maxSyncFrequency: 24,
+      apiCallsPerMonth: 1000
+    },
     features: [
       { name: 'Basic Operations', description: 'Essential marketplace tasks and product sync', enabled: true },
       { name: 'Email Support', description: 'Email support with 48-hour response time', enabled: true },
       { name: '1K Actions/Contributor', description: 'Up to 1,000 actions per contributor monthly', enabled: true },
       { name: 'Basic Analytics', description: 'Essential performance metrics', enabled: true },
       { name: 'Product Management', description: 'Create, update, and sync products', enabled: true }
-    ]
+    ],
+    trialDays: 14,
+    createdAt: '',
+    updatedAt: ''
   },
   {
-    name: "PRO",
+    _id: 'senior-plan',
     displayName: "Senior Contributor",
     description: "Advanced contributors with AI assistance for growing businesses",
     contributorType: 'SENIOR',
@@ -62,6 +58,15 @@ const contributorPlans: ContributorPlan[] = [
     isContactSalesOnly: false,
     monthlyPrice: 7900, // $79.00 per contributor
     yearlyPrice: 79000, // $790.00 per contributor
+    stripeMonthlyPriceId: '',
+    stripeYearlyPriceId: '',
+    limits: {
+      maxStores: 25,
+      maxProducts: 1000,
+      maxMarketplaces: 5,
+      maxSyncFrequency: 6,
+      apiCallsPerMonth: 5000
+    },
     features: [
       { name: 'Advanced Operations', description: 'Complex automation and bulk operations', enabled: true },
       { name: 'AI-Powered Insights', description: 'Smart suggestions and optimization recommendations', enabled: true },
@@ -69,10 +74,13 @@ const contributorPlans: ContributorPlan[] = [
       { name: '5K Actions/Contributor', description: 'Up to 5,000 actions per contributor monthly', enabled: true },
       { name: 'Advanced Analytics', description: 'Detailed performance metrics and reporting', enabled: true },
       { name: 'Bulk Operations', description: 'Mass updates across multiple marketplaces', enabled: true }
-    ]
+    ],
+    trialDays: 14,
+    createdAt: '',
+    updatedAt: ''
   },
   {
-    name: "ENTERPRISE",
+    _id: 'executive-plan',
     displayName: "Executive Contributor",
     description: "Premium contributors with unlimited capabilities and dedicated support",
     contributorType: 'EXECUTIVE',
@@ -81,6 +89,15 @@ const contributorPlans: ContributorPlan[] = [
     isContactSalesOnly: true,
     monthlyPrice: 19900, // Contact for pricing
     yearlyPrice: 199000,
+    stripeMonthlyPriceId: '',
+    stripeYearlyPriceId: '',
+    limits: {
+      maxStores: -1, // Unlimited
+      maxProducts: -1,
+      maxMarketplaces: -1,
+      maxSyncFrequency: 1,
+      apiCallsPerMonth: -1
+    },
     features: [
       { name: 'Unlimited Operations', description: 'No limits on actions or complexity', enabled: true },
       { name: 'Custom AI Models', description: 'Tailored AI solutions for your business', enabled: true },
@@ -88,7 +105,10 @@ const contributorPlans: ContributorPlan[] = [
       { name: 'Unlimited Actions', description: 'No monthly action limits', enabled: true },
       { name: 'Custom Integrations', description: 'Bespoke marketplace and tool integrations', enabled: true },
       { name: 'White-label Solution', description: 'Branded interface and API access', enabled: true }
-    ]
+    ],
+    trialDays: 30,
+    createdAt: '',
+    updatedAt: ''
   }
 ]
 
@@ -96,16 +116,20 @@ interface ContributorSelectorProps {
   showHeader?: boolean
   title?: string
   description?: string
+  onSubscriptionComplete?: () => void
+  isReactivation?: boolean
 }
 
 export function ContributorSelector({ 
   showHeader = true, 
   title = "Hire AI Contributors for Your Marketplace",
-  description = "Choose the right contributors to automate your marketplace operations. Each contributor performs actions on your behalf."
+  description = "Choose the right contributors to automate your marketplace operations. Each contributor performs actions on your behalf.",
+  onSubscriptionComplete,
+  isReactivation = false
 }: ContributorSelectorProps) {
-  const [selectedPlan, setSelectedPlan] = useState<ContributorPlan | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [contributorCount, setContributorCount] = useState([1])
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
+  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [loading, setLoading] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const navigate = useNavigate()
@@ -119,7 +143,7 @@ export function ContributorSelector({
     return (cents / 100 / 12).toFixed(0)
   }
 
-  const calculateTotalPrice = (plan: ContributorPlan, count: number) => {
+  const calculateTotalPrice = (plan: Plan, count: number) => {
     const pricePerContributor = billingCycle === 'yearly' ? 
       formatYearlyPrice(plan.yearlyPrice) : 
       formatPrice(plan.monthlyPrice)
@@ -133,12 +157,12 @@ export function ContributorSelector({
     }
   }
 
-  const calculateTotalActions = (plan: ContributorPlan, count: number) => {
+  const calculateTotalActions = (plan: Plan, count: number) => {
     if (plan.actionsPerContributor === -1) return 'Unlimited'
     return (plan.actionsPerContributor * count).toLocaleString()
   }
 
-  const getContributorIcon = (type: ContributorPlan['contributorType']) => {
+  const getContributorIcon = (type: ContributorType) => {
     switch (type) {
       case 'JUNIOR':
         return <Zap className="w-8 h-8 text-blue-600" />
@@ -149,7 +173,7 @@ export function ContributorSelector({
     }
   }
 
-  const handlePlanSelect = (plan: ContributorPlan) => {
+  const handlePlanSelect = (plan: Plan) => {
     if (plan.isContactSalesOnly) {
       // Handle Executive plan - redirect to Monday.com form
       window.open('https://forms.monday.com/forms/226e77aa9d94bc45ae4ec3dd8518b5c0?r=use1', '_blank')
@@ -170,8 +194,13 @@ export function ContributorSelector({
   }
 
   const handleCheckoutSuccess = () => {
-    // Redirect to dashboard with success message
-    navigate('/dashboard?checkout=success&plan=' + selectedPlan?.name)
+    // Call the completion callback if provided (for reactivation)
+    if (onSubscriptionComplete) {
+      onSubscriptionComplete()
+    } else {
+      // Redirect to dashboard with success message
+      navigate('/dashboard?checkout=success&plan=' + selectedPlan?.contributorType)
+    }
   }
 
   const handleCheckoutBack = () => {
@@ -182,11 +211,12 @@ export function ContributorSelector({
   if (showCheckout && selectedPlan && user) {
     return (
       <EmbeddedCheckoutWrapper
-        planName={selectedPlan.name}
+        contributorType={selectedPlan.contributorType}
         contributorCount={contributorCount[0]}
         billingCycle={billingCycle}
         onBack={handleCheckoutBack}
         onSuccess={handleCheckoutSuccess}
+        isReactivation={isReactivation}
       />
     )
   }
@@ -230,9 +260,9 @@ export function ContributorSelector({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         {contributorPlans.map((plan) => (
           <Card 
-            key={plan.name} 
+            key={plan.contributorType} 
             className={`relative cursor-pointer transition-all duration-200 hover:shadow-lg ${
-              selectedPlan?.name === plan.name ? 'ring-2 ring-primary shadow-lg' : ''
+              selectedPlan?.contributorType === plan.contributorType ? 'ring-2 ring-primary shadow-lg' : ''
             } ${plan.contributorType === 'SENIOR' ? 'border-primary' : ''}`}
             onClick={() => handlePlanSelect(plan)}
           >
@@ -294,7 +324,7 @@ export function ContributorSelector({
                 <Button 
                   className="w-full mt-6" 
                   size="lg"
-                  variant={selectedPlan?.name === plan.name ? 'default' : 'outline'}
+                  variant={selectedPlan?.contributorType === plan.contributorType ? 'default' : 'outline'}
                 >
                   Select {plan.displayName}
                   <ArrowRight className="w-4 h-4 ml-2" />

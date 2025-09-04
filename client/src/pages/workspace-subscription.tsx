@@ -4,6 +4,14 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog"
+import { 
   CreditCard, 
   Calendar, 
   TrendingUp, 
@@ -21,41 +29,25 @@ import {
   getWorkspaceSubscription, 
   getWorkspaceUsage, 
   getSubscriptionPlans,
+  previewWorkspaceSubscriptionChange,
   updateWorkspaceSubscription,
   cancelWorkspaceSubscription,
+  cancelSubscriptionCancellation,
   type WorkspaceSubscription,
-  type WorkspaceUsage 
+  type WorkspaceUsage,
+  type SubscriptionPreview 
 } from "@/services/workspace"
+import { subscriptionApi } from "@/api/subscription"
+import { SubscriptionChangeModal } from "@/components/workspace/subscription-change-modal"
+import { SuccessModal } from "@/components/ui/success-modal"
 import { useNavigate } from "react-router-dom"
-// TODO: Add toast library or use alert for now
-const toast = {
-  success: (message: string) => alert(`Success: ${message}`),
-  error: (message: string) => alert(`Error: ${message}`)
-}
-
-interface Plan {
-  name: string
-  displayName: string
-  description: string
-  monthlyPrice: number
-  yearlyPrice: number
-  limits: {
-    maxStores: number
-    maxProducts: number
-    maxMarketplaces: number
-    maxSyncFrequency: number
-    apiCallsPerMonth: number
-  }
-  features: Array<{
-    name: string
-    description: string
-    enabled: boolean
-  }>
-}
+import { Slider } from "@/components/ui/slider"
+import { CancelledSubscriptionView } from "@/components/workspace/cancelled-subscription-view"
+import { Plan } from "@/types/plan"
 
 export default function WorkspaceSubscriptionPage() {
   const navigate = useNavigate()
-  const { currentWorkspace } = useWorkspace()
+  const { currentWorkspace, refreshWorkspaces } = useWorkspace()
   const [subscription, setSubscription] = useState<WorkspaceSubscription | null>(null)
   const [usage, setUsage] = useState<WorkspaceUsage | null>(null)
   const [availablePlans, setAvailablePlans] = useState<Plan[]>([])
@@ -63,6 +55,22 @@ export default function WorkspaceSubscriptionPage() {
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
+  const [selectedPlan, setSelectedPlan] = useState<string>('')
+  const [contributorCount, setContributorCount] = useState([1])
+  const [subscriptionPreview, setSubscriptionPreview] = useState<SubscriptionPreview | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
+  const [successTitle, setSuccessTitle] = useState('Success!')
+  const [errorMessage, setErrorMessage] = useState('')
+  const [showErrorAlert, setShowErrorAlert] = useState(false)
+  const [isCancellingDowngrade, setIsCancellingDowngrade] = useState(false)
+  const [showCancelDowngradeModal, setShowCancelDowngradeModal] = useState(false)
+  const [showCancelSubscriptionModal, setShowCancelSubscriptionModal] = useState(false)
+  const [isCancellingSubscription, setIsCancellingSubscription] = useState(false)
+  const [showCancelCancellationModal, setShowCancelCancellationModal] = useState(false)
+  const [isCancellingCancellation, setIsCancellingCancellation] = useState(false)
 
   useEffect(() => {
     if (!currentWorkspace) {
@@ -98,44 +106,184 @@ export default function WorkspaceSubscriptionPage() {
     }
   }
 
-  const handlePlanUpgrade = async (planName: 'BASIC' | 'PRO' | 'ENTERPRISE') => {
-    if (!currentWorkspace || isUpdating) return
+  // Initialize form values when subscription data is loaded
+  useEffect(() => {
+    if (subscription) {
+      setSelectedPlan(subscription.currentPlan?.contributorType || 'JUNIOR')
+      setBillingCycle(subscription.billingCycle)
+      setContributorCount([subscription.contributorCount])
+    }
+  }, [subscription])
+
+  // Helper functions for notifications
+  const showSuccess = (title: string, message: string) => {
+    setSuccessTitle(title)
+    setSuccessMessage(message)
+    setShowSuccessModal(true)
+  }
+
+  const showError = (message: string) => {
+    setErrorMessage(message)
+    setShowErrorAlert(true)
+    setTimeout(() => setShowErrorAlert(false), 5000) // Auto-hide after 5 seconds
+  }
+
+  const handleSubscriptionPreview = async () => {
+    if (!currentWorkspace || !selectedPlan || isPreviewLoading) return
+
+    try {
+      setIsPreviewLoading(true)
+      const preview = await previewWorkspaceSubscriptionChange(currentWorkspace._id, {
+        contributorType: selectedPlan as 'JUNIOR' | 'SENIOR',
+        billingCycle,
+        contributorCount: contributorCount[0]
+      })
+      
+      setSubscriptionPreview(preview)
+      setShowConfirmModal(true)
+    } catch (error) {
+      console.error('Error previewing subscription changes:', error)
+      showError(error instanceof Error ? error.message : 'Failed to preview subscription changes')
+    } finally {
+      setIsPreviewLoading(false)
+    }
+  }
+
+  const handleConfirmSubscriptionChange = async () => {
+    if (!currentWorkspace || !selectedPlan || isUpdating) return
 
     try {
       setIsUpdating(true)
-      await updateWorkspaceSubscription(currentWorkspace._id, {
-        planName,
-        billingCycle
+      const result = await updateWorkspaceSubscription(currentWorkspace._id, {
+        contributorType: selectedPlan as 'JUNIOR' | 'SENIOR',
+        billingCycle,
+        contributorCount: contributorCount[0]
       })
       
-      toast.success(`Workspace subscription updated to ${planName} plan`)
+      console.log('Subscription update result:', result)
+      
+      // Close confirmation modal first
+      setShowConfirmModal(false)
+      
+      // Reload subscription data
       await loadSubscriptionData()
+      
+      // Refresh workspace context to ensure subscription data is current
+      await refreshWorkspaces()
+      
+      // Determine success message based on change type
+      const plan = availablePlans.find(p => p.contributorType === selectedPlan)
+      const isUpgrade = subscriptionPreview?.pricing.isUpgrade
+      const isDowngrade = subscriptionPreview?.pricing.isDowngrade
+      
+      let title = 'Subscription Updated!'
+      let message = `Your workspace subscription has been updated to ${plan?.displayName} with ${contributorCount[0]} contributor${contributorCount[0] > 1 ? 's' : ''}.`
+      
+      if (isUpgrade) {
+        title = 'Upgrade Complete!'
+        message = `Successfully upgraded to ${plan?.displayName}! The changes are effective immediately and you'll be charged the prorated amount.`
+      } else if (isDowngrade) {
+        title = 'Downgrade Scheduled!'
+        message = `Your downgrade to ${plan?.displayName} has been scheduled for the next billing period. You'll keep your current features until then.`
+      }
+      
+      showSuccess(title, message)
+      
     } catch (error) {
       console.error('Error updating subscription:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to update subscription')
+      showError(error instanceof Error ? error.message : 'Failed to update subscription')
     } finally {
       setIsUpdating(false)
     }
   }
 
-  const handleCancelSubscription = async () => {
-    if (!currentWorkspace || !subscription?.hasActiveSubscription || isUpdating) return
+  const handleCancelDowngradeClick = () => {
+    if (!currentWorkspace || !subscription?.scheduledDowngrade || isCancellingDowngrade) return
+    setShowCancelDowngradeModal(true)
+  }
 
-    if (!confirm('Are you sure you want to cancel this workspace subscription? This will affect all workspace members.')) {
-      return
-    }
+  const handleConfirmCancelDowngrade = async () => {
+    if (!currentWorkspace || !subscription?.scheduledDowngrade || isCancellingDowngrade) return
 
     try {
-      setIsUpdating(true)
+      setIsCancellingDowngrade(true)
+      await subscriptionApi.cancelScheduledDowngrade(currentWorkspace._id)
+      
+      // Close the modal first
+      setShowCancelDowngradeModal(false)
+      
+      // Reload subscription data to reflect the cancellation
+      await loadSubscriptionData()
+      
+      // Refresh workspace context to ensure subscription data is current
+      await refreshWorkspaces()
+      
+      showSuccess('Downgrade Cancelled', 'Your scheduled downgrade has been cancelled successfully. You will remain on your current plan.')
+    } catch (error) {
+      console.error('Error cancelling scheduled downgrade:', error)
+      showError(error instanceof Error ? error.message : 'Failed to cancel scheduled downgrade')
+    } finally {
+      setIsCancellingDowngrade(false)
+    }
+  }
+
+  const handleCancelSubscription = () => {
+    if (!currentWorkspace || !subscription?.hasActiveSubscription || isCancellingSubscription) return
+    setShowCancelSubscriptionModal(true)
+  }
+
+  const handleConfirmCancelSubscription = async () => {
+    if (!currentWorkspace || !subscription?.hasActiveSubscription || isCancellingSubscription) return
+
+    try {
+      setIsCancellingSubscription(true)
       await cancelWorkspaceSubscription(currentWorkspace._id)
       
-      toast.success('Workspace subscription cancelled')
+      // Close the modal
+      setShowCancelSubscriptionModal(false)
+      
+      // Reload subscription data to reflect the cancellation
       await loadSubscriptionData()
+      
+      // Refresh workspace context to trigger RequireSubscription re-validation
+      await refreshWorkspaces()
+      
+      showSuccess('Subscription Cancelled', 'Your workspace subscription has been cancelled successfully. The workspace will be downgraded to the free tier.')
     } catch (error) {
       console.error('Error cancelling subscription:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to cancel subscription')
+      showError(error instanceof Error ? error.message : 'Failed to cancel subscription')
     } finally {
-      setIsUpdating(false)
+      setIsCancellingSubscription(false)
+    }
+  }
+
+  const handleCancelCancellationClick = () => {
+    if (!currentWorkspace || !subscription?.subscription.cancelAtPeriodEnd || isCancellingCancellation) return
+    setShowCancelCancellationModal(true)
+  }
+
+  const handleConfirmCancelCancellation = async () => {
+    if (!currentWorkspace || !subscription?.subscription.cancelAtPeriodEnd || isCancellingCancellation) return
+
+    try {
+      setIsCancellingCancellation(true)
+      await cancelSubscriptionCancellation(currentWorkspace._id)
+      
+      // Close the modal first
+      setShowCancelCancellationModal(false)
+      
+      // Reload subscription data to reflect the cancellation
+      await loadSubscriptionData()
+      
+      // Refresh workspace context to ensure subscription data is current
+      await refreshWorkspaces()
+      
+      showSuccess('Cancellation Cancelled', 'Your subscription cancellation has been cancelled successfully. Your subscription will continue.')
+    } catch (error) {
+      console.error('Error cancelling subscription cancellation:', error)
+      showError(error instanceof Error ? error.message : 'Failed to cancel subscription cancellation')
+    } finally {
+      setIsCancellingCancellation(false)
     }
   }
 
@@ -182,6 +330,19 @@ export default function WorkspaceSubscriptionPage() {
     )
   }
 
+  // Check if subscription is cancelled and show appropriate view
+  if (subscription?.subscription.status === 'CANCELLED') {
+    return (
+      <CancelledSubscriptionView
+        workspaceName={currentWorkspace.name}
+        workspaceId={currentWorkspace._id}
+        cancelledAt={subscription.subscription.cancelledAt}
+        cancellationReason={subscription.subscription.cancellationReason}
+        onReactivate={loadSubscriptionData}
+      />
+    )
+  }
+
   const getStatusBadge = (status: string, hasActive: boolean) => {
     if (hasActive && status === 'ACTIVE') {
       return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />Active</Badge>
@@ -196,7 +357,18 @@ export default function WorkspaceSubscriptionPage() {
   }
 
   const currentPlan = subscription?.currentPlan
-  const planName = currentPlan?.name || 'No Plan'
+  const planName = currentPlan?.contributorType || 'No Plan'
+  
+  // Helper functions to format prices correctly (convert from cents to dollars)
+  const formatPrice = (cents: number) => (cents / 100).toFixed(0)
+  const formatYearlyPrice = (cents: number) => (cents / 100 / 12).toFixed(0)
+  
+  // Check if there are any changes from current subscription
+  const hasChanges = subscription && (
+    selectedPlan !== subscription.currentPlan?.contributorType ||
+    billingCycle !== subscription.billingCycle ||
+    contributorCount[0] !== subscription.contributorCount
+  )
 
   return (
     <div className="container max-w-6xl mx-auto p-6">
@@ -206,6 +378,128 @@ export default function WorkspaceSubscriptionPage() {
           Manage subscription for <strong>{currentWorkspace.name}</strong> workspace
         </p>
       </div>
+
+      {/* Scheduled Downgrade Alert */}
+      {subscription?.scheduledDowngrade && (
+        <Card className="mb-8 border-orange-200 bg-orange-50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-6 w-6 text-orange-600 mt-0.5" />
+              </div>
+              <div className="flex-grow">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-orange-900">Downgrade Scheduled</h3>
+                  <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {new Date(subscription.scheduledDowngrade.effectiveDate).toLocaleDateString()}
+                  </Badge>
+                </div>
+                <p className="text-orange-800 mb-4">
+                  Your workspace will downgrade from <strong>{subscription.currentPlan?.displayName}</strong> ({subscription.contributorCount} contributor{subscription.contributorCount > 1 ? 's' : ''}) to <strong>{subscription.scheduledDowngrade.planDisplayName}</strong> ({subscription.scheduledDowngrade.contributorCount} contributor{subscription.scheduledDowngrade.contributorCount > 1 ? 's' : ''}) on {new Date(subscription.scheduledDowngrade.effectiveDate).toLocaleDateString('en-US', { 
+                    weekday: 'long',
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}.
+                </p>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleCancelDowngradeClick}
+                    disabled={isCancellingDowngrade}
+                    variant="outline"
+                    className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                  >
+                    {isCancellingDowngrade ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                        Cancelling...
+                      </div>
+                    ) : (
+                      <>
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        Cancel Downgrade
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-orange-700 hover:text-orange-900 hover:bg-orange-100"
+                    onClick={() => {
+                      // Scroll to the manage subscription section
+                      document.getElementById('manage-subscription')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Learn More
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cancellation Alert */}
+      {subscription?.subscription.cancelAtPeriodEnd === true && subscription?.subscription.endsAt && new Date(subscription.subscription.endsAt) > new Date() && (
+        <Card className="mb-8 border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-6 w-6 text-red-600 mt-0.5" />
+              </div>
+              <div className="flex-grow">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-red-900">Subscription Cancellation Scheduled</h3>
+                  <Badge variant="secondary" className="bg-red-100 text-red-800">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    {new Date(subscription.subscription.endsAt).toLocaleDateString()}
+                  </Badge>
+                </div>
+                <p className="text-red-800 mb-4">
+                  Your subscription will be cancelled on {new Date(subscription.subscription.endsAt).toLocaleDateString('en-US', { 
+                    weekday: 'long',
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}. You can still cancel this cancellation if you want to continue your subscription.
+                </p>
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleCancelCancellationClick}
+                    disabled={isCancellingCancellation}
+                    variant="outline"
+                    className="border-red-300 text-red-700 hover:bg-red-100"
+                  >
+                    {isCancellingCancellation ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                        Cancelling...
+                      </div>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Continue Subscription
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-700 hover:text-red-900 hover:bg-red-100"
+                    onClick={() => {
+                      // Scroll to the manage subscription section
+                      document.getElementById('manage-subscription')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Learn More
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Current Subscription Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -219,6 +513,11 @@ export default function WorkspaceSubscriptionPage() {
             <div className="mt-2">
               {subscription && getStatusBadge(subscription.subscription.status, subscription.hasActiveSubscription)}
             </div>
+            {subscription && subscription.contributorCount > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {subscription.contributorCount} contributor{subscription.contributorCount > 1 ? 's' : ''}
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -245,14 +544,21 @@ export default function WorkspaceSubscriptionPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Workspace Members</CardTitle>
+            <CardTitle className="text-sm font-medium">Monthly Cost</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Shared</div>
+            <div className="text-2xl font-bold">
+              {subscription ? `$${subscription.currentMonthlyPrice.toFixed(0)}` : '$0'}
+            </div>
             <p className="text-xs text-muted-foreground">
-              All workspace members benefit from this subscription
+              Current monthly cost
             </p>
+            {subscription && subscription.totalMonthlyActions > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {subscription.totalMonthlyActions.toLocaleString()} actions/month
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -323,17 +629,80 @@ export default function WorkspaceSubscriptionPage() {
         </Card>
       )}
 
-      {/* Available Plans */}
-      <Card>
+      {/* Subscription Manager */}
+      <Card id="manage-subscription">
         <CardHeader>
-          <CardTitle>Available Plans</CardTitle>
+          <CardTitle>Manage Subscription</CardTitle>
           <CardDescription>
-            Choose the plan that best fits your workspace needs
+            Update your workspace plan and contributor count
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex items-center gap-4">
-            <span className="text-sm font-medium">Billing cycle:</span>
+        <CardContent className="space-y-6">
+          {/* Plan Selection */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Plan Selection</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {availablePlans.map((plan) => {
+                const isExecutive = plan.contributorType === 'EXECUTIVE';
+                const isSelectable = !isExecutive;
+                
+                return (
+                  <Card 
+                    key={plan.contributorType} 
+                    className={`relative transition-all ${
+                      isExecutive 
+                        ? 'cursor-not-allowed opacity-75' 
+                        : `cursor-pointer ${selectedPlan === plan.contributorType ? 'ring-2 ring-primary' : 'hover:shadow-md'}`
+                    }`}
+                    onClick={isSelectable ? () => setSelectedPlan(plan.contributorType) : undefined}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h5 className="font-semibold">{plan.displayName}</h5>
+                          <div className="text-2xl font-bold">
+                            {isExecutive ? (
+                              <span className="text-muted-foreground">Contact Sales</span>
+                            ) : (
+                              <>
+                                ${billingCycle === 'monthly' ? formatPrice(plan.monthlyPrice) : formatYearlyPrice(plan.yearlyPrice)}
+                                <span className="text-xs text-muted-foreground">
+                                  /contributor/{billingCycle === 'monthly' ? 'month' : 'year'}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {currentPlan?.contributorType === plan.contributorType && (
+                          <Badge variant="secondary" className="text-xs">Current</Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-3">
+                        {isExecutive ? 'Unlimited actions per contributor' : `${plan.limits.apiCallsPerMonth.toLocaleString()} actions per contributor`}
+                      </div>
+                      
+                      {isExecutive && (
+                        <Button 
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open('https://forms.monday.com/forms/226e77aa9d94bc45ae4ec3dd8518b5c0?r=use1', '_blank');
+                          }}
+                        >
+                          Contact Sales
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Billing Cycle */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Billing Cycle</h4>
             <div className="flex gap-2">
               <Button 
                 variant={billingCycle === 'monthly' ? 'default' : 'outline'}
@@ -348,66 +717,85 @@ export default function WorkspaceSubscriptionPage() {
                 onClick={() => setBillingCycle('annual')}
               >
                 Annual
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  Save 17%
+                </Badge>
               </Button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {availablePlans.map((plan) => (
-              <Card key={plan.name} className={`relative ${currentPlan?.name === plan.name ? 'ring-2 ring-primary' : ''}`}>
-                {currentPlan?.name === plan.name && (
-                  <Badge className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-                    Current Plan
-                  </Badge>
-                )}
-                <CardHeader>
-                  <CardTitle>{plan.displayName}</CardTitle>
-                  <CardDescription>{plan.description}</CardDescription>
-                  <div className="text-3xl font-bold">
-                    ${billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice}
-                    <span className="text-base font-normal text-muted-foreground">
-                      /{billingCycle === 'monthly' ? 'month' : 'year'}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="text-sm">
-                      <strong>{plan.limits.maxStores}</strong> stores
-                    </div>
-                    <div className="text-sm">
-                      <strong>{plan.limits.maxProducts.toLocaleString()}</strong> products
-                    </div>
-                    <div className="text-sm">
-                      <strong>{plan.limits.maxMarketplaces}</strong> marketplaces
-                    </div>
-                    <div className="text-sm">
-                      <strong>{plan.limits.apiCallsPerMonth.toLocaleString()}</strong> API calls/month
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    {plan.features.map((feature) => (
-                      <div key={feature.name} className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        {feature.name}
-                      </div>
-                    ))}
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={() => handlePlanUpgrade(plan.name as 'BASIC' | 'PRO' | 'ENTERPRISE')}
-                    disabled={isUpdating || currentPlan?.name === plan.name}
-                  >
-                    {isUpdating ? 'Updating...' : 
-                     currentPlan?.name === plan.name ? 'Current Plan' :
-                     'Select Plan'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+          {/* Contributor Count */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-medium">Number of Contributors</h4>
+              <span className="text-2xl font-bold">{contributorCount[0]}</span>
+            </div>
+            <Slider
+              value={contributorCount}
+              onValueChange={setContributorCount}
+              max={selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.limits.maxStores || 5 : 5}
+              min={1}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>1 contributor</span>
+              <span>{selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.limits.maxStores || 5 : 5} contributors max</span>
+            </div>
           </div>
+
+          {/* Preview */}
+          {selectedPlan && (
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Selected plan:</span>
+                <span className="font-medium">{availablePlans.find(p => p.contributorType === selectedPlan)?.displayName}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Contributors:</span>
+                <span className="font-medium">{contributorCount[0]}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total monthly actions:</span>
+                <span className="font-medium">
+                  {((availablePlans.find(p => p.contributorType === selectedPlan)?.limits.apiCallsPerMonth || 0) * contributorCount[0]).toLocaleString()}
+                </span>
+              </div>
+              <div className="border-t pt-3 flex justify-between items-center">
+                <span className="text-lg font-semibold">Estimated Monthly Cost:</span>
+                <span className="text-2xl font-bold text-primary">
+                  ${billingCycle === 'annual' ? 
+                    ((availablePlans.find(p => p.contributorType === selectedPlan)?.yearlyPrice || 0) * contributorCount[0] / 100 / 12).toFixed(0) :
+                    ((availablePlans.find(p => p.contributorType === selectedPlan)?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)
+                  }
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Button */}
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleSubscriptionPreview}
+              disabled={!selectedPlan || !hasChanges || isPreviewLoading}
+              className="flex-1"
+            >
+              {isPreviewLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Calculating...
+                </div>
+              ) : (
+                'Preview Changes'
+              )}
+            </Button>
+          </div>
+
+          {!hasChanges && subscription && (
+            <div className="text-center text-sm text-muted-foreground">
+              No changes detected from your current subscription
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -427,15 +815,243 @@ export default function WorkspaceSubscriptionPage() {
             <Button 
               variant="destructive" 
               onClick={handleCancelSubscription}
-              disabled={isUpdating}
+              disabled={isCancellingSubscription || isUpdating}
             >
-              {isUpdating ? 'Cancelling...' : 'Cancel Workspace Subscription'}
+              {isCancellingSubscription ? 'Cancelling...' : 'Cancel Workspace Subscription'}
             </Button>
             <p className="text-sm text-muted-foreground mt-2">
               Cancelling will downgrade the workspace to free tier and affect all workspace members.
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Subscription Change Modal */}
+      <SubscriptionChangeModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={handleConfirmSubscriptionChange}
+        preview={subscriptionPreview}
+        isLoading={isUpdating}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title={successTitle}
+        message={successMessage}
+      />
+
+      {/* Cancel Downgrade Confirmation Modal */}
+      <Dialog open={showCancelDowngradeModal} onOpenChange={setShowCancelDowngradeModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600" />
+              Cancel Scheduled Downgrade
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              {subscription?.scheduledDowngrade && (
+                <>
+                  You are about to cancel your scheduled downgrade from{' '}
+                  <strong>{subscription.currentPlan?.displayName}</strong> ({subscription.contributorCount} contributor{subscription.contributorCount > 1 ? 's' : ''}) to{' '}
+                  <strong>{subscription.scheduledDowngrade.planDisplayName}</strong> ({subscription.scheduledDowngrade.contributorCount} contributor{subscription.scheduledDowngrade.contributorCount > 1 ? 's' : ''}).
+                  <br /><br />
+                  <strong>This means:</strong>
+                  <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                    <li>You will remain on your current <strong>{subscription.currentPlan?.displayName}</strong> plan</li>
+                    <li>Your billing will continue at the current rate</li>
+                    <li>The downgrade scheduled for {new Date(subscription.scheduledDowngrade.effectiveDate).toLocaleDateString('en-US', { 
+                      weekday: 'long',
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })} will be removed</li>
+                  </ul>
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDowngradeModal(false)}
+              disabled={isCancellingDowngrade}
+            >
+              Keep Downgrade
+            </Button>
+            <Button
+              onClick={handleConfirmCancelDowngrade}
+              disabled={isCancellingDowngrade}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {isCancellingDowngrade ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Cancelling...
+                </div>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Yes, Cancel Downgrade
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Subscription Confirmation Modal */}
+      <Dialog open={showCancelSubscriptionModal} onOpenChange={setShowCancelSubscriptionModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Cancel Workspace Subscription
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              You are about to cancel the subscription for <strong>{currentWorkspace?.name}</strong> workspace.
+              <br /><br />
+              <strong>This action will:</strong>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>Cancel your subscription immediately</li>
+                <li>Downgrade the workspace to <strong>read-only mode</strong></li>
+                <li>Remove access to premium features</li>
+                <li>Affect <strong>all workspace members</strong></li>
+                <li>Preserve your data (can be reactivated later)</li>
+              </ul>
+              <br />
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-800">
+                    <strong>Good news:</strong> You can reactivate your subscription at any time without losing your workspace data, connections, or products.
+                  </div>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelSubscriptionModal(false)}
+              disabled={isCancellingSubscription}
+            >
+              Keep Subscription
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmCancelSubscription}
+              disabled={isCancellingSubscription}
+            >
+              {isCancellingSubscription ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Cancelling...
+                </div>
+              ) : (
+                <>
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Yes, Cancel Subscription
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Cancellation Confirmation Modal */}
+      <Dialog open={showCancelCancellationModal} onOpenChange={setShowCancelCancellationModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Continue Subscription
+            </DialogTitle>
+            <DialogDescription className="text-base pt-2">
+              You are about to cancel your subscription cancellation for <strong>{currentWorkspace?.name}</strong> workspace.
+              <br /><br />
+              <strong>This means:</strong>
+              <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                <li>Your subscription will continue as normal</li>
+                <li>You will not be downgraded on {subscription?.subscription.endsAt && new Date(subscription.subscription.endsAt).toLocaleDateString('en-US', { 
+                  weekday: 'long',
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}</li>
+                <li>Your billing will continue at the current rate</li>
+                <li>All features and limits remain the same</li>
+              </ul>
+              <br />
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-green-800">
+                    <strong>Great choice!</strong> Your subscription will continue uninterrupted and you can cancel again at any time if needed.
+                  </div>
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelCancellationModal(false)}
+              disabled={isCancellingCancellation}
+            >
+              Keep Cancellation
+            </Button>
+            <Button
+              onClick={handleConfirmCancelCancellation}
+              disabled={isCancellingCancellation}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isCancellingCancellation ? (
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current" />
+                  Continuing...
+                </div>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Yes, Continue Subscription
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Error Alert */}
+      {showErrorAlert && (
+        <div className="fixed top-4 right-4 z-50 max-w-md p-4 bg-red-50 border border-red-200 rounded-lg shadow-lg">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 text-red-400" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">
+                Error
+              </h3>
+              <p className="mt-1 text-sm text-red-700">
+                {errorMessage}
+              </p>
+            </div>
+            <div className="ml-auto pl-3">
+              <button
+                onClick={() => setShowErrorAlert(false)}
+                className="inline-flex rounded-md bg-red-50 p-1.5 text-red-500 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-offset-2 focus:ring-offset-red-50"
+              >
+                <span className="sr-only">Dismiss</span>
+                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

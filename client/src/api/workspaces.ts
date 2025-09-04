@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './client'
 import { ENDPOINTS } from './config'
-import { Workspace, CreateWorkspaceRequest, UsageData } from './types'
+import { Workspace, CreateWorkspaceRequest } from './types'
 
 export const workspacesApi = {
   /**
@@ -38,24 +38,7 @@ export const workspacesApi = {
     return apiDelete<void>(ENDPOINTS.WORKSPACES.DELETE(id))
   },
 
-  /**
-   * Get workspace subscription info
-   */
-  async getWorkspaceSubscription(id: string): Promise<any> {
-    return apiGet<any>(ENDPOINTS.WORKSPACES.SUBSCRIPTION(id))
-  },
-
-  /**
-   * Update workspace subscription
-   */
-  async updateWorkspaceSubscription(id: string, data: any): Promise<any> {
-    return apiPut<any>(ENDPOINTS.WORKSPACES.SUBSCRIPTION(id), data)
-  },
-
-  /**
-   * Get workspace usage data
-   */
-  async getWorkspaceUsage(id: string): Promise<UsageData> {
-    return apiGet<UsageData>(ENDPOINTS.WORKSPACES.USAGE(id))
-  },
+  // Note: Subscription and usage methods moved to dedicated API modules:
+  // - subscriptionApi: for subscription management
+  // - workspaceUsageApi: for usage statistics
 }

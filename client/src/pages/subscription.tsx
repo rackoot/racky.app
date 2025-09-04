@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { plansApi, usageApi, billingApi } from '@/api'
+import { subscriptionApi, workspaceUsageApi } from '@/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,7 +8,6 @@ import {
   CreditCard, 
   Calendar, 
   TrendingUp, 
-  Database, 
   Store, 
   Package, 
   Activity,
@@ -22,17 +21,59 @@ import {
 import { getCurrentUser } from "@/lib/auth"
 import { getAuthHeaders } from "@/lib/utils"
 import { useNavigate } from "react-router-dom"
+import { useWorkspace } from "@/components/workspace/workspace-context"
 
-interface Plan {
-  name: string
-  displayName: string
-  description: string
-  contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
-  actionsPerContributor: number
-  maxContributorsPerWorkspace: number
-  isContactSalesOnly: boolean
-  monthlyPrice: number
-  yearlyPrice: number
+interface WorkspaceSubscriptionData {
+  workspaceId: string
+  workspaceName: string
+  subscription: {
+    status: string
+    plan: string
+    hasActiveSubscription: boolean
+    endsAt?: string
+    planLimits: {
+      maxStores: number
+      maxProducts: number
+      maxMarketplaces: number
+      maxSyncFrequency: number
+      apiCallsPerMonth: number
+    }
+  }
+  currentPlan: {
+    _id: string
+    name: string
+    displayName: string
+    description: string
+    contributorType: 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
+    actionsPerContributor: number
+    maxContributorsPerWorkspace: number
+    isContactSalesOnly: boolean
+    monthlyPrice: number
+    yearlyPrice: number
+    currency: string
+    stripeMonthlyPriceId: string
+    stripeYearlyPriceId: string
+    features: Array<{
+      _id: string
+      name: string
+      description: string
+      enabled: boolean
+    }>
+    limits: {
+      maxStores: number
+      maxProducts: number
+      maxMarketplaces: number
+      maxSyncFrequency: number
+      apiCallsPerMonth: number
+    }
+    isActive: boolean
+    isPublic: boolean
+    sortOrder: number
+    trialDays: number
+    createdAt: string
+    updatedAt: string
+  }
+  hasActiveSubscription: boolean
   limits: {
     maxStores: number
     maxProducts: number
@@ -41,75 +82,76 @@ interface Plan {
     apiCallsPerMonth: number
   }
   features: Array<{
+    _id: string
     name: string
     description: string
     enabled: boolean
   }>
 }
 
-interface UserPlan {
-  plan: Plan
-  userSubscription: {
-    status: string
-    plan: string
-    hasActiveSubscription: boolean
-    subscriptionEndsAt?: string
-    contributorCount: number
-    totalMonthlyActions: number
+interface WorkspaceUsageData {
+  workspaceId: string
+  workspaceName: string
+  currentPeriod: {
+    month: string
+    apiCalls: number
+    productSyncs: number
+    storesConnected: number
+    totalProducts: number
+    features: {
+      aiSuggestions: number
+      opportunityScans: number
+      bulkOperations: number
+    }
+  }
+  limits: {
     maxStores: number
     maxProducts: number
-  }
-}
-
-interface Usage {
-  apiCalls: number
-  productsSync: number
-  storesConnected: number
-  storageUsed: number
-  features: {
-    aiSuggestions: number
-    opportunityScans: number
-    bulkOperations: number
-  }
+    maxMarketplaces: number
+    apiCallsPerMonth: number
+  } | null
+  percentageUsed: {
+    stores: number
+    products: number
+    apiCalls: number
+  } | null
 }
 
 export function Subscription() {
-  const [userPlan, setUserPlan] = useState<UserPlan | null>(null)
-  const [usage, setUsage] = useState<Usage | null>(null)
+  const [subscriptionData, setSubscriptionData] = useState<WorkspaceSubscriptionData | null>(null)
+  const [usageData, setUsageData] = useState<WorkspaceUsageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [upgrading, setUpgrading] = useState(false)
   
   const user = getCurrentUser()
   const navigate = useNavigate()
+  const { currentWorkspace } = useWorkspace()
 
   useEffect(() => {
-    loadSubscriptionData()
-  }, [])
+    if (currentWorkspace) {
+      loadSubscriptionData()
+    }
+  }, [currentWorkspace])
 
   const loadSubscriptionData = async () => {
+    if (!currentWorkspace) {
+      setError('No workspace selected')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
 
-      const [planData, usageData] = await Promise.all([
-        plansApi.getUserCurrentPlan(),
-        usageApi.getCurrentUsage()
+      const [subscriptionResponse, usageResponse] = await Promise.all([
+        subscriptionApi.getSubscription(currentWorkspace._id),
+        workspaceUsageApi.getWorkspaceUsage(currentWorkspace._id)
       ])
 
-      setUserPlan(planData)
-      
-      setUsage({
-        apiCalls: usageData.apiCalls || 0,
-        productsSync: usageData.productSyncs || 0,
-        storesConnected: usageData.storeConnections || 0,
-        storageUsed: 0, // May need to add this to the API
-        features: {
-          aiSuggestions: 0,
-          opportunityScans: 0,
-          bulkOperations: 0
-        }
-      })
+      setSubscriptionData(subscriptionResponse)
+      setUsageData(usageResponse)
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load subscription data')
@@ -148,17 +190,17 @@ export function Subscription() {
     }
   }
 
-  const getStatusBadge = (subscription: UserPlan['userSubscription']) => {
-    if (subscription.status === 'ACTIVE') {
+  const getStatusBadge = (status: string) => {
+    if (status === 'ACTIVE') {
       return <Badge variant="default">Active</Badge>
-    } else if (subscription.status === 'SUSPENDED') {
+    } else if (status === 'SUSPENDED') {
       return <Badge variant="destructive">Suspended</Badge>
-    } else if (subscription.status === 'CANCELLED') {
+    } else if (status === 'CANCELLED') {
       return <Badge variant="outline">Cancelled</Badge>
-    } else if (subscription.status === 'EXPIRED') {
+    } else if (status === 'EXPIRED') {
       return <Badge variant="destructive">Expired</Badge>
     } else {
-      return <Badge variant="outline">{subscription.status}</Badge>
+      return <Badge variant="outline">{status}</Badge>
     }
   }
 
@@ -173,7 +215,7 @@ export function Subscription() {
   }
 
   const handleUpgradePlan = async () => {
-    if (!userPlan) return
+    if (!subscriptionData) return
     
     setUpgrading(true)
     
@@ -257,7 +299,7 @@ export function Subscription() {
           <CardDescription>Your hired AI contributors and their capabilities</CardDescription>
         </CardHeader>
         <CardContent>
-          {!userPlan ? (
+          {!subscriptionData || !subscriptionData.hasActiveSubscription ? (
             <div className="text-center py-8">
               <Users className="w-16 h-16 mx-auto mb-4 text-primary opacity-50" />
               <h3 className="text-xl font-semibold mb-2">No Contributors Hired</h3>
@@ -271,15 +313,15 @@ export function Subscription() {
           ) : (
             <div className="space-y-6">
               {/* Contributor Type and Count Header */}
-              <div className={`flex items-center gap-4 p-4 rounded-lg ${getContributorTypeColor(userPlan.plan.contributorType)}`}>
+              <div className={`flex items-center gap-4 p-4 rounded-lg ${getContributorTypeColor(subscriptionData.currentPlan.contributorType)}`}>
                 <div className="flex items-center gap-3">
-                  {getContributorIcon(userPlan.plan.contributorType)}
+                  {getContributorIcon(subscriptionData.currentPlan.contributorType)}
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-xl font-semibold">{userPlan.userSubscription.contributorCount}x {userPlan.plan.displayName}</h3>
-                      {getStatusBadge(userPlan.userSubscription)}
+                      <h3 className="text-xl font-semibold">1x {subscriptionData.currentPlan.displayName}</h3>
+                      {getStatusBadge(subscriptionData.subscription.status)}
                     </div>
-                    <p className="text-sm opacity-80">{userPlan.plan.description}</p>
+                    <p className="text-sm opacity-80">{subscriptionData.currentPlan.description}</p>
                   </div>
                 </div>
               </div>
@@ -289,19 +331,19 @@ export function Subscription() {
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <div className="text-2xl font-bold">
-                      ${formatPrice(userPlan.plan.monthlyPrice * userPlan.userSubscription.contributorCount)}/month
+                      ${formatPrice(subscriptionData.currentPlan.monthlyPrice)}/month
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      ${formatPrice(userPlan.plan.monthlyPrice)} per contributor
+                      Per contributor
                     </div>
                   </div>
                   <div>
                     <div className="text-2xl font-bold">
-                      {userPlan.plan.actionsPerContributor === -1 ? 'Unlimited' : 
-                       userPlan.userSubscription.totalMonthlyActions.toLocaleString()}
+                      {subscriptionData.currentPlan.actionsPerContributor === -1 ? 'Unlimited' : 
+                       subscriptionData.currentPlan.actionsPerContributor.toLocaleString()}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      Total monthly actions
+                      Actions per contributor
                     </div>
                   </div>
                 </div>
@@ -311,11 +353,11 @@ export function Subscription() {
               </div>
 
               {/* Subscription Info */}
-              {userPlan.userSubscription.subscriptionEndsAt && userPlan.userSubscription.hasActiveSubscription && (
+              {subscriptionData.subscription.endsAt && subscriptionData.subscription.hasActiveSubscription && (
                 <div className="flex items-center gap-2 p-4 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
                   <Calendar className="w-5 h-5 text-blue-600" />
                   <div>
-                    <p className="font-medium">Next billing on {new Date(userPlan.userSubscription.subscriptionEndsAt).toLocaleDateString()}</p>
+                    <p className="font-medium">Next billing on {new Date(subscriptionData.subscription.endsAt).toLocaleDateString()}</p>
                     <p className="text-sm text-muted-foreground">
                       Your subscription will automatically renew
                     </p>
@@ -327,17 +369,17 @@ export function Subscription() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 border rounded-lg">
                   <Store className="w-8 h-8 mx-auto mb-2 text-blue-600" />
-                  <div className="font-medium">{userPlan.plan.limits.maxStores}</div>
+                  <div className="font-medium">{subscriptionData.limits.maxStores}</div>
                   <div className="text-sm text-muted-foreground">Max Stores</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
                   <Package className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                  <div className="font-medium">{userPlan.plan.limits.maxProducts.toLocaleString()}</div>
+                  <div className="font-medium">{subscriptionData.limits.maxProducts.toLocaleString()}</div>
                   <div className="text-sm text-muted-foreground">Max Products</div>
                 </div>
                 <div className="text-center p-4 border rounded-lg">
                   <Activity className="w-8 h-8 mx-auto mb-2 text-purple-600" />
-                  <div className="font-medium">{userPlan.plan.limits.apiCallsPerMonth.toLocaleString()}</div>
+                  <div className="font-medium">{subscriptionData.limits.apiCallsPerMonth.toLocaleString()}</div>
                   <div className="text-sm text-muted-foreground">API Calls/Month</div>
                 </div>
               </div>
@@ -347,7 +389,7 @@ export function Subscription() {
       </Card>
 
       {/* Contributor Performance */}
-      {userPlan && (
+      {subscriptionData && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -357,47 +399,45 @@ export function Subscription() {
             <CardDescription>How your contributors are performing this month</CardDescription>
           </CardHeader>
           <CardContent>
-            {usage && (
+            {usageData && (
             <div className="space-y-6">
               {/* Total Actions Used */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium">Actions Used This Month</span>
                   <span className="text-sm text-muted-foreground">
-                    {usage.apiCalls.toLocaleString()} / {userPlan.userSubscription.totalMonthlyActions === -1 ? 'Unlimited' : userPlan.userSubscription.totalMonthlyActions.toLocaleString()}
+                    {usageData.currentPeriod.apiCalls.toLocaleString()} / {subscriptionData.limits.apiCallsPerMonth === -1 ? 'Unlimited' : subscriptionData.limits.apiCallsPerMonth.toLocaleString()}
                   </span>
                 </div>
-                {userPlan.userSubscription.totalMonthlyActions !== -1 && (
+                {subscriptionData.limits.apiCallsPerMonth !== -1 && (
                   <Progress 
-                    value={getUsagePercentage(usage.apiCalls, userPlan.userSubscription.totalMonthlyActions)}
+                    value={getUsagePercentage(usageData.currentPeriod.apiCalls, subscriptionData.limits.apiCallsPerMonth)}
                     className="h-2"
                   />
                 )}
                 <div className="text-xs text-muted-foreground mt-1">
-                  Average per contributor: {Math.floor(usage.apiCalls / userPlan.userSubscription.contributorCount).toLocaleString()} actions
+                  Current contributor performance: {usageData.currentPeriod.apiCalls.toLocaleString()} actions
                 </div>
               </div>
 
-              {/* Actions per Contributor Breakdown */}
+              {/* Current Contributor Performance */}
               <div className="bg-muted/50 rounded-lg p-4">
-                <h4 className="font-medium mb-3">Per-Contributor Performance</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {Array.from({ length: userPlan.userSubscription.contributorCount }, (_, i) => (
-                    <div key={i} className="text-center p-3 bg-background rounded border">
-                      <div className="flex justify-center mb-2">
-                        {getContributorIcon(userPlan.plan.contributorType)}
-                      </div>
-                      <div className="font-medium text-sm">Contributor {i + 1}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {Math.floor(usage.apiCalls / userPlan.userSubscription.contributorCount).toLocaleString()} actions
-                      </div>
-                      <div className="text-xs text-green-600 mt-1">
-                        {userPlan.plan.actionsPerContributor === -1 ? 'Unlimited capacity' : 
-                         `${((Math.floor(usage.apiCalls / userPlan.userSubscription.contributorCount) / userPlan.plan.actionsPerContributor) * 100).toFixed(0)}% utilized`
-                        }
-                      </div>
+                <h4 className="font-medium mb-3">Current Contributor Performance</h4>
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                  <div className="text-center p-3 bg-background rounded border">
+                    <div className="flex justify-center mb-2">
+                      {getContributorIcon(subscriptionData.currentPlan.contributorType)}
                     </div>
-                  ))}
+                    <div className="font-medium text-sm">{subscriptionData.currentPlan.displayName}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {usageData.currentPeriod.apiCalls.toLocaleString()} actions this month
+                    </div>
+                    <div className="text-xs text-green-600 mt-1">
+                      {subscriptionData.currentPlan.actionsPerContributor === -1 ? 'Unlimited capacity' : 
+                       `${((usageData.currentPeriod.apiCalls / subscriptionData.currentPlan.actionsPerContributor) * 100).toFixed(0)}% capacity utilized`
+                      }
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -406,38 +446,41 @@ export function Subscription() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium">Connected Stores</span>
                   <span className="text-sm text-muted-foreground">
-                    {usage.storesConnected} / {userPlan.plan.limits.maxStores}
+                    {usageData.currentPeriod.storesConnected} / {subscriptionData.limits.maxStores}
                   </span>
                 </div>
                 <Progress 
-                  value={getUsagePercentage(usage.storesConnected, userPlan.plan.limits.maxStores)}
+                  value={getUsagePercentage(usageData.currentPeriod.storesConnected, subscriptionData.limits.maxStores)}
                   className="h-2"
                 />
               </div>
 
-              {/* Storage */}
+              {/* Products */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium">Storage Used</span>
+                  <span className="font-medium">Total Products</span>
                   <span className="text-sm text-muted-foreground">
-                    {usage.storageUsed} MB
+                    {usageData.currentPeriod.totalProducts.toLocaleString()} / {subscriptionData.limits.maxProducts.toLocaleString()}
                   </span>
                 </div>
-                <Progress value={usage.storageUsed} className="h-2" />
+                <Progress 
+                  value={getUsagePercentage(usageData.currentPeriod.totalProducts, subscriptionData.limits.maxProducts)}
+                  className="h-2"
+                />
               </div>
 
               {/* Feature Usage */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="font-medium text-lg">{usage.features.aiSuggestions}</div>
+                  <div className="font-medium text-lg">{usageData.currentPeriod.features.aiSuggestions}</div>
                   <div className="text-sm text-muted-foreground">AI Suggestions</div>
                 </div>
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="font-medium text-lg">{usage.features.opportunityScans}</div>
+                  <div className="font-medium text-lg">{usageData.currentPeriod.features.opportunityScans}</div>
                   <div className="text-sm text-muted-foreground">Opportunity Scans</div>
                 </div>
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
-                  <div className="font-medium text-lg">{usage.features.bulkOperations}</div>
+                  <div className="font-medium text-lg">{usageData.currentPeriod.features.bulkOperations}</div>
                   <div className="text-sm text-muted-foreground">Bulk Operations</div>
                 </div>
               </div>
@@ -448,7 +491,7 @@ export function Subscription() {
       )}
 
       {/* Plan Features */}
-      {userPlan && (
+      {subscriptionData && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -459,8 +502,8 @@ export function Subscription() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {userPlan.plan.features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-3">
+              {subscriptionData.features.map((feature, index) => (
+                <div key={feature._id || index} className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                   <div>
                     <div className="font-medium">{feature.name}</div>
@@ -474,7 +517,7 @@ export function Subscription() {
       )}
 
       {/* Billing Information */}
-      {userPlan && (
+      {subscriptionData && (
         <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -24,6 +24,7 @@ import aiOptimizationRoutes from '@/opportunities/routes/ai-optimization';
 import adminRoutes from '@/admin/routes/admin';
 import planRoutes from '@/subscriptions/routes/plans';
 import usageRoutes from '@/subscriptions/routes/usage';
+import subscriptionRoutes from '@/subscriptions/routes/subscription';
 import billingRoutes from '@/subscriptions/routes/billing';
 import demoRoutes from '@/demo/routes/demo';
 import workspaceRoutes from './modules/workspaces/routes/workspaces';
@@ -91,9 +92,13 @@ app.use('/api/products', protect, requireWorkspace, productRoutes);
 app.use('/api/dashboard', protect, requireWorkspace, dashboardRoutes);
 app.use('/api/optimizations', protect, requireWorkspace, optimizationRoutes);
 app.use('/api/opportunities', protect, requireWorkspace, opportunityRoutes);
+
+app.use('/api/subscription', protect, subscriptionRoutes);
+app.use('/api/usage', protect, usageRoutes);
 app.use('/api/opportunities/ai', protect, requireWorkspace, aiOptimizationRoutes);
-app.use('/api/usage', protect, requireWorkspace, usageRoutes);
+
 app.use('/api/billing', protect, requireWorkspace, billingRoutes);
+
 app.use('/api/demo', protect, requireWorkspace, demoRoutes);
 
 app.get('/api/health', (_req, res) => {

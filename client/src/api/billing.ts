@@ -2,7 +2,7 @@ import { apiPost } from './client'
 import { ENDPOINTS } from './config'
 
 export interface CheckoutSessionRequest {
-  planName: string
+  contributorType: string
   contributorCount?: number
   billingCycle?: 'monthly' | 'yearly'
   successUrl?: string
@@ -16,7 +16,7 @@ export interface CheckoutSessionResponse {
   isProduction?: boolean
   embedded?: boolean
   // Additional fields from mock mode
-  planName?: string
+  contributorType?: string
   planDisplayName?: string
   contributorType?: string
   contributorCount?: number

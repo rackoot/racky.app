@@ -18,7 +18,6 @@ export interface IPlanLimits {
 
 // Interface for Plan document
 export interface IPlan extends Document {
-  name: 'BASIC' | 'PRO' | 'ENTERPRISE';
   displayName: string;
   description: string;
   // Contributor-based model
@@ -62,15 +61,10 @@ export interface IPlan extends Document {
 // Interface for Plan model with static methods
 export interface IPlanModel extends Model<IPlan> {
   findPublicPlans(): Promise<IPlan[]>;
-  findByName(name: string): Promise<IPlan | null>;
+  findByContributorType(contributorType: string): Promise<IPlan | null>;
 }
 
 const planSchema = new Schema<IPlan>({
-  name: {
-    type: String,
-    required: true,
-    enum: ['BASIC', 'PRO', 'ENTERPRISE', 'JUNIOR', 'SENIOR', 'EXECUTIVE']
-  },
   displayName: {
     type: String,
     required: true
@@ -236,12 +230,12 @@ planSchema.statics.findPublicPlans = function(this: IPlanModel): Promise<IPlan[]
   }).sort({ sortOrder: 1 });
 };
 
-planSchema.statics.findByName = function(this: IPlanModel, name: string): Promise<IPlan | null> {
-  return this.findOne({ name: name.toUpperCase() });
+planSchema.statics.findByContributorType = function(this: IPlanModel, contributorType: string): Promise<IPlan | null> {
+  return this.findOne({ contributorType: contributorType.toUpperCase() });
 };
 
 // Indexes
-planSchema.index({ name: 1 }, { unique: true });
+planSchema.index({ contributorType: 1 }, { unique: true });
 planSchema.index({ isActive: 1, isPublic: 1 });
 planSchema.index({ sortOrder: 1 });
 

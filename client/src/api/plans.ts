@@ -1,29 +1,6 @@
 import { apiGet } from './client'
 import { ENDPOINTS } from './config'
-
-export interface Plan {
-  _id: string
-  name: string
-  displayName: string
-  description: string
-  price: {
-    monthly: number
-    yearly?: number
-  }
-  limits: {
-    apiCalls: number
-    productSyncs: number
-    storeConnections: number
-    contributors?: number
-    aiAssistance?: boolean
-  }
-  features: string[]
-  isPopular?: boolean
-  trialDays: number
-  stripePriceId: string
-  createdAt: string
-  updatedAt: string
-}
+import { Plan } from '@/types/plan'
 
 export interface UserPlan {
   currentPlan: Plan
@@ -50,8 +27,8 @@ export const plansApi = {
   /**
    * Get specific plan by name
    */
-  async getPlan(name: string): Promise<Plan> {
-    return apiGet<Plan>(ENDPOINTS.PLANS.GET(name))
+  async getPlan(contributorType: string): Promise<Plan> {
+    return apiGet<Plan>(ENDPOINTS.PLANS.GET(contributorType))
   },
 
   /**

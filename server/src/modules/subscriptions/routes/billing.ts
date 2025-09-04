@@ -51,13 +51,90 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
         
       case 'customer.subscription.deleted':
         const deletedSubscription = event.data.object as Stripe.Subscription;
-        console.log('Subscription deleted:', deletedSubscription.id);
+        console.log('Subscription deleted webhook received:', {
+          subscriptionId: deletedSubscription.id,
+          status: deletedSubscription.status,
+          canceled_at: deletedSubscription.canceled_at,
+          cancel_at_period_end: (deletedSubscription as any).cancel_at_period_end
+        });
         
-        // Mark subscription as cancelled in our database
+        // Find and update subscription as cancelled in our database
         const existingSubscription = await Subscription.findByStripeId(deletedSubscription.id);
         if (existingSubscription) {
+          console.log('Updating subscription status to CANCELLED:', {
+            dbSubscriptionId: existingSubscription._id,
+            currentStatus: existingSubscription.status,
+            stripeSubscriptionId: deletedSubscription.id
+          });
+          
+          // Update subscription with cancellation details
           existingSubscription.status = 'CANCELLED';
+          
+          // Only set cancelledAt if not already set (avoid overriding API cancellation timestamp)
+          if (!existingSubscription.cancelledAt) {
+            existingSubscription.cancelledAt = deletedSubscription.canceled_at 
+              ? new Date(deletedSubscription.canceled_at * 1000) 
+              : new Date();
+          }
+          
+          // Clear any pending schedule since subscription is now cancelled
+          if (existingSubscription.stripeScheduleId) {
+            console.log('Clearing schedule ID from cancelled subscription:', existingSubscription.stripeScheduleId);
+            existingSubscription.stripeScheduleId = undefined;
+          }
+          
           await existingSubscription.save();
+          console.log('Subscription successfully marked as cancelled via webhook');
+        } else {
+          console.warn('Webhook received for subscription not found in database:', deletedSubscription.id);
+        }
+        break;
+
+      case 'subscription_schedule.completed':
+        const completedSchedule = event.data.object as Stripe.SubscriptionSchedule;
+        console.log('Subscription schedule completed:', completedSchedule.id);
+        
+        // Find subscription with this schedule ID and clear it
+        const subscriptionWithSchedule = await Subscription.findOne({ 
+          stripeScheduleId: completedSchedule.id 
+        });
+        
+        if (subscriptionWithSchedule) {
+          console.log('Clearing completed schedule ID from subscription:', subscriptionWithSchedule._id);
+          subscriptionWithSchedule.stripeScheduleId = undefined;
+          await subscriptionWithSchedule.save();
+        }
+        break;
+
+      case 'subscription_schedule.canceled':
+        const cancelledSchedule = event.data.object as Stripe.SubscriptionSchedule;
+        console.log('Subscription schedule cancelled:', cancelledSchedule.id);
+        
+        // Find subscription with this schedule ID and clear it
+        const subscriptionWithCancelledSchedule = await Subscription.findOne({ 
+          stripeScheduleId: cancelledSchedule.id 
+        });
+        
+        if (subscriptionWithCancelledSchedule) {
+          console.log('Clearing cancelled schedule ID from subscription:', subscriptionWithCancelledSchedule._id);
+          subscriptionWithCancelledSchedule.stripeScheduleId = undefined;
+          await subscriptionWithCancelledSchedule.save();
+        }
+        break;
+
+      case 'subscription_schedule.released':
+        const releasedSchedule = event.data.object as Stripe.SubscriptionSchedule;
+        console.log('Subscription schedule released:', releasedSchedule.id);
+        
+        // Find subscription with this schedule ID and clear it
+        const subscriptionWithReleasedSchedule = await Subscription.findOne({ 
+          stripeScheduleId: releasedSchedule.id 
+        });
+        
+        if (subscriptionWithReleasedSchedule) {
+          console.log('Clearing released schedule ID from subscription:', subscriptionWithReleasedSchedule._id);
+          subscriptionWithReleasedSchedule.stripeScheduleId = undefined;
+          await subscriptionWithReleasedSchedule.save();
         }
         break;
         
@@ -91,9 +168,9 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
 // POST /api/billing/create-checkout-session - Create checkout session for contributor-based plans
 router.post('/create-checkout-session', protect, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { planName, contributorCount = 1, billingCycle = 'monthly', embedded = true } = req.body;
+    const { contributorType, contributorCount = 1, billingCycle = 'monthly', embedded = true } = req.body;
 
-    if (!planName) {
+    if (!contributorType) {
       return res.status(400).json({
         success: false,
         message: 'Plan name is required'
@@ -121,7 +198,7 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
       }
       
       // Fallback to mock for development/testing
-      const plan = await Plan.findByName(planName);
+      const plan = await Plan.findByContributorType(contributorType);
       if (!plan) {
         return res.status(404).json({
           success: false,
@@ -151,10 +228,9 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
         message: 'Checkout session created (mock mode)',
         data: {
           sessionId: 'mock_session_id',
-          url: `/subscription?plan=${planName}&contributors=${count}&cycle=${billingCycle}`,
-          planName: plan.name,
-          planDisplayName: plan.displayName,
+          url: `/subscription?plan=${contributorType}&contributors=${count}&cycle=${billingCycle}`,
           contributorType: plan.contributorType,
+          planDisplayName: plan.displayName,
           contributorCount: count,
           totalAmount,
           totalActions: totalActions === -1 ? 'Unlimited' : totalActions,
@@ -167,7 +243,7 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
 
     // Create real Stripe checkout session
     const checkoutParams = {
-      planName,
+      contributorType,
       contributorCount,
       billingCycle,
       workspace: req.workspace,
@@ -198,203 +274,6 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
       error: error.message
     });
   }
-});
-
-// POST /api/billing/complete-mock-payment - Complete mock payment in development
-router.post('/complete-mock-payment', protect, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { planName, contributorCount = 1, billingCycle = 'monthly' } = req.body;
-
-    if (!planName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Plan name is required'
-      });
-    }
-
-    if (!req.workspace) {
-      return res.status(400).json({
-        success: false,
-        message: 'Workspace context required'
-      });
-    }
-
-    const env = getEnv();
-    
-    // Only allow in development
-    if (env.NODE_ENV !== 'development') {
-      return res.status(403).json({
-        success: false,
-        message: 'Mock payment only available in development'
-      });
-    }
-
-    // Get the plan
-    const plan = await Plan.findByName(planName);
-    if (!plan) {
-      return res.status(404).json({
-        success: false,
-        message: 'Plan not found'
-      });
-    }
-
-    // Check if workspace already has an active subscription
-    const existingSubscription = await req.workspace.getActiveSubscription();
-    if (existingSubscription) {
-      return res.status(400).json({
-        success: false,
-        message: 'Workspace already has an active subscription'
-      });
-    }
-
-    // Create subscription
-    const count = Math.max(1, Math.min(contributorCount, plan.maxContributorsPerWorkspace));
-    const now = new Date();
-    const endsAt = billingCycle === 'yearly' 
-      ? new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000) // 1 year from now
-      : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
-    
-    const subscription = new Subscription({
-      workspaceId: req.workspace._id,
-      userId: req.user._id,
-      planId: plan._id,
-      contributorCount: count,
-      status: 'ACTIVE',
-      interval: billingCycle === 'yearly' ? 'year' : 'month',
-      amount: billingCycle === 'yearly' ? plan.getTotalYearlyPrice(count) : plan.getTotalMonthlyPrice(count),
-      totalMonthlyActions: plan.getTotalActionsPerMonth(count),
-      currency: 'usd',
-      startsAt: now,
-      endsAt: endsAt,
-      stripeSubscriptionId: `mock_sub_${Date.now()}`,
-      stripeCustomerId: `mock_cus_${req.user._id}`,
-      cancelAtPeriodEnd: false,
-      paymentFailed: false,
-      expirationWarningsSent: [],
-      expiredNotificationSent: false,
-      cancellationNotificationSent: false,
-      suspensionNotificationSent: false,
-      metadata: { isMock: true }
-    });
-
-    await subscription.save();
-    await subscription.populate('planId');
-
-    res.json({
-      success: true,
-      message: 'Mock payment completed successfully',
-      data: {
-        subscription: {
-          id: subscription._id,
-          status: subscription.status,
-          planName: (subscription.planId as any).name,
-          planDisplayName: (subscription.planId as any).displayName,
-          contributorCount: subscription.contributorCount,
-          totalMonthlyActions: subscription.totalMonthlyActions,
-          billingCycle: subscription.interval,
-          amount: subscription.amount,
-          currentPeriodEnd: subscription.endsAt
-        }
-      }
-    });
-
-  } catch (error: any) {
-    console.error('Error completing mock payment:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to complete mock payment',
-      error: error.message
-    });
-  }
-});
-
-// POST /api/billing/update-contributors - Update contributor count for existing subscription
-router.post('/update-contributors', protect, async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const { contributorCount } = req.body;
-
-    if (!req.workspace) {
-      return res.status(400).json({
-        success: false,
-        message: 'Workspace context required'
-      });
-    }
-
-    if (!contributorCount || contributorCount < 1) {
-      return res.status(400).json({
-        success: false,
-        message: 'Valid contributor count is required'
-      });
-    }
-
-    // Find active subscription for the workspace
-    const subscription = await req.workspace.getActiveSubscription();
-    if (!subscription) {
-      return res.status(404).json({
-        success: false,
-        message: 'No active subscription found for this workspace'
-      });
-    }
-
-    // Update contributor count
-    await subscription.updateContributorCount(contributorCount);
-    await subscription.populate('planId');
-
-    res.json({
-      success: true,
-      message: 'Contributor count updated successfully',
-      data: {
-        contributorCount: subscription.contributorCount,
-        totalMonthlyActions: subscription.totalMonthlyActions,
-        newAmount: subscription.amount,
-        planDisplayName: (subscription.planId as any).displayName
-      }
-    });
-
-  } catch (error: any) {
-    console.error('Error updating contributor count:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update contributor count',
-      error: error.message
-    });
-  }
-});
-
-// Note: Stripe webhook handler moved to main app routing to avoid JWT auth middleware
-
-router.get('/subscription', (req: AuthenticatedRequest, res: Response) => {
-  res.status(503).json({
-    success: false,
-    message: 'Subscription information temporarily unavailable',
-    maintenanceInfo: {
-      reason: 'Migration to workspace-based subscriptions in progress',
-      status: 'TEMPORARILY_DISABLED'
-    }
-  });
-});
-
-router.post('/cancel-subscription', (req: AuthenticatedRequest, res: Response) => {
-  res.status(503).json({
-    success: false,
-    message: 'Subscription management temporarily unavailable',
-    maintenanceInfo: {
-      reason: 'Migration to workspace-based subscriptions in progress',
-      status: 'TEMPORARILY_DISABLED',
-      alternativeAction: 'Please contact support for cancellation requests'
-    }
-  });
-});
-
-router.get('/invoices', (req: AuthenticatedRequest, res: Response) => {
-  res.status(503).json({
-    success: false,
-    message: 'Invoice access temporarily unavailable',
-    maintenanceInfo: {
-      reason: 'Migration to workspace-based subscriptions in progress',
-      status: 'TEMPORARILY_DISABLED'
-    }
-  });
 });
 
 export default router;

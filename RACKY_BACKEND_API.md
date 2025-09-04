@@ -848,7 +848,7 @@ List all users with pagination and filtering.
 - `search` - Search by email, firstName, lastName
 - `role` - Filter by role (USER, SUPERADMIN)
 - `subscriptionStatus` - Filter by subscription status (TRIAL, ACTIVE, SUSPENDED, CANCELLED)
-- `subscriptionPlan` - Filter by plan (BASIC, PRO, ENTERPRISE)
+- `subscriptionPlan` - Filter by plan (JUNIOR, SENIOR, EXECUTIVE)
 - `sortBy` - Sort field (default: createdAt)
 - `sortOrder` - Sort order (asc, desc, default: desc)
 
@@ -866,7 +866,7 @@ List all users with pagination and filtering.
         "role": "USER",
         "isActive": true,
         "subscriptionStatus": "ACTIVE",
-        "subscriptionPlan": "PRO",
+        "subscriptionPlan": "SENIOR",
         "createdAt": "2024-01-01T00:00:00.000Z",
         "stats": {
           "storeCount": 2,
@@ -919,7 +919,7 @@ Get detailed information about a specific user.
     "role": "USER",
     "isActive": true,
     "subscriptionStatus": "ACTIVE",
-    "subscriptionPlan": "PRO",
+    "subscriptionPlan": "SENIOR",
     "storeConnections": [...],
     "recentProducts": [...],
     "usageHistory": [...],
@@ -956,7 +956,7 @@ Update user subscription details.
 ```json
 {
   "subscriptionStatus": "ACTIVE",
-  "subscriptionPlan": "PRO",
+  "subscriptionPlan": "SENIOR",
   "trialEndsAt": "2024-12-31T23:59:59.999Z",
   "subscriptionEndsAt": "2025-12-31T23:59:59.999Z"
 }
@@ -978,7 +978,7 @@ List all subscriptions with filtering and search.
 - `limit` - Items per page (default: 20)
 - `search` - Search by user email, firstName, lastName
 - `status` - Filter by subscription status (TRIAL, ACTIVE, SUSPENDED, CANCELLED)
-- `plan` - Filter by plan (BASIC, PRO, ENTERPRISE)
+- `plan` - Filter by plan (JUNIOR, SENIOR, EXECUTIVE)
 - `sortBy` - Sort field (default: createdAt)
 - `sortOrder` - Sort order (asc, desc, default: desc)
 
@@ -991,7 +991,7 @@ List all subscriptions with filtering and search.
       {
         "_id": "subscription_id",
         "userId": "user_id",
-        "planName": "PRO",
+        "contributorType": "SENIOR",
         "status": "ACTIVE",
         "startDate": "2024-01-01T00:00:00.000Z",
         "endDate": "2025-01-01T00:00:00.000Z",
@@ -1005,7 +1005,7 @@ List all subscriptions with filtering and search.
           "firstName": "John",
           "lastName": "Doe",
           "subscriptionStatus": "ACTIVE",
-          "subscriptionPlan": "PRO",
+          "subscriptionPlan": "SENIOR",
           "trialEndsAt": null,
           "subscriptionEndsAt": "2025-01-01T00:00:00.000Z",
           "isActive": true

@@ -274,7 +274,7 @@ describe('Workspaces Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create a subscription for the workspace
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -297,7 +297,7 @@ describe('Workspaces Integration Tests', () => {
           workspaceId: workspace._id.toString(),
           hasActiveSubscription: true,
           currentPlan: expect.objectContaining({
-            name: 'BASIC',
+            name: 'JUNIOR',
           }),
           limits: expect.objectContaining({
             maxStores: 1,
@@ -332,7 +332,7 @@ describe('Workspaces Integration Tests', () => {
     it('should create workspace subscription', async () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       const subscriptionData = {
-        planName: 'PRO',
+        contributorType: 'SENIOR',
         billingCycle: 'monthly',
       };
 
@@ -361,7 +361,7 @@ describe('Workspaces Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create initial subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -373,7 +373,7 @@ describe('Workspaces Integration Tests', () => {
       });
 
       const updateData = {
-        planName: 'PRO',
+        contributorType: 'SENIOR',
         billingCycle: 'annual',
       };
 
@@ -400,7 +400,7 @@ describe('Workspaces Integration Tests', () => {
     it('should reject invalid plan name', async () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       const invalidData = {
-        planName: 'INVALID_PLAN',
+        contributorType: 'INVALID_PLAN',
       };
 
       const response = await request(app)
@@ -421,7 +421,7 @@ describe('Workspaces Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create subscription to cancel
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -469,7 +469,7 @@ describe('Workspaces Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create subscription for usage limits
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,

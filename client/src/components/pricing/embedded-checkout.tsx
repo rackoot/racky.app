@@ -8,22 +8,24 @@ import { getAuthHeaders } from "@/lib/utils"
 import { billingApi } from "@/api"
 
 interface EmbeddedCheckoutProps {
-  planName: string
+  contributorType: string
   contributorCount: number
   billingCycle: 'monthly' | 'yearly'
   onBack: () => void
   onSuccess?: () => void
+  isReactivation?: boolean
 }
 
 // Initialize Stripe (you'll need to add your publishable key)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_...')
 
 export function EmbeddedCheckoutWrapper({ 
-  planName, 
+  contributorType, 
   contributorCount, 
   billingCycle, 
   onBack, 
-  onSuccess 
+  onSuccess,
+  isReactivation = false
 }: EmbeddedCheckoutProps) {
   const [clientSecret, setClientSecret] = useState<string>("")
   const [loading, setLoading] = useState(true)
@@ -32,7 +34,7 @@ export function EmbeddedCheckoutWrapper({
 
   useEffect(() => {
     createCheckoutSession()
-  }, [planName, contributorCount, billingCycle])
+  }, [contributorType, contributorCount, billingCycle])
 
   const createCheckoutSession = async () => {
     setLoading(true)
@@ -40,10 +42,10 @@ export function EmbeddedCheckoutWrapper({
     
     try {
       const data = await billingApi.createCheckoutSession({
-        planName,
+        contributorType,
         contributorCount: contributorCount,
         billingCycle: billingCycle,
-        successUrl: window.location.origin + '/workspace-subscription?session_id={CHECKOUT_SESSION_ID}',
+        successUrl: window.location.origin + '/purchase-success?session_id={CHECKOUT_SESSION_ID}',
         cancelUrl: window.location.origin + '/pricing'
       })
       
@@ -151,39 +153,12 @@ export function EmbeddedCheckoutWrapper({
           <div className="space-y-3">
             <Button 
               className="w-full" 
-              onClick={async () => {
-                setLoading(true)
-                try {
-                  // Complete mock payment
-                  const response = await fetch('/api/billing/complete-mock-payment', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      ...getAuthHeaders()
-                    },
-                    body: JSON.stringify({
-                      planName,
-                      contributorCount,
-                      billingCycle
-                    })
-                  })
 
-                  const data = await response.json()
-                  
-                  if (data.success) {
-                    // Simulate slight delay for UX
-                    setTimeout(() => {
-                      onSuccess?.()
-                    }, 500)
-                  } else {
-                    setError(data.message || 'Failed to complete mock payment')
-                    setLoading(false)
-                  }
-                } catch (error) {
-                  console.error('Mock payment error:', error)
-                  setError('Failed to complete mock payment')
-                  setLoading(false)
-                }
+              onClick={() => {
+                // Simulate successful payment and redirect to purchase-success
+                setTimeout(() => {
+                  window.location.href = '/purchase-success?demo=true'
+                }, 1000)
               }}
               disabled={loading}
             >

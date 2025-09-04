@@ -35,7 +35,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription to pass subscription checks
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -61,7 +61,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -94,7 +94,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -134,7 +134,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -169,7 +169,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -227,7 +227,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -293,7 +293,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -371,7 +371,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -421,7 +421,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -489,7 +489,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -545,7 +545,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create active subscription
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -599,7 +599,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create BASIC subscription with limit of 1 store
-      const basicPlan = await Plan.findByName('BASIC');
+      const basicPlan = await Plan.findByContributorType('JUNIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: basicPlan!._id,
@@ -654,7 +654,7 @@ describe('Store Connections Integration Tests', () => {
       const { user, workspace } = await createTestUserWithWorkspace();
       
       // Create PRO subscription with limit of 5 stores
-      const proPlan = await Plan.findByName('PRO');
+      const proPlan = await Plan.findByContributorType('SENIOR');
       await Subscription.create({
         workspaceId: workspace._id,
         planId: proPlan!._id,

@@ -29,6 +29,8 @@ cd client
 npm run dev          # Start development server (usually http://localhost:5173)
 npm run build        # Build for production
 npm run lint         # Run ESLint
+npm run typecheck    # Check TypeScript types without compiling
+npm run validate     # Run both typecheck and lint (MANDATORY after code changes)
 npm run preview      # Preview production build locally
 ```
 
@@ -38,6 +40,8 @@ cd server
 npm run dev          # Start development server with nodemon (http://localhost:5000)
 npm start           # Start production server
 npm test            # Run tests with Jest
+npm run typecheck    # Check TypeScript types without compiling
+npm run validate     # Run both typecheck and tests (MANDATORY after code changes)
 npm run test:watch   # Run tests in watch mode
 npm run test:coverage # Run tests with coverage report
 node scripts/setup.js        # 🚀 Complete setup for contributor-based platform
@@ -155,15 +159,15 @@ npm run e2e:report         # View E2E test report
 - Middleware: `requireSuperAdmin`, `checkSubscriptionStatus`, `checkUsageLimits`
 
 **Subscription Management:**
-- Three subscription tiers: BASIC ($29/month), PRO ($79/month), ENTERPRISE ($199/month)
+- Three subscription tiers: Junior ($29/month), Senior ($79/month), Executive ($199/month)
 - 14-day free trial for all new users (30 days for Enterprise)
 - Usage tracking: API calls, product syncs, store connections
 - Automatic limit enforcement based on subscription tier
 
 **Plan Limits by Tier:**
-- **BASIC**: 1 store, 100 products, 2 marketplaces, 1K API calls/month
-- **PRO**: 5 stores, 1K products, 5 marketplaces, 10K API calls/month  
-- **ENTERPRISE**: 50 stores, 10K products, 10 marketplaces, 100K API calls/month
+- **Junior**: 1 store, 100 products, 2 marketplaces, 1K API calls/month
+- **Senior**: 5 stores, 1K products, 5 marketplaces, 10K API calls/month  
+- **Executive**: 50 stores, 10K products, 10 marketplaces, 100K API calls/month
 
 **Admin Management:**
 - Complete user management via `/api/admin/*` endpoints
@@ -358,6 +362,11 @@ PORT=5000
 
 ### Implementation Requirements
 - **Full-Stack Implementation Required**: When implementing new features, ALWAYS work on both backend (`/server`) and frontend (`/client`) components. Features must be complete end-to-end implementations.
+- **🚨 MANDATORY TYPE VALIDATION**: After ANY code changes, you MUST:
+  1. Run `npm run validate` in both client and server directories
+  2. Use `mcp__ide__getDiagnostics` to check for TypeScript errors
+  3. Fix ALL TypeScript errors before marking tasks as completed
+  4. NEVER mark a task as completed if there are TypeScript errors or validation failures
 - **Documentation Updates Required**: When adding new features or making changes to frontend/backend, update relevant documentation including `/RACKY_BACKEND_API.md`
 - **Postman Collection Maintenance**: Always update `/server/postman_collection.json` when new API endpoints are added to the server
 - **Entity Relationship Diagram Maintenance**: **CRITICAL** - When modifying existing entities in `/server/src/modules/*/models/` or creating new entities, MUST update the Entity Relationship Diagram in `/server/ER_DIAGRAM.md`. This includes:

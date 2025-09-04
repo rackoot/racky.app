@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { getCurrentUser } from "@/lib/auth"
 import { Navigate } from "react-router-dom"
 import { getAuthHeaders } from "@/lib/utils"
@@ -15,14 +15,22 @@ export function RequireSubscription({ children, fallback = "/pricing-internal" }
   const user = getCurrentUser()
   const { currentWorkspace, isLoading: workspaceLoading, workspaces } = useWorkspace()
 
+
+  const checkSubscription = useCallback(async () => {
+    if (!user) {
+      setLoading(false)
+      
+      return
+    }
+
   useEffect(() => {
     console.log('RequireSubscription: State change', { 
       workspaceLoading, 
       currentWorkspace: currentWorkspace?._id,
       workspacesCount: workspaces.length,
       user: user?.email
-    })
-
+    }
+                
     // Don't do anything until workspaces are loaded and user is available
     if (workspaceLoading || !user) {
       setChecking(true)
@@ -96,7 +104,11 @@ export function RequireSubscription({ children, fallback = "/pricing-internal" }
     } finally {
       setChecking(false)
     }
-  }
+  }, [currentWorkspace, user])
+
+  useEffect(() => {
+    checkSubscription()
+  }, [checkSubscription, currentWorkspace?.subscription])
 
   // Redirect unauthenticated users to login
   if (!user) {

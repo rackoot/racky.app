@@ -10,16 +10,16 @@ router.use(protect);
 
 // Interface definitions
 interface UpgradeSubscriptionBody {
-  planName: string;
+  contributorType: string;
   billingCycle?: 'monthly' | 'yearly';
 }
 
 // POST /api/demo/upgrade-subscription - Demo subscription upgrade
 router.post('/upgrade-subscription', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { planName, billingCycle = 'monthly' } = req.body;
+    const { contributorType, billingCycle = 'monthly' } = req.body;
     
-    if (!planName) {
+    if (!contributorType) {
       return res.status(400).json({
         success: false,
         message: 'Plan name is required'
@@ -28,7 +28,7 @@ router.post('/upgrade-subscription', async (req: AuthenticatedRequest, res: Resp
 
     
     // Get the plan details to validate it exists
-    const plan = await Plan.findByName(planName);
+    const plan = await Plan.findByContributorType(contributorType);
     if (!plan) {
       return res.status(404).json({
         success: false,
@@ -36,7 +36,7 @@ router.post('/upgrade-subscription', async (req: AuthenticatedRequest, res: Resp
       });
     }
 
-    console.log(`Demo: Upgrading workspace for user ${req.user!.email} to ${planName} plan`);
+    console.log(`Demo: Upgrading workspace for user ${req.user!.email} to ${contributorType} plan`);
     
     if (!req.workspace) {
       return res.status(400).json({
@@ -67,9 +67,9 @@ router.post('/upgrade-subscription', async (req: AuthenticatedRequest, res: Resp
     
     res.json({
       success: true,
-      message: `Successfully upgraded to ${planName} plan (demo mode)`,
+      message: `Successfully upgraded to ${contributorType} plan (demo mode)`,
       data: {
-        plan: planName,
+        plan: contributorType,
         status: 'ACTIVE',
         endsAt: subscriptionEndDate
       }

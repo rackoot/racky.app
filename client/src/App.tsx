@@ -6,7 +6,6 @@ import { ProtectedRoute } from '@/components/auth/protected-route'
 import { RequireSuperAdmin } from '@/components/auth/require-role'
 import { RequireSubscription } from '@/components/auth/require-subscription'
 import { SmartRedirect } from '@/components/auth/smart-redirect'
-import { SubscriptionRedirect } from '@/components/auth/subscription-redirect'
 import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
@@ -20,6 +19,7 @@ import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
 import { InternalPricing } from '@/pages/internal-pricing'
+import { PurchaseSuccess } from '@/pages/purchase-success'
 import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
@@ -54,6 +54,16 @@ function App() {
               <MainLayout>
                 <InternalPricing />
               </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Purchase success page - shown after successful Stripe checkout */}
+        <Route
+          path="/purchase-success"
+          element={
+            <ProtectedRoute>
+              <PurchaseSuccess />
             </ProtectedRoute>
           }
         />
@@ -268,17 +278,6 @@ function App() {
           }
         />
         
-        {/* Legacy subscription route - redirect to appropriate page */}
-        <Route
-          path="/subscription"
-          element={
-            <ProtectedRoute>
-              <SubscriptionRedirect>
-                <></>
-              </SubscriptionRedirect>
-            </ProtectedRoute>
-          }
-        />
         <Route
           path="/subscription-legacy"
           element={
