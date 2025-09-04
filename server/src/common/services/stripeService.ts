@@ -8,6 +8,10 @@ import { SubscriptionStatus } from "../../modules/subscriptions/models/Subscript
 
 const env = getEnv();
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 let stripe: Stripe | null = null;
 
 // Initialize Stripe only if API key is configured
@@ -289,7 +293,7 @@ export const handleSuccessfulPayment = async (
     }
 
     // Get plan details
-    const plan = await Plan.findByContributorType(contributorType);
+    let plan = await Plan.findByContributorType(contributorType);
     if (!plan) {
       throw new Error(`Plan not found: ${contributorType}`);
     }
@@ -300,6 +304,7 @@ export const handleSuccessfulPayment = async (
     );
 
     if (existingSubscription) {
+      // Check if subscription has active schedule and update data accordingly
       if (existingSubscription?.stripeScheduleId) {
         console.log(
           "Subscription has active schedule, getting real data from schedule:",
@@ -311,9 +316,13 @@ export const handleSuccessfulPayment = async (
           const schedule = await stripeInstance.subscriptionSchedules.retrieve(
             existingSubscription.stripeScheduleId
           );
+
+          const currentPhase = schedule.current_phase;
           const lastPhase = schedule.phases[schedule.phases.length - 1];
 
-          if (lastPhase && lastPhase.items?.[0]) {
+          const isLastPhase = currentPhase.end_date === lastPhase.end_date;
+
+          if (isLastPhase) {
             const currentPriceId = lastPhase.items[0].price as string;
             const currentQuantity = lastPhase.items[0].quantity || 1;
 
@@ -324,6 +333,7 @@ export const handleSuccessfulPayment = async (
               // Override metadata with real schedule data
               contributorType = actualPlan.contributorType;
               contributorCount = currentQuantity;
+              plan = actualPlan; // Update plan reference too
 
               console.log("Updated subscription data from schedule:", {
                 originalContributorType: metadata.contributorType,
@@ -335,7 +345,25 @@ export const handleSuccessfulPayment = async (
                 scheduleId: existingSubscription.stripeScheduleId,
               });
 
-              await checkAndReleaseScheduleIfCompleted(existingSubscription);
+              // Update Stripe subscription metadata with current values
+              const updatedMetadata = {
+                ...metadata, // Preserve existing metadata
+                contributorType: actualPlan.contributorType,
+                contributorCount: currentQuantity.toString(),
+              };
+              if (stripeSubscription.test_clock) {
+                console.log("Test clock in action, sleep 10 seconds");
+                await sleep(10 * 1000);
+              }
+
+              console.log(
+                "Updating Stripe subscription metadata:",
+                updatedMetadata
+              );
+
+              await stripeInstance.subscriptions.update(stripeSubscription.id, {
+                metadata: updatedMetadata,
+              });
             } else {
               console.warn(
                 "Could not find plan for price ID from schedule:",
@@ -350,40 +378,41 @@ export const handleSuccessfulPayment = async (
           );
           // Continue with original metadata if schedule fetch fails
         }
-      } else {
-        // Update existing subscription
-        console.log(
-          "Updating existing subscription:",
-          existingSubscription._id
-        );
-
-        existingSubscription.status = mapStripeStatusToDbStatus(
-          stripeSubscription.status
-        );
-        existingSubscription.contributorCount = contributorCount;
-        existingSubscription.amount =
-          stripeSubscription.items.data[0].price.unit_amount || 0;
-        existingSubscription.planId = plan._id as any;
-        existingSubscription.totalMonthlyActions =
-          plan.getTotalActionsPerMonth(contributorCount);
-        existingSubscription.currency = stripeSubscription.currency || "usd";
-        existingSubscription.interval =
-          stripeSubscription.items.data[0].price.recurring?.interval === "year"
-            ? "year"
-            : "month";
-        existingSubscription.startsAt = new Date(
-          (stripeSubscription as any).current_period_start * 1000
-        );
-        existingSubscription.endsAt = new Date(
-          (stripeSubscription as any).current_period_end * 1000
-        );
-
-        await existingSubscription.save();
-        console.log(
-          "Successfully updated subscription:",
-          existingSubscription._id
-        );
       }
+
+      // Update existing subscription (whether it has schedule or not)
+      console.log("Updating existing subscription:", existingSubscription._id);
+
+      existingSubscription.status = mapStripeStatusToDbStatus(
+        stripeSubscription.status
+      );
+      existingSubscription.contributorCount = contributorCount;
+      existingSubscription.amount =
+        stripeSubscription.items.data[0].price.unit_amount || 0;
+      existingSubscription.planId = plan._id as any;
+      existingSubscription.totalMonthlyActions =
+        plan.getTotalActionsPerMonth(contributorCount);
+      existingSubscription.currency = stripeSubscription.currency || "usd";
+      existingSubscription.interval =
+        stripeSubscription.items.data[0].price.recurring?.interval === "year"
+          ? "year"
+          : "month";
+      existingSubscription.startsAt = new Date(
+        (stripeSubscription as any).current_period_start * 1000
+      );
+      existingSubscription.endsAt = new Date(
+        (stripeSubscription as any).current_period_end * 1000
+      );
+
+      await existingSubscription.save();
+      console.log(
+        "Successfully updated subscription:",
+        existingSubscription._id
+      );
+
+      // Check if subscription has a completed schedule and release it if so
+
+      await checkAndReleaseScheduleIfCompleted(existingSubscription);
     } else {
       // Create new subscription
       console.log("Creating new subscription for workspace:", workspaceId);
