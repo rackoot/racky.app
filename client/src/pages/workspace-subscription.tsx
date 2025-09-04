@@ -709,14 +709,14 @@ export default function WorkspaceSubscriptionPage() {
             <Slider
               value={contributorCount}
               onValueChange={setContributorCount}
-              max={selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.limits.maxStores || 5 : 5}
+              max={selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.maxContributorsPerWorkspace || 5 : 5}
               min={1}
               step={1}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>1 contributor</span>
-              <span>{selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.limits.maxStores || 5 : 5} contributors max</span>
+              <span>{selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.maxContributorsPerWorkspace || 5 : 5} contributors max</span>
             </div>
           </div>
 
