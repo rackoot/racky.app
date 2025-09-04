@@ -59,7 +59,6 @@ const mapStripeStatusToDbStatus = (
 export interface CreateCheckoutSessionParams {
   contributorType: string;
   contributorCount: number;
-  billingCycle: "monthly" | "yearly";
   workspace: IWorkspace;
   userId: string;
   successUrl?: string;
@@ -83,7 +82,6 @@ export const createEmbeddedCheckoutSession = async (
   const {
     contributorType,
     contributorCount,
-    billingCycle,
     workspace,
     userId,
     successUrl = `${env.CLIENT_URL}/dashboard?checkout=success`,
@@ -130,10 +128,7 @@ export const createEmbeddedCheckoutSession = async (
     customer: customerId,
     line_items: [
       {
-        price:
-          billingCycle === "yearly"
-            ? plan.stripeYearlyPriceId
-            : plan.stripeMonthlyPriceId,
+        price: plan.stripeMonthlyPriceId,
         quantity: validContributorCount,
       },
     ],
@@ -143,7 +138,6 @@ export const createEmbeddedCheckoutSession = async (
         workspaceId: workspace._id.toString(),
         contributorType: plan.contributorType,
         contributorCount: validContributorCount.toString(),
-        billingCycle: billingCycle,
       },
     },
     return_url: successUrl,
@@ -173,7 +167,6 @@ export const createCheckoutSession = async (
   const {
     contributorType,
     contributorCount,
-    billingCycle,
     workspace,
     userId,
     successUrl = `${env.CLIENT_URL}/dashboard?checkout=success`,
@@ -220,10 +213,7 @@ export const createCheckoutSession = async (
     payment_method_types: ["card"],
     line_items: [
       {
-        price:
-          billingCycle === "yearly"
-            ? plan.stripeYearlyPriceId
-            : plan.stripeMonthlyPriceId,
+        price: plan.stripeMonthlyPriceId,
         quantity: validContributorCount,
       },
     ],
@@ -235,7 +225,6 @@ export const createCheckoutSession = async (
         workspaceId: workspace._id.toString(),
         contributorType: plan.contributorType,
         contributorCount: validContributorCount.toString(),
-        billingCycle: billingCycle,
       },
     },
     metadata: {
@@ -500,9 +489,7 @@ const checkAndReleaseScheduleIfCompleted = async (
 const findPlanByPriceId = async (priceId: string): Promise<any> => {
   const allPlans = await Plan.find({});
   return allPlans.find(
-    (plan) =>
-      plan.stripeMonthlyPriceId === priceId ||
-      plan.stripeYearlyPriceId === priceId
+    (plan) => plan.stripeMonthlyPriceId === priceId
   );
 };
 

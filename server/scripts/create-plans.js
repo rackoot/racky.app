@@ -42,19 +42,11 @@ const planSchema = new Schema({
     type: Number,
     required: true
   },
-  yearlyPrice: {
-    type: Number,
-    required: true
-  },
   currency: {
     type: String,
     default: 'usd'
   },
   stripeMonthlyPriceId: {
-    type: String,
-    required: true
-  },
-  stripeYearlyPriceId: {
     type: String,
     required: true
   },
@@ -98,9 +90,7 @@ const createPlans = async () => {
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
         monthlyPrice: 5000, // $50.00 per contributor
-        yearlyPrice: 50000, // $500.00 per contributor (save 17%)
         stripeMonthlyPriceId: 'price_1RoS28C0dRh4ObHWOlCINkwn',
-        stripeYearlyPriceId: 'price_1S0i9AC0dRh4ObHW05zDSbp8',
         limits: {
           maxStores: 2,
           maxProducts: 1000,
@@ -127,9 +117,7 @@ const createPlans = async () => {
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
         monthlyPrice: 10000, // $100.00 per contributor
-        yearlyPrice: 100000, // $1,000.00 per contributor (save 17%) 
         stripeMonthlyPriceId: 'price_1RoS2UC0dRh4ObHWIVQporSy',
-        stripeYearlyPriceId: 'price_1S0i8aC0dRh4ObHWZ8M2BufQ',
         limits: {
           maxStores: 5,
           maxProducts: 10000,
@@ -157,9 +145,7 @@ const createPlans = async () => {
         maxContributorsPerWorkspace: 50,
         isContactSalesOnly: true,
         monthlyPrice: 19900, // $199.00 per contributor (contact for pricing)
-        yearlyPrice: 199000, // $1,990.00 per contributor (contact for pricing)
         stripeMonthlyPriceId: 'price_executive_monthly',
-        stripeYearlyPriceId: 'price_executive_yearly',
         limits: {
           maxStores: 50,
           maxProducts: 100000,

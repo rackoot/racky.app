@@ -19,7 +19,7 @@ export interface WorkspaceSubscription {
   contributorCount: number;
   totalMonthlyActions: number;
   currentMonthlyPrice: number;
-  billingCycle: 'monthly' | 'annual';
+  billingCycle: 'monthly';
   limits: {
     maxStores: number;
     maxProducts: number;
@@ -70,13 +70,13 @@ export interface WorkspaceUsage {
 
 export interface UpdateSubscriptionRequest {
   contributorType: 'JUNIOR' | 'SENIOR';
-  billingCycle?: 'monthly' | 'annual';
+  billingCycle?: 'monthly';
   contributorCount?: number;
 }
 
 export interface SubscriptionPreviewRequest {
   contributorType: 'JUNIOR' | 'SENIOR';
-  billingCycle: 'monthly' | 'annual';
+  billingCycle: 'monthly';
   contributorCount: number;
 }
 

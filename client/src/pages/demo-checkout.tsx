@@ -11,11 +11,11 @@ export function DemoCheckout() {
   const navigate = useNavigate()
   const [processing, setProcessing] = useState(false)
   const [plan, setPlan] = useState("")
-  const [billingCycle, setBillingCycle] = useState("")
+  const [billingCycle] = useState("monthly")
 
   useEffect(() => {
     setPlan(searchParams.get('plan') || '')
-    setBillingCycle(searchParams.get('billing') || 'monthly')
+    // Always use monthly billing
   }, [searchParams])
 
   const handlePayment = async () => {
@@ -41,9 +41,9 @@ export function DemoCheckout() {
 
   const getPlanPrice = () => {
     const prices = {
-      BASIC: billingCycle === 'yearly' ? '$290/year' : '$29/month',
-      PRO: billingCycle === 'yearly' ? '$790/year' : '$79/month', 
-      ENTERPRISE: billingCycle === 'yearly' ? '$1990/year' : '$199/month'
+      BASIC: '$29/month',
+      PRO: '$79/month', 
+      ENTERPRISE: '$199/month'
     }
     return prices[plan as keyof typeof prices] || '$0'
   }
@@ -66,7 +66,7 @@ export function DemoCheckout() {
           <div className="p-4 bg-muted/50 rounded-lg">
             <h3 className="font-semibold">{plan} Plan</h3>
             <p className="text-sm text-muted-foreground">
-              {billingCycle === 'yearly' ? 'Billed annually' : 'Billed monthly'}
+              Billed monthly
             </p>
             <p className="text-xl font-bold mt-2">{getPlanPrice()}</p>
           </div>

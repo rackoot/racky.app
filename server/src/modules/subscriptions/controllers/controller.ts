@@ -56,7 +56,7 @@ export class SubscriptionController {
             // Find the plan that matches the new price ID
             const allPlans = await Plan.find({});
             const targetPlan = allPlans.find(plan => 
-              plan.stripeMonthlyPriceId === newPriceId || plan.stripeYearlyPriceId === newPriceId
+              plan.stripeMonthlyPriceId === newPriceId
             );
             
             if (targetPlan) {
@@ -165,12 +165,12 @@ export class SubscriptionController {
       
       // Calculate pricing
       const newMonthlyPrice = billingCycle === 'annual' ? 
-        (newPlan.getTotalYearlyPrice(contributorCount!) / 100 / 12) :
+        (newPlan.getTotalMonthlyPrice(contributorCount!) / 100 / 12) :
         (newPlan.getTotalMonthlyPrice(contributorCount!) / 100);
       
       const currentMonthlyPrice = currentPlan ? (
         currentBillingCycle === 'annual' ? 
-          (currentPlan.getTotalYearlyPrice(currentContributorCount) / 100 / 12) :
+          (currentPlan.getTotalMonthlyPrice(currentContributorCount) / 100 / 12) :
           (currentPlan.getTotalMonthlyPrice(currentContributorCount) / 100)
       ) : 0;
 
@@ -191,7 +191,7 @@ export class SubscriptionController {
       
       if (currentSubscription?.stripeSubscriptionId && isStripeConfigured()) {
         try {
-          const newPriceId = billingCycle === 'annual' ? newPlan.stripeYearlyPriceId : newPlan.stripeMonthlyPriceId;
+          const newPriceId = newPlan.stripeMonthlyPriceId;
           
           const prorationResult = await calculateProration(
             currentSubscription.stripeSubscriptionId,
@@ -338,11 +338,11 @@ export class SubscriptionController {
       
       // Calculate pricing to determine upgrade vs downgrade
       const newMonthlyPrice = billingCycle === 'annual' ? 
-        (plan.getTotalYearlyPrice(contributorCount!) / 100 / 12) :
+        (plan.getTotalMonthlyPrice(contributorCount!) / 100 / 12) :
         (plan.getTotalMonthlyPrice(contributorCount!) / 100);
       
       const currentMonthlyPrice = currentBillingCycle === 'annual' ? 
-        (currentPlan.getTotalYearlyPrice(currentContributorCount) / 100 / 12) :
+        (currentPlan.getTotalMonthlyPrice(currentContributorCount) / 100 / 12) :
         (currentPlan.getTotalMonthlyPrice(currentContributorCount) / 100);
 
       const priceDifference = newMonthlyPrice - currentMonthlyPrice;
@@ -376,7 +376,7 @@ export class SubscriptionController {
       }
 
       // Get the new Stripe price ID
-      const newPriceId = billingCycle === 'annual' ? plan.stripeYearlyPriceId : plan.stripeMonthlyPriceId;
+      const newPriceId = plan.stripeMonthlyPriceId;
       
       // Metadata for Stripe
       const stripeMetadata = {
@@ -454,7 +454,7 @@ export class SubscriptionController {
 
         // Update our database subscription record
         const totalAmount = billingCycle === 'annual' ? 
-          plan.getTotalYearlyPrice(contributorCount!) : 
+          plan.getTotalMonthlyPrice(contributorCount!) : 
           plan.getTotalMonthlyPrice(contributorCount!);
         const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount!);
 
@@ -965,7 +965,7 @@ export class SubscriptionController {
       // Calculate new subscription details
       const billingCycle = req.body.billingCycle || 'monthly';
       const amount = billingCycle === 'annual' ? 
-        plan.getTotalYearlyPrice(contributorCount) : 
+        plan.getTotalMonthlyPrice(contributorCount) : 
         plan.getTotalMonthlyPrice(contributorCount);
       const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
       

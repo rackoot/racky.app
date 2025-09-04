@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom"
 import { getCurrentUser } from "@/lib/auth"
 import { getAuthHeaders } from "@/lib/utils"
 import { EmbeddedCheckoutWrapper } from "./embedded-checkout"
-import { Plan, ContributorType, BillingCycle } from "@/types/plan"
+import { Plan, ContributorType } from "@/types/plan"
 
 const contributorPlans: Plan[] = [
   {
@@ -27,9 +27,7 @@ const contributorPlans: Plan[] = [
     maxContributorsPerWorkspace: 5,
     isContactSalesOnly: false,
     monthlyPrice: 2900, // $29.00 per contributor
-    yearlyPrice: 29000, // $290.00 per contributor
     stripeMonthlyPriceId: '',
-    stripeYearlyPriceId: '',
     limits: {
       maxStores: 5,
       maxProducts: 100,
@@ -57,9 +55,7 @@ const contributorPlans: Plan[] = [
     maxContributorsPerWorkspace: 5,
     isContactSalesOnly: false,
     monthlyPrice: 7900, // $79.00 per contributor
-    yearlyPrice: 79000, // $790.00 per contributor
     stripeMonthlyPriceId: '',
-    stripeYearlyPriceId: '',
     limits: {
       maxStores: 25,
       maxProducts: 1000,
@@ -88,9 +84,7 @@ const contributorPlans: Plan[] = [
     maxContributorsPerWorkspace: 50,
     isContactSalesOnly: true,
     monthlyPrice: 19900, // Contact for pricing
-    yearlyPrice: 199000,
     stripeMonthlyPriceId: '',
-    stripeYearlyPriceId: '',
     limits: {
       maxStores: -1, // Unlimited
       maxProducts: -1,
@@ -129,7 +123,6 @@ export function ContributorSelector({
 }: ContributorSelectorProps) {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [contributorCount, setContributorCount] = useState([1])
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly')
   const [loading, setLoading] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   const navigate = useNavigate()
@@ -139,17 +132,9 @@ export function ContributorSelector({
     return (cents / 100).toFixed(0)
   }
 
-  const formatYearlyPrice = (cents: number) => {
-    return (cents / 100 / 12).toFixed(0)
-  }
-
   const calculateTotalPrice = (plan: Plan, count: number) => {
-    const pricePerContributor = billingCycle === 'yearly' ? 
-      formatYearlyPrice(plan.yearlyPrice) : 
-      formatPrice(plan.monthlyPrice)
-    const totalPrice = billingCycle === 'yearly' ?
-      (plan.yearlyPrice * count / 100 / 12) :
-      (plan.monthlyPrice * count / 100)
+    const pricePerContributor = formatPrice(plan.monthlyPrice)
+    const totalPrice = (plan.monthlyPrice * count / 100)
     
     return {
       perContributor: pricePerContributor,
@@ -213,7 +198,6 @@ export function ContributorSelector({
       <EmbeddedCheckoutWrapper
         contributorType={selectedPlan.contributorType}
         contributorCount={contributorCount[0]}
-        billingCycle={billingCycle}
         onBack={handleCheckoutBack}
         onSuccess={handleCheckoutSuccess}
         isReactivation={isReactivation}
@@ -235,26 +219,6 @@ export function ContributorSelector({
         </div>
       )}
       
-      {/* Billing Toggle */}
-      <div className="flex items-center justify-center gap-4 mb-12">
-        <Button
-          variant={billingCycle === 'monthly' ? 'default' : 'ghost'}
-          onClick={() => setBillingCycle('monthly')}
-          className="px-6"
-        >
-          Monthly
-        </Button>
-        <Button
-          variant={billingCycle === 'yearly' ? 'default' : 'ghost'}
-          onClick={() => setBillingCycle('yearly')}
-          className="px-6"
-        >
-          Yearly
-          <Badge variant="secondary" className="ml-2 text-xs">
-            Save 17%
-          </Badge>
-        </Button>
-      </div>
 
       {/* Contributor Type Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
@@ -282,16 +246,11 @@ export function ContributorSelector({
               <div className="mt-6">
                 <div className="text-4xl font-bold">
                   {plan.isContactSalesOnly ? 'Custom' : (
-                    `$${billingCycle === 'monthly' 
-                      ? formatPrice(plan.monthlyPrice)
-                      : formatYearlyPrice(plan.yearlyPrice)
-                    }`
+                    `$${formatPrice(plan.monthlyPrice)}`
                   )}
                 </div>
                 <div className="text-muted-foreground">
-                  {plan.isContactSalesOnly ? 'Contact for pricing' : (
-                    `per contributor${billingCycle === 'yearly' ? ', billed annually' : ''}`
-                  )}
+                  {plan.isContactSalesOnly ? 'Contact for pricing' : 'per contributor/month'}
                 </div>
                 <div className="text-sm text-green-600 font-medium mt-1">
                   {plan.actionsPerContributor === -1 ? 'Unlimited actions' : 
@@ -388,12 +347,6 @@ export function ContributorSelector({
                   ${calculateTotalPrice(selectedPlan, contributorCount[0]).total}
                 </span>
               </div>
-              {billingCycle === 'yearly' && (
-                <div className="text-xs text-green-600 text-center">
-                  <Info className="w-3 h-3 inline mr-1" />
-                  Billed annually - Save 17% compared to monthly billing
-                </div>
-              )}
             </div>
 
             {/* Hire Button */}

@@ -54,7 +54,7 @@ export default function WorkspaceSubscriptionPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
+  const [billingCycle] = useState<'monthly'>('monthly')
   const [selectedPlan, setSelectedPlan] = useState<string>('')
   const [contributorCount, setContributorCount] = useState([1])
   const [subscriptionPreview, setSubscriptionPreview] = useState<SubscriptionPreview | null>(null)
@@ -110,7 +110,7 @@ export default function WorkspaceSubscriptionPage() {
   useEffect(() => {
     if (subscription) {
       setSelectedPlan(subscription.currentPlan?.contributorType || 'JUNIOR')
-      setBillingCycle(subscription.billingCycle)
+      // billingCycle is now always monthly
       setContributorCount([subscription.contributorCount])
     }
   }, [subscription])
@@ -135,7 +135,7 @@ export default function WorkspaceSubscriptionPage() {
       setIsPreviewLoading(true)
       const preview = await previewWorkspaceSubscriptionChange(currentWorkspace._id, {
         contributorType: selectedPlan as 'JUNIOR' | 'SENIOR',
-        billingCycle,
+        billingCycle: 'monthly',
         contributorCount: contributorCount[0]
       })
       
@@ -156,7 +156,7 @@ export default function WorkspaceSubscriptionPage() {
       setIsUpdating(true)
       const result = await updateWorkspaceSubscription(currentWorkspace._id, {
         contributorType: selectedPlan as 'JUNIOR' | 'SENIOR',
-        billingCycle,
+        billingCycle: 'monthly',
         contributorCount: contributorCount[0]
       })
       
@@ -361,7 +361,6 @@ export default function WorkspaceSubscriptionPage() {
   
   // Helper functions to format prices correctly (convert from cents to dollars)
   const formatPrice = (cents: number) => (cents / 100).toFixed(0)
-  const formatYearlyPrice = (cents: number) => (cents / 100 / 12).toFixed(0)
   
   // Check if there are any changes from current subscription
   const hasChanges = subscription && (
@@ -665,9 +664,9 @@ export default function WorkspaceSubscriptionPage() {
                               <span className="text-muted-foreground">Contact Sales</span>
                             ) : (
                               <>
-                                ${billingCycle === 'monthly' ? formatPrice(plan.monthlyPrice) : formatYearlyPrice(plan.yearlyPrice)}
+                                ${formatPrice(plan.monthlyPrice)}
                                 <span className="text-xs text-muted-foreground">
-                                  /contributor/{billingCycle === 'monthly' ? 'month' : 'year'}
+                                  /contributor/month
                                 </span>
                               </>
                             )}
@@ -700,29 +699,6 @@ export default function WorkspaceSubscriptionPage() {
             </div>
           </div>
 
-          {/* Billing Cycle */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-medium">Billing Cycle</h4>
-            <div className="flex gap-2">
-              <Button 
-                variant={billingCycle === 'monthly' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setBillingCycle('monthly')}
-              >
-                Monthly
-              </Button>
-              <Button 
-                variant={billingCycle === 'annual' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setBillingCycle('annual')}
-              >
-                Annual
-                <Badge variant="secondary" className="ml-2 text-xs">
-                  Save 17%
-                </Badge>
-              </Button>
-            </div>
-          </div>
 
           {/* Contributor Count */}
           <div className="space-y-4">
@@ -764,10 +740,7 @@ export default function WorkspaceSubscriptionPage() {
               <div className="border-t pt-3 flex justify-between items-center">
                 <span className="text-lg font-semibold">Estimated Monthly Cost:</span>
                 <span className="text-2xl font-bold text-primary">
-                  ${billingCycle === 'annual' ? 
-                    ((availablePlans.find(p => p.contributorType === selectedPlan)?.yearlyPrice || 0) * contributorCount[0] / 100 / 12).toFixed(0) :
-                    ((availablePlans.find(p => p.contributorType === selectedPlan)?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)
-                  }
+                  ${((availablePlans.find(p => p.contributorType === selectedPlan)?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)}
                 </span>
               </div>
             </div>

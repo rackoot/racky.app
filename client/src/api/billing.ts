@@ -4,7 +4,6 @@ import { ENDPOINTS } from './config'
 export interface CheckoutSessionRequest {
   contributorType: string
   contributorCount?: number
-  billingCycle?: 'monthly' | 'yearly'
   successUrl?: string
   cancelUrl?: string
 }
@@ -18,11 +17,9 @@ export interface CheckoutSessionResponse {
   // Additional fields from mock mode
   contributorType?: string
   planDisplayName?: string
-  contributorType?: string
   contributorCount?: number
   totalAmount?: number
   totalActions?: number | string
-  billingCycle?: string
   pricePerContributor?: number
 }
 

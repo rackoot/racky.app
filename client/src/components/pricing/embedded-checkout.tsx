@@ -10,7 +10,6 @@ import { billingApi } from "@/api"
 interface EmbeddedCheckoutProps {
   contributorType: string
   contributorCount: number
-  billingCycle: 'monthly' | 'yearly'
   onBack: () => void
   onSuccess?: () => void
   isReactivation?: boolean
@@ -22,7 +21,6 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 export function EmbeddedCheckoutWrapper({ 
   contributorType, 
   contributorCount, 
-  billingCycle, 
   onBack, 
   onSuccess,
   isReactivation = false
@@ -34,7 +32,7 @@ export function EmbeddedCheckoutWrapper({
 
   useEffect(() => {
     createCheckoutSession()
-  }, [contributorType, contributorCount, billingCycle])
+  }, [contributorType, contributorCount])
 
   const createCheckoutSession = async () => {
     setLoading(true)
@@ -44,7 +42,6 @@ export function EmbeddedCheckoutWrapper({
       const data = await billingApi.createCheckoutSession({
         contributorType,
         contributorCount: contributorCount,
-        billingCycle: billingCycle,
         successUrl: window.location.origin + '/purchase-success?session_id={CHECKOUT_SESSION_ID}',
         cancelUrl: window.location.origin + '/pricing'
       })
@@ -117,9 +114,9 @@ export function EmbeddedCheckoutWrapper({
         <CardContent className="space-y-6">
           {/* Plan Summary */}
           <div className="p-4 bg-muted/50 rounded-lg">
-            <h3 className="font-semibold">{planName} Plan</h3>
+            <h3 className="font-semibold">{contributorType} Plan</h3>
             <p className="text-sm text-muted-foreground">
-              {contributorCount} contributor{contributorCount > 1 ? 's' : ''} • {billingCycle === 'yearly' ? 'Billed annually' : 'Billed monthly'}
+              {contributorCount} contributor{contributorCount > 1 ? 's' : ''} • Billed monthly
             </p>
           </div>
 

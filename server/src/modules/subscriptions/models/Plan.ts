@@ -27,11 +27,9 @@ export interface IPlan extends Document {
   isContactSalesOnly: boolean; // True for Executive plan
   // Pricing (per contributor)
   monthlyPrice: number; // Price in cents PER CONTRIBUTOR
-  yearlyPrice: number; // Price in cents PER CONTRIBUTOR (usually discounted)
   currency: string;
   // Stripe integration
   stripeMonthlyPriceId: string;
-  stripeYearlyPriceId: string;
   // Plan limits (legacy, will be computed based on contributor count)
   limits: IPlanLimits;
   // Features
@@ -48,12 +46,9 @@ export interface IPlan extends Document {
   
   // Instance methods
   getMonthlyPriceFormatted(): string;
-  getYearlyPriceFormatted(): string;
-  getYearlySavings(): number;
   hasFeature(featureName: string): boolean;
   // Contributor-based methods
   getTotalMonthlyPrice(contributorCount: number): number;
-  getTotalYearlyPrice(contributorCount: number): number;
   getTotalActionsPerMonth(contributorCount: number): number;
   getContributorIcon(): string;
 }
@@ -99,20 +94,12 @@ const planSchema = new Schema<IPlan>({
     type: Number,
     required: true // Price in cents
   },
-  yearlyPrice: {
-    type: Number,
-    required: true // Price in cents (usually discounted)
-  },
   currency: {
     type: String,
     default: 'usd'
   },
   // Stripe integration
   stripeMonthlyPriceId: {
-    type: String,
-    required: true
-  },
-  stripeYearlyPriceId: {
     type: String,
     required: true
   },
@@ -180,16 +167,6 @@ planSchema.methods.getMonthlyPriceFormatted = function(this: IPlan): string {
   return (this.monthlyPrice / 100).toFixed(2);
 };
 
-planSchema.methods.getYearlyPriceFormatted = function(this: IPlan): string {
-  return (this.yearlyPrice / 100).toFixed(2);
-};
-
-planSchema.methods.getYearlySavings = function(this: IPlan): number {
-  const monthlyTotal = this.monthlyPrice * 12;
-  const savings = monthlyTotal - this.yearlyPrice;
-  return Math.round((savings / monthlyTotal) * 100);
-};
-
 planSchema.methods.hasFeature = function(this: IPlan, featureName: string): boolean {
   return this.features.some(feature => 
     feature.name === featureName && feature.enabled
@@ -199,10 +176,6 @@ planSchema.methods.hasFeature = function(this: IPlan, featureName: string): bool
 // Contributor-based methods
 planSchema.methods.getTotalMonthlyPrice = function(this: IPlan, contributorCount: number): number {
   return this.monthlyPrice * contributorCount;
-};
-
-planSchema.methods.getTotalYearlyPrice = function(this: IPlan, contributorCount: number): number {
-  return this.yearlyPrice * contributorCount;
 };
 
 planSchema.methods.getTotalActionsPerMonth = function(this: IPlan, contributorCount: number): number {

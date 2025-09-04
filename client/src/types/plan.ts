@@ -8,9 +8,7 @@ export interface Plan {
   maxContributorsPerWorkspace: number
   isContactSalesOnly: boolean
   monthlyPrice: number // in cents
-  yearlyPrice: number // in cents
   stripeMonthlyPriceId: string
-  stripeYearlyPriceId: string
   limits: {
     maxStores: number
     maxProducts: number
@@ -45,5 +43,3 @@ export interface UserPlan {
 // Type for contributor types
 export type ContributorType = 'JUNIOR' | 'SENIOR' | 'EXECUTIVE'
 
-// Type for billing cycles
-export type BillingCycle = 'monthly' | 'yearly'

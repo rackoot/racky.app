@@ -289,7 +289,7 @@ subscriptionSchema.methods.updateContributorCount = async function(this: ISubscr
   this.contributorCount = newCount;
   this.totalMonthlyActions = plan.getTotalActionsPerMonth(newCount);
   this.amount = this.interval === 'year' ? 
-    plan.getTotalYearlyPrice(newCount) : 
+    plan.getTotalMonthlyPrice(newCount) : 
     plan.getTotalMonthlyPrice(newCount);
   
   return await this.save();
@@ -352,7 +352,7 @@ subscriptionSchema.statics.createSubscription = async function(this: ISubscripti
   }
   
   const amount = interval === 'year' ? 
-    plan.getTotalYearlyPrice(contributorCount) : 
+    plan.getTotalMonthlyPrice(contributorCount) : 
     plan.getTotalMonthlyPrice(contributorCount);
   const totalMonthlyActions = plan.getTotalActionsPerMonth(contributorCount);
   const durationMonths = interval === 'year' ? 12 : 1;

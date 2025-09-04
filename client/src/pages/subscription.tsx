@@ -55,10 +55,8 @@ interface WorkspaceSubscriptionData {
     maxContributorsPerWorkspace: number;
     isContactSalesOnly: boolean;
     monthlyPrice: number;
-    yearlyPrice: number;
     currency: string;
     stripeMonthlyPriceId: string;
-    stripeYearlyPriceId: string;
     features: Array<{
       _id: string;
       name: string;

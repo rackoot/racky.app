@@ -16,7 +16,7 @@ export interface SubscriptionInfo {
   contributorCount: number;
   totalMonthlyActions: number;
   currentMonthlyPrice: number;
-  billingCycle: 'monthly' | 'annual';
+  billingCycle: 'monthly';
   limits: {
     maxStores: number;
     maxProducts: number;
@@ -39,13 +39,13 @@ export interface SubscriptionInfo {
 
 export interface SubscriptionUpdateRequest {
   contributorType: 'JUNIOR' | 'SENIOR';
-  billingCycle?: 'monthly' | 'annual';
+  billingCycle?: 'monthly';
   contributorCount?: number;
 }
 
 export interface SubscriptionPreviewRequest {
   contributorType: 'JUNIOR' | 'SENIOR';
-  billingCycle: 'monthly' | 'annual';
+  billingCycle: 'monthly';
   contributorCount: number;
 }
 

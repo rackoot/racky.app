@@ -218,9 +218,7 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
       }
 
       const count = Math.max(1, Math.min(contributorCount, plan.maxContributorsPerWorkspace));
-      const totalAmount = billingCycle === 'yearly' ? 
-        plan.getTotalYearlyPrice(count) : 
-        plan.getTotalMonthlyPrice(count);
+      const totalAmount = plan.getTotalMonthlyPrice(count);
       const totalActions = plan.getTotalActionsPerMonth(count);
 
       return res.json({
@@ -235,7 +233,7 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
           totalAmount,
           totalActions: totalActions === -1 ? 'Unlimited' : totalActions,
           billingCycle,
-          pricePerContributor: billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice,
+          pricePerContributor: plan.monthlyPrice,
           isProduction: false
         }
       });
