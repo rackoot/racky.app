@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { MainLayout } from '@/components/layout/main-layout'
 import { AdminLayout } from '@/components/layout/admin-layout'
 import { WorkspaceProvider } from '@/components/workspace/workspace-context'
@@ -25,14 +25,24 @@ import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import Workspaces from '@/pages/workspaces'
+import AIOptimizationPage from '@/pages/ai-optimization'
+import AIOpportunitiesPage from '@/pages/ai-optimization/opportunities'
+import AIStartScanPage from '@/pages/ai-optimization/start-scan'
+import AIScanHistoryPage from '@/pages/ai-optimization/scan-history'
+import { AIScanResultsPage } from '@/pages/ai-scan-results'
 
 function App() {
   return (
     <Router>
       <WorkspaceProvider>
         <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        {/* Auth routes */}
+        <Route path="/auth/login" element={<Login />} />
+        <Route path="/auth/register" element={<Register />} />
+        
+        {/* Legacy redirects */}
+        <Route path="/login" element={<Navigate to="/auth/login" replace />} />
+        <Route path="/register" element={<Navigate to="/auth/register" replace />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/demo-checkout" element={<DemoCheckout />} />
         
@@ -112,6 +122,58 @@ function App() {
               <RequireSubscription>
                 <MainLayout>
                   <ProductDetail />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization"
+          element={<Navigate to="/ai-optimization/opportunities" replace />}
+        />
+        <Route
+          path="/ai-optimization/opportunities"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIOpportunitiesPage />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization/start-scan"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIStartScanPage />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization/scan-history"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIScanHistoryPage />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-optimization/results/:jobId"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <AIScanResultsPage />
                 </MainLayout>
               </RequireSubscription>
             </ProtectedRoute>

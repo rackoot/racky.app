@@ -276,6 +276,4 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
   }
 });
 
-// Note: Stripe webhook handler moved to main app routing to avoid JWT auth middleware
-
 export default router;

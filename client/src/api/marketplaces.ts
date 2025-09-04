@@ -1,5 +1,7 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './client'
+import apiClient from './client'
 import { ENDPOINTS } from './config'
+import axios from 'axios'
 import type { 
   Marketplace, 
   TestConnectionResponse, 
@@ -26,7 +28,31 @@ export const marketplacesApi = {
    * Test marketplace connection
    */
   async testConnection(type: string, credentials: MarketplaceCredentials): Promise<TestConnectionResponse> {
-    return apiPost<TestConnectionResponse>(ENDPOINTS.MARKETPLACES.TEST, { type, credentials })
+    // Special handling for test connection - we need the full response with success/message
+    try {
+      const response = await apiClient.post(ENDPOINTS.MARKETPLACES.TEST, { type, credentials })
+      
+      // Return the full response data instead of just the nested data
+      return {
+        success: response.data.success,
+        message: response.data.message,
+        data: response.data.data
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        return {
+          success: false,
+          message: error.response.data?.message || `HTTP ${error.response.status}: ${error.response.statusText}`,
+          data: null
+        }
+      }
+      
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Connection test failed',
+        data: null
+      }
+    }
   },
 
   /**

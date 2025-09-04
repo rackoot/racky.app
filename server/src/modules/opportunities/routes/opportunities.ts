@@ -7,10 +7,79 @@ import OpportunityCategory from '../models/OpportunityCategory';
 import StoreConnection from '@/stores/models/StoreConnection';
 import * as aiService from '../services/aiService';
 import { protect } from '@/common/middleware/auth';
+import Joi from 'joi';
 
 const router = express.Router();
 
 // Interface definitions are handled inline for better compatibility
+
+// GET /api/opportunities - List opportunities with filtering and pagination
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!._id.toString();
+    const workspaceId = req.workspace!._id.toString();
+    
+    // Parse query parameters
+    const {
+      search,
+      status,
+      priority,
+      category,
+      marketplace,
+      limit = 25,
+      offset = 0,
+    } = req.query;
+
+    // Build query
+    const query: any = {
+      userId,
+      workspaceId,
+    };
+
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { actionRequired: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    if (status) query.status = status;
+    if (priority) query.priority = priority;
+    if (category) query.category = category;
+    if (marketplace) query.marketplace = marketplace;
+
+    // Count total for pagination
+    const total = await Opportunity.countDocuments(query);
+
+    // Get opportunities with pagination
+    const opportunities = await Opportunity.find(query)
+      .populate('productId', 'title price')
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .skip(Number(offset))
+      .lean();
+
+    res.json({
+      success: true,
+      data: {
+        opportunities,
+        total,
+        limit: Number(limit),
+        offset: Number(offset),
+        hasMore: Number(offset) + Number(limit) < total,
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error listing opportunities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to load opportunities',
+      error: error.message
+    });
+  }
+});
 
 // GET /api/opportunities/categories - Get all available categories
 router.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
@@ -339,6 +408,91 @@ router.get('/products/:id/summary', async (req: AuthenticatedRequest<{ id: strin
     res.status(500).json({
       success: false,
       message: 'Failed to fetch opportunity summary'
+    });
+  }
+});
+
+// Validation schema for bulk actions
+const bulkActionSchema = Joi.object({
+  opportunityIds: Joi.array().items(Joi.string().required()).min(1).required(),
+  action: Joi.string().valid('complete', 'dismiss', 'delete').required(),
+});
+
+// POST /api/opportunities/bulk-action - Perform bulk actions on opportunities
+router.post('/bulk-action', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { error } = bulkActionSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message
+      });
+    }
+
+    const { opportunityIds, action } = req.body;
+    const userId = req.user!._id.toString();
+    const workspaceId = req.workspace!._id.toString();
+
+    let updateData: any = {
+      updatedAt: new Date(),
+    };
+
+    switch (action) {
+      case 'complete':
+        updateData.status = 'completed';
+        break;
+      case 'dismiss':
+        updateData.status = 'dismissed';
+        break;
+      case 'delete':
+        // For delete, we'll actually remove the opportunities
+        const deleteResult = await Opportunity.deleteMany({
+          _id: { $in: opportunityIds },
+          userId,
+          workspaceId,
+        });
+
+        return res.json({
+          success: true,
+          message: `Deleted ${deleteResult.deletedCount} opportunities`,
+          data: {
+            affectedCount: deleteResult.deletedCount,
+            action: 'delete',
+          }
+        });
+
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid action'
+        });
+    }
+
+    // Update opportunities for complete and dismiss actions
+    const updateResult = await Opportunity.updateMany(
+      {
+        _id: { $in: opportunityIds },
+        userId,
+        workspaceId,
+      },
+      updateData
+    );
+
+    res.json({
+      success: true,
+      message: `${action === 'complete' ? 'Completed' : 'Dismissed'} ${updateResult.modifiedCount} opportunities`,
+      data: {
+        affectedCount: updateResult.modifiedCount,
+        action,
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Bulk action error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to perform bulk action',
+      error: error.message
     });
   }
 });

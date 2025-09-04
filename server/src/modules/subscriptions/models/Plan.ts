@@ -76,8 +76,8 @@ const planSchema = new Schema<IPlan>({
   // Contributor-based fields
   contributorType: {
     type: String,
-    required: true,
-    enum: ['JUNIOR', 'SENIOR', 'EXECUTIVE']
+    required: false,
+    enum: ['JUNIOR', 'SENIOR', 'EXECUTIVE', 'junior', 'senior', 'executive']
   },
   actionsPerContributor: {
     type: Number,

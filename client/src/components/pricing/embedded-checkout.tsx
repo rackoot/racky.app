@@ -153,14 +153,23 @@ export function EmbeddedCheckoutWrapper({
           <div className="space-y-3">
             <Button 
               className="w-full" 
+
               onClick={() => {
                 // Simulate successful payment and redirect to purchase-success
                 setTimeout(() => {
                   window.location.href = '/purchase-success?demo=true'
                 }, 1000)
               }}
+              disabled={loading}
             >
-              Complete Demo Payment
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Complete Demo Payment'
+              )}
             </Button>
             
             <Button 
