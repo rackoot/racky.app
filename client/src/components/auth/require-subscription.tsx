@@ -15,13 +15,32 @@ export function RequireSubscription({ children, fallback = "/pricing-internal" }
   const user = getCurrentUser()
   const { currentWorkspace, isLoading: workspaceLoading, workspaces } = useWorkspace()
 
+  const checkSubscriptionAPI = useCallback(async () => {
+    try {
+      console.log('Fallback API subscription check')
+      const response = await fetch('/api/plans/user/current', {
+        headers: getAuthHeaders()
+      })
 
-  const checkSubscription = useCallback(async () => {
-    if (!user) {
-      setLoading(false)
-      
-      return
+      if (response.ok) {
+        const data = await response.json()
+        console.log('API subscription response:', data)
+        if (data.success && data.data.userSubscription) {
+          setHasSubscription(data.data.userSubscription.hasActiveSubscription || false)
+        } else {
+          setHasSubscription(false)
+        }
+      } else {
+        console.log('API subscription response failed:', response.status)
+        setHasSubscription(false)
+      }
+    } catch (error) {
+      console.error('Error checking subscription via API:', error)
+      setHasSubscription(false)
+    } finally {
+      setChecking(false)
     }
+  }, [])
 
   useEffect(() => {
     console.log('RequireSubscription: State change', { 
@@ -29,7 +48,7 @@ export function RequireSubscription({ children, fallback = "/pricing-internal" }
       currentWorkspace: currentWorkspace?._id,
       workspacesCount: workspaces.length,
       user: user?.email
-    }
+    })
                 
     // Don't do anything until workspaces are loaded and user is available
     if (workspaceLoading || !user) {
@@ -77,38 +96,7 @@ export function RequireSubscription({ children, fallback = "/pricing-internal" }
       return
     }
 
-  }, [workspaceLoading, currentWorkspace, workspaces, user])
-
-  const checkSubscriptionAPI = async () => {
-    try {
-      console.log('Fallback API subscription check')
-      const response = await fetch('/api/plans/user/current', {
-        headers: getAuthHeaders()
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('API subscription response:', data)
-        if (data.success && data.data.userSubscription) {
-          setHasSubscription(data.data.userSubscription.hasActiveSubscription || false)
-        } else {
-          setHasSubscription(false)
-        }
-      } else {
-        console.log('API subscription response failed:', response.status)
-        setHasSubscription(false)
-      }
-    } catch (error) {
-      console.error('Error checking subscription via API:', error)
-      setHasSubscription(false)
-    } finally {
-      setChecking(false)
-    }
-  }, [currentWorkspace, user])
-
-  useEffect(() => {
-    checkSubscription()
-  }, [checkSubscription, currentWorkspace?.subscription])
+  }, [workspaceLoading, currentWorkspace, workspaces, user, checkSubscriptionAPI])
 
   // Redirect unauthenticated users to login
   if (!user) {
