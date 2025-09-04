@@ -9,7 +9,7 @@ interface Workspace {
   memberCount?: number;
   subscription?: {
     status: string;
-    plan: string;
+    plan: string; // Contains contributor type (JUNIOR, SENIOR, EXECUTIVE)
     endsAt?: Date;
   };
   settings: {

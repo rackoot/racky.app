@@ -51,6 +51,24 @@ export function WorkspaceSelector({
     }
   };
 
+  const getContributorTypeBadgeColor = (contributorType: string) => {
+    switch (contributorType?.toUpperCase()) {
+      case 'JUNIOR':
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'SENIOR':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'EXECUTIVE':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      default:
+        return 'bg-gray-100 text-gray-600 border-gray-200';
+    }
+  };
+
+  const formatContributorType = (contributorType: string | undefined) => {
+    if (!contributorType || contributorType === 'Unknown') return 'Free';
+    return contributorType.charAt(0).toUpperCase() + contributorType.slice(1).toLowerCase();
+  };
+
   if (isLoading) {
     return (
       <div className={cn("flex items-center gap-2 p-2 text-muted-foreground", className)}>
@@ -128,8 +146,11 @@ export function WorkspaceSelector({
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {workspace.subscription && (
-                      <Badge variant="outline" className="text-xs">
-                        {workspace.subscription.plan}
+                      <Badge 
+                        variant="outline" 
+                        className={cn("text-xs", getContributorTypeBadgeColor(workspace.subscription.plan))}
+                      >
+                        {formatContributorType(workspace.subscription.plan)}
                       </Badge>
                     )}
                     {workspace.memberCount && (

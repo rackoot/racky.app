@@ -39,7 +39,7 @@ export class WorkspaceService {
           memberCount,
           subscription: subscription ? {
             status: subscription.status,
-            plan: subscription.planId?.name || 'Unknown',
+            plan: subscription.planId?.contributorType || 'Unknown',
             endsAt: subscription.endsAt
           } : undefined,
           createdAt: workspace.createdAt,
@@ -82,7 +82,7 @@ export class WorkspaceService {
       memberCount,
       subscription: subscription ? {
         status: subscription.status,
-        plan: subscription.planId?.name || 'Unknown',
+        plan: subscription.planId?.contributorType || 'Unknown',
         endsAt: subscription.endsAt
       } : undefined,
       createdAt: workspace.createdAt,
