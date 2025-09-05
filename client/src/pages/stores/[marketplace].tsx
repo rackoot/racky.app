@@ -11,8 +11,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { AlertCircle, ArrowLeft, Loader2, AlertTriangle, Trash2 } from "lucide-react"
+import { AlertCircle, ArrowLeft, Loader2, AlertTriangle, Trash2, Info } from "lucide-react"
 import type { Marketplace } from "@/types/marketplace"
+
+// Only Shopify and VTEX are currently available
+const enabledMarketplaces = ["shopify", "vtex"]
 
 export function MarketplacePage() {
   const { currentWorkspace } = useWorkspace()
@@ -30,6 +33,14 @@ export function MarketplacePage() {
 
   const loadMarketplace = async () => {
     if (!marketplaceId) return
+    
+    // Check if marketplace is enabled
+    if (!enabledMarketplaces.includes(marketplaceId)) {
+      const marketplaceName = marketplaceId.charAt(0).toUpperCase() + marketplaceId.slice(1).replace('_', ' ')
+      setError(`The ${marketplaceName} integration will be available in the future. Currently, only Shopify and VTEX are supported.`)
+      setLoading(false)
+      return
+    }
     
     setLoading(true)
     setError("")
@@ -162,6 +173,7 @@ export function MarketplacePage() {
   }
 
   if (error || !marketplace) {
+    const isComingSoon = error?.includes("will be available in the future")
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
@@ -171,8 +183,8 @@ export function MarketplacePage() {
           </Button>
         </div>
         
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
+        <Alert variant={isComingSoon ? "default" : "destructive"}>
+          {isComingSoon ? <Info className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
           <AlertDescription>
             {error || `Marketplace "${marketplaceId}" not found`}
           </AlertDescription>
