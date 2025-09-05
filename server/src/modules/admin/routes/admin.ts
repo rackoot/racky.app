@@ -414,6 +414,30 @@ router.delete('/users/:id', async (req: AuthenticatedRequest, res: Response) => 
   }
 });
 
+// GET /api/admin/subscriptions/debug - Debug subscription data
+router.get('/subscriptions/debug', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rawSubscriptions = await Subscription.find().limit(5);
+    const rawUsers = await User.find().limit(5);
+    
+    res.json({
+      success: true,
+      debug: {
+        totalSubscriptions: await Subscription.countDocuments(),
+        totalUsers: await User.countDocuments(),
+        sampleSubscriptions: rawSubscriptions,
+        sampleUsers: rawUsers
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: 'Debug failed',
+      error: error.message
+    });
+  }
+});
+
 // GET /api/admin/subscriptions - List all subscriptions with filtering
 router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -428,17 +452,50 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
     
     // Build query filter
     const pipeline: any[] = [
-      // Join with users collection
+      // Join with workspaces to get owner information
+      {
+        $lookup: {
+          from: 'workspaces',
+          localField: 'workspaceId',
+          foreignField: '_id',
+          as: 'workspace'
+        }
+      },
+      {
+        $unwind: {
+          path: '$workspace',
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      // Join with users to get workspace owner details
       {
         $lookup: {
           from: 'users',
-          localField: 'userId',
+          localField: 'workspace.ownerId',
           foreignField: '_id',
           as: 'user'
         }
       },
       {
-        $unwind: '$user'
+        $unwind: {
+          path: '$user',
+          preserveNullAndEmptyArrays: false
+        }
+      },
+      // Join with plans to get plan details
+      {
+        $lookup: {
+          from: 'plans',
+          localField: 'planId',
+          foreignField: '_id',
+          as: 'plan'
+        }
+      },
+      {
+        $unwind: {
+          path: '$plan',
+          preserveNullAndEmptyArrays: true
+        }
       }
     ];
 
@@ -490,15 +547,16 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
     pipeline.push({
       $project: {
         _id: 1,
-        userId: 1,
-        contributorType: 1,
+        workspaceId: 1,
+        planId: 1,
+        contributorType: { $ifNull: ['$plan.name', 'UNKNOWN'] },
         status: 1,
-        startDate: 1,
-        endDate: 1,
-        trialEndDate: 1,
+        startDate: '$startsAt',
+        endDate: '$endsAt',
+        trialEndDate: null, // No trial end date in workspace subscriptions
         amount: 1,
         currency: 1,
-        paymentMethod: 1,
+        paymentMethod: 'stripe', // All workspace subscriptions use Stripe
         createdAt: 1,
         updatedAt: 1,
         user: {
@@ -506,8 +564,15 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
           email: '$user.email',
           firstName: '$user.firstName',
           lastName: '$user.lastName',
-          // Note: User subscription fields removed as subscriptions moved to workspace level
           isActive: '$user.isActive'
+        },
+        workspace: {
+          _id: '$workspace._id',
+          name: '$workspace.name'
+        },
+        plan: {
+          name: '$plan.name',
+          price: '$plan.price'
         }
       }
     });
@@ -519,21 +584,43 @@ router.get('/subscriptions', async (req: AuthenticatedRequest, res: Response) =>
     const stats = await Subscription.aggregate([
       {
         $lookup: {
-          from: 'users',
-          localField: 'userId',
+          from: 'plans',
+          localField: 'planId',
           foreignField: '_id',
-          as: 'user'
+          as: 'plan'
         }
       },
       {
-        $unwind: '$user'
+        $unwind: {
+          path: '$plan',
+          preserveNullAndEmptyArrays: true
+        }
       },
       {
         $group: {
           _id: null,
           totalSubscriptions: { $sum: 1 },
-          // Note: User-level subscription analytics removed as subscriptions moved to workspace level
-          totalUsers: { $sum: 1 }
+          activeSubscriptions: { 
+            $sum: { $cond: [{ $eq: ['$status', 'ACTIVE'] }, 1, 0] }
+          },
+          trialSubscriptions: { 
+            $sum: { $cond: [{ $eq: ['$status', 'TRIAL'] }, 1, 0] }
+          },
+          suspendedSubscriptions: { 
+            $sum: { $cond: [{ $eq: ['$status', 'SUSPENDED'] }, 1, 0] }
+          },
+          cancelledSubscriptions: { 
+            $sum: { $cond: [{ $eq: ['$status', 'CANCELLED'] }, 1, 0] }
+          },
+          basicPlan: { 
+            $sum: { $cond: [{ $eq: ['$plan.name', 'BASIC'] }, 1, 0] }
+          },
+          proPlan: { 
+            $sum: { $cond: [{ $eq: ['$plan.name', 'PRO'] }, 1, 0] }
+          },
+          enterprisePlan: { 
+            $sum: { $cond: [{ $eq: ['$plan.name', 'ENTERPRISE'] }, 1, 0] }
+          }
         }
       }
     ]);

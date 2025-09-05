@@ -34,9 +34,9 @@ import { getAuthHeaders } from "@/lib/utils"
 interface AdminSubscription {
   _id: string
   userId: string
-  planName: string
+  contributorType?: string
   status: string
-  startDate: string
+  startDate?: string
   endDate?: string
   trialEndDate?: string
   amount: number
@@ -49,10 +49,6 @@ interface AdminSubscription {
     email: string
     firstName: string
     lastName: string
-    subscriptionStatus: 'TRIAL' | 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'
-    subscriptionPlan: 'BASIC' | 'PRO' | 'ENTERPRISE'
-    trialEndsAt?: string
-    subscriptionEndsAt?: string
     isActive: boolean
   }
 }
@@ -118,15 +114,19 @@ export function AdminSubscriptions() {
         limit: '20',
         ...(search && { search }),
         ...(statusFilter !== 'all' && { status: statusFilter }),
-        ...(planFilter !== 'all' && { plan: planFilter })
+        ...(planFilter !== 'all' && { contributorType: planFilter })
       })
 
+      console.log('Loading subscriptions with params:', params.toString())
       const response = await fetch(`http://localhost:5000/api/admin/subscriptions?${params}`, {
         headers: getAuthHeaders()
       })
 
+      console.log('Subscriptions response status:', response.status)
+
       if (response.ok) {
         const data: SubscriptionsResponse = await response.json()
+        console.log('Subscriptions data:', data)
         if (data.success) {
           setSubscriptions(data.data.subscriptions)
           setStats(data.data.stats)
@@ -139,6 +139,8 @@ export function AdminSubscriptions() {
           throw new Error('Failed to load subscriptions')
         }
       } else {
+        const errorText = await response.text()
+        console.error('Subscriptions error response:', errorText)
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (err) {
@@ -149,7 +151,7 @@ export function AdminSubscriptions() {
   }
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch (status?.toUpperCase()) {
       case 'ACTIVE':
         return <Badge variant="default">Active</Badge>
       case 'TRIAL':
@@ -159,20 +161,29 @@ export function AdminSubscriptions() {
       case 'CANCELLED':
         return <Badge variant="outline">Cancelled</Badge>
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return <Badge variant="outline">{status || 'Unknown'}</Badge>
     }
   }
 
-  const getPlanBadge = (plan: string) => {
-    const colors = {
-      BASIC: 'bg-blue-100 text-blue-800',
-      PRO: 'bg-purple-100 text-purple-800',
-      ENTERPRISE: 'bg-gold-100 text-gold-800'
-    }
+  const getPlanBadge = (contributorType: string | undefined) => {
+    if (!contributorType) return null;
+    
+    const planMap: Record<string, { label: string; className: string }> = {
+      // Old format
+      JUNIOR: { label: 'Junior', className: 'bg-blue-100 text-blue-800' },
+      SENIOR: { label: 'Senior', className: 'bg-purple-100 text-purple-800' },
+      EXECUTIVE: { label: 'Executive', className: 'bg-gold-100 text-gold-800' },
+      // New format
+      BASIC: { label: 'Basic', className: 'bg-blue-100 text-blue-800' },
+      PRO: { label: 'Pro', className: 'bg-purple-100 text-purple-800' },
+      ENTERPRISE: { label: 'Enterprise', className: 'bg-gold-100 text-gold-800' }
+    };
+    
+    const plan = planMap[contributorType] || { label: contributorType, className: '' };
     
     return (
-      <Badge variant="outline" className={colors[plan as keyof typeof colors] || ''}>
-        {plan}
+      <Badge variant="outline" className={plan.className}>
+        {plan.label}
       </Badge>
     )
   }
@@ -334,20 +345,20 @@ export function AdminSubscriptions() {
                       <h3 className="font-medium truncate">
                         {subscription.user.firstName} {subscription.user.lastName}
                       </h3>
-                      {getPlanBadge(subscription.user.subscriptionPlan)}
-                      {getStatusBadge(subscription.user.subscriptionStatus)}
+                      {getPlanBadge(subscription.contributorType)}
+                      {getStatusBadge(subscription.status)}
                     </div>
                     <p className="text-sm text-muted-foreground truncate">{subscription.user.email}</p>
                     <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                       <span>Started {formatDate(subscription.createdAt)}</span>
-                      {subscription.user.trialEndsAt && (
-                        <span>Trial ends {formatDate(subscription.user.trialEndsAt)}</span>
+                      {subscription.trialEndDate && (
+                        <span>Trial ends {formatDate(subscription.trialEndDate)}</span>
                       )}
-                      {subscription.user.subscriptionEndsAt && (
-                        <span>Ends {formatDate(subscription.user.subscriptionEndsAt)}</span>
+                      {subscription.endDate && (
+                        <span>Ends {formatDate(subscription.endDate)}</span>
                       )}
-                      {subscription.amount && (
-                        <span>{formatCurrency(subscription.amount, subscription.currency)}</span>
+                      {subscription.amount > 0 && (
+                        <span>{formatCurrency(subscription.amount / 100, subscription.currency || 'USD')}</span>
                       )}
                     </div>
                   </div>
@@ -380,14 +391,14 @@ export function AdminSubscriptions() {
                     
                     <DropdownMenuSeparator />
                     
-                    {subscription.user.subscriptionStatus === 'ACTIVE' && (
+                    {subscription.status === 'ACTIVE' && (
                       <DropdownMenuItem className="text-yellow-600">
                         <AlertTriangle className="mr-2 h-4 w-4" />
                         Suspend Subscription
                       </DropdownMenuItem>
                     )}
                     
-                    {subscription.user.subscriptionStatus === 'SUSPENDED' && (
+                    {subscription.status === 'SUSPENDED' && (
                       <DropdownMenuItem className="text-green-600">
                         <TrendingUp className="mr-2 h-4 w-4" />
                         Reactivate Subscription

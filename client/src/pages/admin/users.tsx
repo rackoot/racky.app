@@ -123,12 +123,16 @@ export function AdminUsers() {
         ...(statusFilter !== 'all' && { subscriptionStatus: statusFilter })
       })
 
+      console.log('Loading users with headers:', getAuthHeaders())
       const response = await fetch(`http://localhost:5000/api/admin/users?${params}`, {
         headers: getAuthHeaders()
       })
 
+      console.log('Response status:', response.status)
+      
       if (response.ok) {
         const data: UsersResponse = await response.json()
+        console.log('Response data:', data)
         if (data.success) {
           setUsers(data.data.users)
           setPagination({
@@ -140,9 +144,12 @@ export function AdminUsers() {
           throw new Error('Failed to load users')
         }
       } else {
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (err) {
+      console.error('Error loading users:', err)
       setError(err instanceof Error ? err.message : 'Failed to load users')
     } finally {
       setLoading(false)
