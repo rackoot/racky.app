@@ -43,7 +43,8 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string
   password: string
-  name?: string
+  firstName: string
+  lastName: string
 }
 
 export interface AuthResponse {

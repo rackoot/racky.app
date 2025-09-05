@@ -31,7 +31,8 @@ export function Register() {
       const registerData = {
         email: formData.email,
         password: formData.password,
-        name: `${formData.firstName} ${formData.lastName}`.trim()
+        firstName: formData.firstName,
+        lastName: formData.lastName
       }
       
       const authData = await authApi.register(registerData)
