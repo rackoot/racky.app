@@ -223,6 +223,11 @@ const AIScanHistoryPage = () => {
                             {job.result.totalBatches || 
                              (job.result.processedCount ? '1' : '0')} batches
                           </p>
+                          {job.result.message && job.result.totalProducts === 0 && (
+                            <p className="text-xs text-orange-600 mt-1 max-w-xs">
+                              {job.result.message}
+                            </p>
+                          )}
                         </div>
                       )}
                       {job.failedReason && (

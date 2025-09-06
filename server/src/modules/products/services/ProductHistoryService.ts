@@ -156,6 +156,97 @@ export class ProductHistoryService {
       .skip(options.offset || 0);
   }
 
+  // AI scan limit checking
+  static async checkProductScanLimit(
+    productId: string | Types.ObjectId,
+    workspaceId: string | Types.ObjectId,
+    hoursWindow: number = 24,
+    maxScans: number = 2
+  ): Promise<{ canScan: boolean; scansInWindow: number; nextAvailableAt?: Date }> {
+    const windowStart = new Date(Date.now() - (hoursWindow * 60 * 60 * 1000));
+    
+    // Count successful AI optimization scans in the time window
+    const scansInWindow = await ProductHistory.countDocuments({
+      productId: new Types.ObjectId(productId),
+      workspaceId: new Types.ObjectId(workspaceId),
+      actionType: 'AI_OPTIMIZATION_GENERATED',
+      actionStatus: 'SUCCESS',
+      createdAt: { $gte: windowStart }
+    });
+    
+    const canScan = scansInWindow < maxScans;
+    
+    // If at limit, find when the oldest scan in window expires
+    let nextAvailableAt: Date | undefined;
+    if (!canScan) {
+      const oldestScan = await ProductHistory.findOne({
+        productId: new Types.ObjectId(productId),
+        workspaceId: new Types.ObjectId(workspaceId),
+        actionType: 'AI_OPTIMIZATION_GENERATED',
+        actionStatus: 'SUCCESS',
+        createdAt: { $gte: windowStart }
+      })
+      .sort({ createdAt: 1 })
+      .select('createdAt');
+      
+      if (oldestScan) {
+        nextAvailableAt = new Date(oldestScan.createdAt.getTime() + (hoursWindow * 60 * 60 * 1000));
+      }
+    }
+    
+    return {
+      canScan,
+      scansInWindow,
+      nextAvailableAt
+    };
+  }
+
+  static async getProductsWithinScanLimit(
+    productIds: (string | Types.ObjectId)[],
+    workspaceId: string | Types.ObjectId,
+    hoursWindow: number = 24,
+    maxScans: number = 2
+  ): Promise<{
+    availableProducts: string[];
+    blockedProducts: Array<{
+      productId: string;
+      scansInWindow: number;
+      nextAvailableAt?: Date;
+    }>;
+  }> {
+    const availableProducts: string[] = [];
+    const blockedProducts: Array<{
+      productId: string;
+      scansInWindow: number;
+      nextAvailableAt?: Date;
+    }> = [];
+    
+    // Check each product's scan limit
+    for (const productId of productIds) {
+      const limitCheck = await this.checkProductScanLimit(
+        productId,
+        workspaceId,
+        hoursWindow,
+        maxScans
+      );
+      
+      if (limitCheck.canScan) {
+        availableProducts.push(productId.toString());
+      } else {
+        blockedProducts.push({
+          productId: productId.toString(),
+          scansInWindow: limitCheck.scansInWindow,
+          nextAvailableAt: limitCheck.nextAvailableAt
+        });
+      }
+    }
+    
+    return {
+      availableProducts,
+      blockedProducts
+    };
+  }
+
   // AI Optimization specific helpers
   static async createAIOptimizationHistory(params: {
     workspaceId: string | Types.ObjectId;

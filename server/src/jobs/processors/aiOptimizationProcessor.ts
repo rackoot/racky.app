@@ -1,10 +1,12 @@
-import { Job } from 'bull';
-import queueService, {
-  AIOptimizationScanJobData,
+import {
+  AIOptimizationJobData,
   AIDescriptionBatchJobData,
   JobType,
   JobPriority,
-} from '@/common/services/queueService';
+} from '@/common/types/jobTypes';
+import rabbitMQService from '@/common/services/rabbitMQService';
+import Job from '@/common/models/Job';
+import JobHistory from '@/common/models/JobHistory';
 import Product from '@/products/models/Product';
 import Opportunity from '@/opportunities/models/Opportunity';
 import aiService from '@/opportunities/services/aiService';
@@ -22,11 +24,16 @@ export class AIOptimizationProcessor {
    * Process an AI optimization scan job
    * Finds products that need optimization and creates batch jobs
    */
-  static async processAIOptimizationScan(job: Job<AIOptimizationScanJobData>): Promise<{
+  static async processAIOptimizationScan(job: any): Promise<{
     success: boolean;
     totalProducts: number;
     totalBatches: number;
     message: string;
+    blockedProducts?: Array<{
+      productId: string;
+      scansInWindow: number;
+      nextAvailableAt?: Date;
+    }>;
   }> {
     const { userId, workspaceId, filters } = job.data;
     
@@ -91,11 +98,41 @@ export class AIOptimizationProcessor {
         .limit(1000) // Limit to prevent overwhelming scans
         .lean();
 
-      const totalProducts = productsNeedingOptimization.length;
-      console.log(`📊 Found ${totalProducts} products needing AI optimization`);
+      console.log(`📊 Found ${productsNeedingOptimization.length} products needing optimization, checking scan limits...`);
 
-      // Create bulk scan history entries for each product
-      const bulkHistoryPromises = productsNeedingOptimization.map(product => 
+      await job.progress(40);
+
+      // Filter products by scan limit (max 2 scans per product per 24 hours)
+      const productIds = productsNeedingOptimization.map(p => p._id.toString());
+      const limitCheckResult = await ProductHistoryService.getProductsWithinScanLimit(
+        productIds,
+        workspaceId
+      );
+
+      // Filter to only products that can be scanned
+      const eligibleProducts = productsNeedingOptimization.filter(product => 
+        limitCheckResult.availableProducts.includes(product._id.toString())
+      );
+
+      const totalProducts = eligibleProducts.length;
+      const blockedCount = limitCheckResult.blockedProducts.length;
+
+      console.log(`📊 ${totalProducts} products eligible for scanning, ${blockedCount} products on cooldown`);
+
+      if (totalProducts === 0) {
+        return {
+          success: true,
+          totalProducts: 0,
+          totalBatches: 0,
+          message: blockedCount > 0 
+            ? `All ${blockedCount} matching products have reached their daily scan limit (2 scans per 24 hours). Please try again later.`
+            : 'No products found that need AI optimization and are within scan limits.',
+          blockedProducts: limitCheckResult.blockedProducts
+        };
+      }
+
+      // Create bulk scan history entries for each eligible product
+      const bulkHistoryPromises = eligibleProducts.map(product => 
         ProductHistoryService.createBulkOperationHistory({
           workspaceId,
           userId,
@@ -116,12 +153,12 @@ export class AIOptimizationProcessor {
       const totalBatches = Math.ceil(totalProducts / batchSize);
 
       // Create batch jobs
-      const batchJobs: Promise<Job<AIDescriptionBatchJobData>>[] = [];
+      const batchJobs: Promise<any>[] = [];
       
       for (let batchNumber = 0; batchNumber < totalBatches; batchNumber++) {
         const startIndex = batchNumber * batchSize;
         const endIndex = Math.min(startIndex + batchSize, totalProducts);
-        const batchProducts = productsNeedingOptimization.slice(startIndex, endIndex);
+        const batchProducts = eligibleProducts.slice(startIndex, endIndex);
 
         const batchJobData: AIDescriptionBatchJobData = {
           userId,
@@ -136,7 +173,7 @@ export class AIOptimizationProcessor {
         };
 
         // Add batch job to ai-optimization queue
-        const batchJobPromise = queueService.addJob<AIDescriptionBatchJobData>(
+        const batchJobPromise = rabbitMQService.addJob<AIDescriptionBatchJobData>(
           'ai-optimization',
           JobType.AI_DESCRIPTION_BATCH,
           batchJobData,
@@ -153,31 +190,36 @@ export class AIOptimizationProcessor {
       // Wait for all batch jobs to be created
       await Promise.all(batchJobs);
       
-      // Mark bulk scan as completed for all products
-      const completionHistoryPromises = productsNeedingOptimization.map(product => 
+      // Mark bulk scan as STARTED (not completed yet)
+      const completionHistoryPromises = eligibleProducts.map(product => 
         ProductHistoryService.createBulkOperationHistory({
           workspaceId,
           userId,
           productId: product._id.toString(),
-          actionType: 'AI_BULK_SCAN_COMPLETED',
+          actionType: 'AI_BULK_SCAN_STARTED',
           batchId: job.id!.toString(),
           recordsTotal: totalProducts,
-          recordsProcessed: totalProducts
+          recordsProcessed: 0  // No records processed yet
         })
       );
       
       await Promise.all(completionHistoryPromises);
       
-      await job.progress(100);
+      // Don't mark as 100% - leave at 90% to show batches are processing
+      await job.progress(90);
 
       const result = {
         success: true,
         totalProducts,
         totalBatches,
-        message: `Created ${totalBatches} AI batch jobs for ${totalProducts} products`,
+        message: blockedCount > 0 
+          ? `Created ${totalBatches} AI batch jobs for ${totalProducts} products. ${blockedCount} products skipped (daily scan limit reached).`
+          : `Created ${totalBatches} AI batch jobs for ${totalProducts} products`,
+        status: 'processing_batches',  // Indicate batches are still running
+        blockedProducts: limitCheckResult.blockedProducts
       };
 
-      console.log(`✅ AI optimization scan completed: ${result.message}`);
+      console.log(`🔄 AI optimization scan initiated: ${result.message}`);
       return result;
 
     } catch (error) {
@@ -190,7 +232,7 @@ export class AIOptimizationProcessor {
    * Process an AI description batch job
    * Generates AI-powered descriptions and opportunities for a batch of products
    */
-  static async processAIDescriptionBatch(job: Job<AIDescriptionBatchJobData>): Promise<{
+  static async processAIDescriptionBatch(job: any): Promise<{
     success: boolean;
     processedCount: number;
     failedCount: number;
@@ -202,7 +244,8 @@ export class AIOptimizationProcessor {
       productIds, 
       marketplace, 
       batchNumber, 
-      totalBatches 
+      totalBatches,
+      parentJobId 
     } = job.data;
 
     console.log(`🤖 Processing AI batch ${batchNumber}/${totalBatches} (${productIds.length} products)`);
@@ -393,6 +436,31 @@ export class AIOptimizationProcessor {
       };
 
       console.log(`✅ AI batch ${batchNumber}/${totalBatches} completed: ${processedCount} success, ${failedCount} failed`);
+      
+      // Check if all sibling batches are complete
+      if (parentJobId) {
+        const siblingJobs = await Job.find({
+          'data.parentJobId': parentJobId,
+          jobType: JobType.AI_DESCRIPTION_BATCH
+        });
+        
+        const allComplete = siblingJobs.every(j => j.status === 'completed' || j.status === 'failed');
+        
+        if (allComplete) {
+          // Update parent job to completed
+          const parentJob = await Job.findOne({ jobId: parentJobId });
+          if (parentJob && parentJob.status !== 'completed') {
+            await parentJob.markCompleted({
+              message: 'All batch jobs completed',
+              totalBatches: siblingJobs.length,
+              completedBatches: siblingJobs.filter(j => j.status === 'completed').length,
+              failedBatches: siblingJobs.filter(j => j.status === 'failed').length
+            });
+            console.log(`✅ Parent job ${parentJobId} marked as completed`);
+          }
+        }
+      }
+      
       return result;
 
     } catch (error) {

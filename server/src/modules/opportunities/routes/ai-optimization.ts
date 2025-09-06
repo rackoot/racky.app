@@ -1,11 +1,14 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
 import { AuthenticatedRequest } from '@/common/types/express';
-import queueService, { 
+import { 
   JobType, 
   JobPriority, 
-  AIOptimizationScanJobData 
-} from '@/common/services/queueService';
+  AIOptimizationJobData 
+} from '@/common/types/jobTypes';
+import rabbitMQService from '@/common/services/rabbitMQService';
+import Job from '@/common/models/Job';
+import JobHistory from '@/common/models/JobHistory';
 
 const router = express.Router();
 
@@ -61,25 +64,21 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
 
 
       // Check for active or waiting scans for this marketplace
-      const aiQueue = queueService.getQueue('ai-optimization');
-      const [waitingJobs, activeJobs] = await Promise.all([
-        aiQueue.getWaiting(),
-        aiQueue.getActive()
-      ]);
-
-      const runningJobs = [...waitingJobs, ...activeJobs].filter(job => 
-        job.data.userId === userId && 
-        job.data.workspaceId === workspaceId && 
-        job.data.filters?.marketplace === marketplace
-      );
+      const runningJobs = await Job.find({
+        userId,
+        workspaceId,
+        jobType: JobType.AI_OPTIMIZATION_SCAN,
+        'data.filters.marketplace': marketplace,
+        status: { $in: ['queued', 'processing'] }
+      }).limit(1);
 
       if (runningJobs.length > 0) {
-        const jobStatus = runningJobs[0].opts?.delay ? 'waiting' : 'active';
+        const jobStatus = runningJobs[0].status === 'queued' ? 'waiting' : 'active';
         return res.status(409).json({
           success: false,
           message: `A scan is already ${jobStatus} for marketplace "${marketplace}". Please wait for it to complete before starting a new scan.`,
           data: {
-            existingJobId: runningJobs[0].id,
+            existingJobId: runningJobs[0].jobId,
             status: jobStatus
           }
         });
@@ -144,7 +143,7 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
     }
 
     // Create AI optimization scan job
-    const scanJobData: AIOptimizationScanJobData = {
+    const scanJobData: AIOptimizationJobData = {
       userId,
       workspaceId,
       filters: {
@@ -157,7 +156,7 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
       priority: JobPriority.NORMAL,
     };
 
-    const job = await queueService.addJob(
+    const job = await rabbitMQService.addJob(
       'ai-optimization',
       JobType.AI_OPTIMIZATION_SCAN,
       scanJobData,
@@ -171,7 +170,7 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
       success: true,
       message: 'AI optimization scan started successfully',
       data: {
-        jobId: job.id!.toString(),
+        jobId: job.jobId,
         status: 'queued',
         filters: scanJobData.filters,
         createdAt: new Date().toISOString(),
@@ -211,23 +210,19 @@ router.get('/marketplace-availability', async (req: AuthenticatedRequest, res: R
     }));
     
     // Check for running jobs
-    const aiQueue = queueService.getQueue('ai-optimization');
-    const [waitingJobs, activeJobs] = await Promise.all([
-      aiQueue.getWaiting(),
-      aiQueue.getActive()
-    ]);
-    
-    // Filter jobs by user AND workspace and extract marketplace info
-    const userJobs = [...waitingJobs, ...activeJobs].filter(job => 
-      job.data.userId === userId && job.data.workspaceId === workspaceId
-    );
+    const userJobs = await Job.find({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN,
+      status: { $in: ['queued', 'processing'] }
+    });
     
     const runningScans = userJobs.reduce((acc: any, job) => {
       if (job.data.filters?.marketplace) {
         acc[job.data.filters.marketplace] = {
-          jobId: job.id,
-          status: job.processedOn ? 'active' : 'waiting',
-          startedAt: job.timestamp
+          jobId: job.jobId,
+          status: job.status === 'processing' ? 'active' : 'waiting',
+          startedAt: job.startedAt || job.createdAt
         };
       }
       return acc;
@@ -263,25 +258,38 @@ router.get('/marketplace-availability', async (req: AuthenticatedRequest, res: R
           };
         }
 
-        // Check recently scanned products
-        const recentlyScannedProducts = await ProductHistory.find({
+        // Get all products for this marketplace
+        const Product = (await import('@/products/models/Product')).default;
+        const marketplaceProducts = await Product.find({
+          userId,
           workspaceId,
-          actionType: 'AI_OPTIMIZATION_GENERATED',
-          createdAt: { $gte: twentyFourHoursAgo },
-          'metadata.marketplace': marketplace
-        }).distinct('productId');
+          marketplace,
+          lastSyncedAt: { $exists: true } // Only include synced products
+        }).select('_id').lean();
 
-        const availableProductCount = mp.totalProducts - recentlyScannedProducts.length;
-        const allProductsRecentlyScanned = recentlyScannedProducts.length === mp.totalProducts && mp.totalProducts > 0;
+        // Check scan limits for each product (max 2 scans per 24 hours)
+        const { ProductHistoryService } = await import('@/products/services/ProductHistoryService');
+        const productIds = marketplaceProducts.map(p => p._id.toString());
+        const limitCheckResult = await ProductHistoryService.getProductsWithinScanLimit(
+          productIds,
+          workspaceId
+        );
+
+        const availableProductCount = limitCheckResult.availableProducts.length;
+        const blockedProductCount = limitCheckResult.blockedProducts.length;
+        const allProductsBlocked = blockedProductCount === marketplaceProducts.length && marketplaceProducts.length > 0;
 
         return {
           marketplace,
-          totalProducts: mp.totalProducts,
-          recentlyScanned: recentlyScannedProducts.length,
+          totalProducts: marketplaceProducts.length,
+          recentlyScanned: blockedProductCount, // Products that hit scan limit
           availableProducts: availableProductCount,
           available: availableProductCount > 0,
-          reason: allProductsRecentlyScanned ? 'cooldown_24h' : availableProductCount === 0 ? 'no_products_match' : null,
-          cooldownEndsAt: allProductsRecentlyScanned ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null
+          reason: allProductsBlocked ? 'cooldown_24h' : availableProductCount === 0 ? 'no_products_match' : null,
+          cooldownEndsAt: allProductsBlocked && limitCheckResult.blockedProducts.length > 0 
+            ? limitCheckResult.blockedProducts[0].nextAvailableAt?.toISOString() || null
+            : null,
+          blockedProducts: limitCheckResult.blockedProducts // Include blocked product details for debugging
         };
       })
     );
@@ -333,10 +341,10 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       });
     }
 
-    // Get job status from ai-optimization queue
-    const jobStatus = await queueService.getJobStatus('ai-optimization', jobId);
+    // Get job status from MongoDB
+    const job = await Job.findOne({ jobId });
 
-    if (!jobStatus) {
+    if (!job) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
@@ -344,7 +352,7 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
     }
     
     // Verify job belongs to this user and workspace
-    if (jobStatus.data.userId !== userId || jobStatus.data.workspaceId !== workspaceId) {
+    if (job.userId !== userId || job.workspaceId !== workspaceId) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
@@ -353,14 +361,14 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
 
     // Calculate ETA based on progress
     let eta = 'Calculating...';
-    if (typeof jobStatus.progress === 'number' && jobStatus.progress > 0) {
-      const remainingProgress = 100 - jobStatus.progress;
-      const timeElapsed = jobStatus.processedOn 
-        ? Date.now() - new Date(jobStatus.processedOn).getTime()
+    if (typeof job.progress === 'number' && job.progress > 0) {
+      const remainingProgress = 100 - job.progress;
+      const timeElapsed = job.startedAt 
+        ? Date.now() - new Date(job.startedAt).getTime()
         : 0;
       
       if (timeElapsed > 0) {
-        const timePerPercent = timeElapsed / jobStatus.progress;
+        const timePerPercent = timeElapsed / job.progress;
         const remainingTime = (remainingProgress * timePerPercent) / 1000; // Convert to seconds
         
         if (remainingTime > 3600) {
@@ -380,13 +388,13 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       percentage: 0,
     };
 
-    if (typeof jobStatus.progress === 'object') {
-      progressData = jobStatus.progress as any;
-    } else if (typeof jobStatus.progress === 'number') {
+    if (typeof job.progress === 'object') {
+      progressData = job.progress as any;
+    } else if (typeof job.progress === 'number') {
       progressData = {
-        current: jobStatus.progress,
+        current: job.progress,
         total: 100,
-        percentage: jobStatus.progress,
+        percentage: job.progress,
       };
     }
 
@@ -394,14 +402,14 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       success: true,
       data: {
         jobId,
-        status: jobStatus.status,
+        status: job.status,
         progress: progressData,
         eta,
-        result: jobStatus.result,
-        failedReason: jobStatus.failedReason,
-        createdAt: jobStatus.data.createdAt,
-        processedOn: jobStatus.processedOn,
-        finishedOn: jobStatus.finishedOn,
+        result: job.result,
+        failedReason: job.lastError,
+        createdAt: job.createdAt,
+        processedOn: job.startedAt,
+        finishedOn: job.completedAt,
       }
     });
 
@@ -425,9 +433,8 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
     const workspaceId = req.workspace!._id.toString();
     const { jobId } = req.params;
 
-    // Get the job from the queue
-    const aiQueue = queueService.getQueue('ai-optimization');
-    const job = await aiQueue.getJob(jobId);
+    // Get the job from MongoDB
+    const job = await Job.findOne({ jobId });
 
     if (!job) {
       return res.status(404).json({
@@ -437,7 +444,7 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
     }
 
     // Verify job belongs to user
-    if (job.data.userId !== userId) {
+    if (job.userId !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to view this job'
@@ -449,11 +456,13 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
     const ProductModel = (await import('@/products/models/Product')).default;
     
     // Get child batch jobs first to find all related job IDs
-    const allJobs = await aiQueue.getJobs(['completed', 'failed', 'active', 'waiting']);
-    const childBatchJobs = allJobs.filter(j => j.data.parentJobId === jobId && j.name === 'AI_DESCRIPTION_BATCH');
+    const childBatchJobs = await Job.find({
+      'data.parentJobId': jobId,
+      jobType: JobType.AI_DESCRIPTION_BATCH
+    });
     
     // Get all related job IDs (main job + child batch jobs)
-    const relatedJobIds = [jobId, ...childBatchJobs.map(j => j.id!.toString())];
+    const relatedJobIds = [jobId, ...childBatchJobs.map(j => j.jobId)];
     
     // Get ALL products that match the scan filters, not just those with history entries
     let scanFilters: any = { workspaceId };
@@ -518,15 +527,15 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
     // Map child batch jobs to response format (already retrieved above)
     const batchJobs = childBatchJobs.map(j => ({
       id: j.id,
-      status: j.finishedOn ? 'completed' : j.processedOn ? 'active' : 'waiting',
+      status: j.completedAt ? 'completed' : j.startedAt ? 'active' : 'waiting',
       batchNumber: j.data.batchNumber,
       totalBatches: j.data.totalBatches,
       productCount: j.data.productIds?.length || 0,
       progress: j.progress,
-      result: j.returnvalue,
-      failedReason: j.failedReason,
-      createdAt: j.timestamp,
-      finishedOn: j.finishedOn
+      result: j.result,
+      failedReason: j.lastError,
+      createdAt: j.createdAt,
+      finishedOn: j.completedAt
     }));
 
     // Create maps for AI opportunities data (description and prompt)
@@ -617,15 +626,15 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
       data: {
         job: {
           id: job.id,
-          name: job.name,
-          status: job.finishedOn ? 'completed' : job.processedOn ? 'active' : 'waiting',
+          name: job.jobType,
+          status: job.completedAt ? 'completed' : job.startedAt ? 'active' : 'waiting',
           data: job.data,
-          result: job.returnvalue,
+          result: job.result,
           progress: job.progress,
-          createdAt: job.timestamp,
-          processedOn: job.processedOn,
-          finishedOn: job.finishedOn,
-          failedReason: job.failedReason
+          createdAt: job.createdAt,
+          processedOn: job.startedAt,
+          finishedOn: job.completedAt,
+          failedReason: job.lastError
         },
         batches: batchJobs,
         products: productList,
@@ -666,87 +675,61 @@ router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    // Get queue statistics for this user's jobs
-    const aiQueue = queueService.getQueue('ai-optimization');
+    // Get job history for this user from MongoDB
+    let query: any = {
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN
+    };
     
-    // Get different job types based on status filter
-    let jobs: any[] = [];
+    console.log('🔍 AI Jobs Query:', JSON.stringify({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN,
+      headerWorkspace: req.headers['x-workspace-id']
+    }));
     
-    if (!status || status === 'waiting') {
-      const waitingJobs = await aiQueue.getWaiting();
-      const userJobs = waitingJobs.filter(job => 
-        job.data.userId === userId && job.data.workspaceId === workspaceId
-      );
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'waiting',
-        data: job.data,
-        createdAt: job.timestamp,
-        progress: job.progress,
-      })));
+    // Apply status filter
+    if (status) {
+      if (status === 'waiting') {
+        query.status = 'queued';
+      } else if (status === 'active') {
+        query.status = 'processing';
+      } else {
+        query.status = status;
+      }
     }
     
-    if (!status || status === 'active') {
-      const activeJobs = await aiQueue.getActive();
-      const userJobs = activeJobs.filter(job => 
-        job.data.userId === userId && job.data.workspaceId === workspaceId
-      );
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'active',
-        data: job.data,
-        createdAt: job.timestamp,
-        progress: job.progress,
-        processedOn: job.processedOn,
-      })));
-    }
+    const jobs = await Job.find(query)
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .skip(Number(offset));
     
-    if (!status || status === 'completed') {
-      const completedJobs = await aiQueue.getCompleted();
-      const userJobs = completedJobs.filter(job => 
-        job.data.userId === userId && job.data.workspaceId === workspaceId
-      );
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'completed',
-        data: job.data,
-        createdAt: job.timestamp,
-        processedOn: job.processedOn,
-        finishedOn: job.finishedOn,
-        result: job.returnvalue,
-      })));
-    }
+    console.log(`🔍 Found ${jobs.length} AI jobs`);
     
-    if (!status || status === 'failed') {
-      const failedJobs = await aiQueue.getFailed();
-      const userJobs = failedJobs.filter(job => 
-        job.data.userId === userId && job.data.workspaceId === workspaceId
-      );
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'failed',
-        data: job.data,
-        createdAt: job.timestamp,
-        processedOn: job.processedOn,
-        finishedOn: job.finishedOn,
-        failedReason: job.failedReason,
-      })));
-    }
+    const formattedJobs = jobs.map(job => ({
+      id: job.jobId,
+      status: job.status === 'queued' ? 'waiting' : job.status === 'processing' ? 'active' : job.status,
+      data: job.data,
+      createdAt: job.createdAt,
+      progress: job.progress,
+      processedOn: job.startedAt,
+      finishedOn: job.completedAt,
+      result: job.result,
+      failedReason: job.lastError
+    }));
 
-    // Sort by creation date (newest first)
-    jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    // Apply pagination
-    const paginatedJobs = jobs.slice(Number(offset), Number(offset) + Number(limit));
+    // Get total count for pagination
+    const total = await Job.countDocuments(query);
 
     res.json({
       success: true,
       data: {
-        jobs: paginatedJobs,
-        total: jobs.length,
+        jobs: formattedJobs,
+        total,
         limit: Number(limit),
         offset: Number(offset),
-        hasMore: Number(offset) + Number(limit) < jobs.length,
+        hasMore: (Number(offset) + Number(limit)) < total,
       }
     });
 

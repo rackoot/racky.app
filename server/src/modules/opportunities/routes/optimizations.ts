@@ -61,20 +61,25 @@ interface AIResult {
 
 // Helper to check if a product is in AI optimization queue
 async function getProductAIOptimizationStatus(productId: string, workspaceId: string, platform?: string) {
-  const queueService = (await import('@/common/services/queueService')).default;
-  const aiQueue = queueService.getQueue('ai-optimization');
+  const Job = (await import('@/common/models/Job')).default;
   
-  const [waitingJobs, activeJobs] = await Promise.all([
-    aiQueue.getWaiting(),
-    aiQueue.getActive()
-  ]);
+  // Check for active AI optimization jobs for this product
+  const activeJobs = await Job.find({
+    workspaceId,
+    $or: [
+      { 'data.productId': productId },
+      { 'data.productIds': { $in: [productId] } }
+    ],
+    jobType: 'AI_OPTIMIZATION_SCAN',
+    status: { $in: ['queued', 'processing'] }
+  }).limit(10);
 
-  // Check if this product is in any active or waiting batch jobs
-  for (const job of [...activeJobs, ...waitingJobs]) {
-    if (job.data.productIds?.includes(productId)) {
+  // Check if this product is in any active jobs
+  for (const job of activeJobs) {
+    if (job.data.productId === productId || job.data.productIds?.includes(productId)) {
       return {
-        status: job.opts?.delay ? 'queued' : 'processing',
-        jobId: job.id,
+        status: job.status,
+        jobId: job.jobId,
         batchNumber: job.data.batchNumber,
         totalBatches: job.data.totalBatches,
         marketplace: job.data.marketplace

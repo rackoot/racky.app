@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Store } from 'lucide-react';
+import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Store, HelpCircle, Zap, Timer, Shield, Target } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { marketplaceService } from '@/services/marketplace';
 import type { Marketplace } from '@/types/marketplace';
@@ -691,6 +691,160 @@ const AIStartScanPage = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* How AI Scans Work - Help Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HelpCircle className="h-5 w-5 text-blue-500" />
+            How AI Product Scans Work
+          </CardTitle>
+          <CardDescription>
+            Understanding the AI optimization process, batch processing, limits, and what happens after scanning
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* What is a Scan */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Brain className="h-4 w-4 text-blue-500" />
+              <h3 className="font-semibold">What is an AI Product Scan?</h3>
+            </div>
+            <p className="text-sm text-muted-foreground ml-6">
+              An AI scan analyzes your product catalog to identify optimization opportunities and generate improved descriptions. 
+              The AI examines product titles, existing descriptions, prices, and marketplace data to create personalized recommendations 
+              that can help increase visibility, conversions, and sales performance.
+            </p>
+          </div>
+
+          {/* Batch Processing */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-orange-500" />
+              <h3 className="font-semibold">Batch Processing</h3>
+            </div>
+            <div className="ml-6 space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Products are processed in <strong>batches of 20</strong> to ensure efficient AI analysis while respecting API rate limits:
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+                <li>• Each batch contains up to 20 products for simultaneous AI analysis</li>
+                <li>• Batches are processed sequentially with 5-second delays between them</li>
+                <li>• Individual products within a batch have 2-second delays to prevent rate limiting</li>
+                <li>• This approach ensures reliable processing while maintaining AI service stability</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Processing Time */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Timer className="h-4 w-4 text-green-500" />
+              <h3 className="font-semibold">Processing Time</h3>
+            </div>
+            <div className="ml-6 space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Scan duration depends on the number of products found:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-1">
+                  <p><strong>Small catalogs (1-50 products):</strong></p>
+                  <p className="text-muted-foreground ml-2">2-5 minutes</p>
+                </div>
+                <div className="space-y-1">
+                  <p><strong>Medium catalogs (51-200 products):</strong></p>
+                  <p className="text-muted-foreground ml-2">10-20 minutes</p>
+                </div>
+                <div className="space-y-1">
+                  <p><strong>Large catalogs (201-500 products):</strong></p>
+                  <p className="text-muted-foreground ml-2">25-45 minutes</p>
+                </div>
+                <div className="space-y-1">
+                  <p><strong>Very large catalogs (500+ products):</strong></p>
+                  <p className="text-muted-foreground ml-2">1-2 hours</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Scanning Limits */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-purple-500" />
+              <h3 className="font-semibold">Scanning Limits & Cooldowns</h3>
+            </div>
+            <div className="ml-6 space-y-2">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-yellow-800">
+                  <strong>Product Limit:</strong> Each product can only be scanned <strong>twice per day</strong> (24-hour period)
+                </p>
+                <p className="text-xs text-yellow-700 mt-1">
+                  This prevents over-processing and ensures fair AI resource usage across all users
+                </p>
+              </div>
+              <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+                <li>• Cooldown resets exactly 24 hours after the last scan of each product</li>
+                <li>• Products that hit the limit will be automatically excluded from new scans</li>
+                <li>• You can still scan other products in the same marketplace</li>
+                <li>• The system will show you how many products are available vs. on cooldown</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* What You Get */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-indigo-500" />
+              <h3 className="font-semibold">What You Get After Scanning</h3>
+            </div>
+            <div className="ml-6 space-y-2">
+              <p className="text-sm text-muted-foreground mb-3">
+                Each scanned product receives personalized AI-generated content and optimization suggestions:
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-2">
+                  <p className="font-medium">📝 Generated Content:</p>
+                  <ul className="text-muted-foreground space-y-1 ml-2">
+                    <li>• Optimized product descriptions</li>
+                    <li>• SEO-enhanced titles and tags</li>
+                    <li>• Marketplace-specific formatting</li>
+                    <li>• Keyword-rich content</li>
+                  </ul>
+                </div>
+                <div className="space-y-2">
+                  <p className="font-medium">🎯 Optimization Opportunities:</p>
+                  <ul className="text-muted-foreground space-y-1 ml-2">
+                    <li>• Pricing optimization suggestions</li>
+                    <li>• Category and tag improvements</li>
+                    <li>• Image and media recommendations</li>
+                    <li>• Competitive positioning advice</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                <p className="text-sm font-medium text-blue-800">
+                  💡 <strong>Pro Tip:</strong> Review and approve suggestions before applying them to your live products
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  All generated content appears as opportunities that you can review, edit, and selectively apply
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Next Steps */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h4 className="font-medium mb-2">After Your Scan Completes:</h4>
+            <ol className="text-sm text-muted-foreground space-y-1 ml-4">
+              <li>1. View results in the <strong>Scan History</strong> page</li>
+              <li>2. Review individual product opportunities and AI-generated descriptions</li>
+              <li>3. Apply approved suggestions to your live marketplace listings</li>
+              <li>4. Monitor performance improvements in your marketplace analytics</li>
+              <li>5. Run follow-up scans after 24 hours to refine optimization further</li>
+            </ol>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

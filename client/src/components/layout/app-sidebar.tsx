@@ -59,7 +59,6 @@ const items: NavigationItem[] = [
     icon: Brain,
     requiresSubscription: true, // Requires active subscription
     subitems: [
-      { title: "Opportunities", url: "/ai-optimization/opportunities" },
       { title: "Start AI Scan", url: "/ai-optimization/start-scan" },
       { title: "Scan History", url: "/ai-optimization/scan-history" },
     ]

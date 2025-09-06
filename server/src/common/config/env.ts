@@ -9,7 +9,15 @@ const envSchema = z.object({
   // Database
   MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
   
-  // Redis (for queues and cache)
+  // Queue System - RabbitMQ (preferred) or Redis (fallback)
+  USE_RABBITMQ: z.string().default('false').transform(val => val === 'true'),
+  RABBITMQ_URL: z.string().optional(),
+  RABBITMQ_USER: z.string().default('guest'),
+  RABBITMQ_PASS: z.string().default('guest'),
+  RABBITMQ_VHOST: z.string().default('/'),
+  RABBITMQ_MGMT_URL: z.string().optional(),
+  
+  // Redis (for queues and cache when not using RabbitMQ)
   REDIS_URL: z.string().default('redis://localhost:6379'),
   
   // JWT
@@ -41,6 +49,12 @@ const parseEnv = () => {
   try {
     return envSchema.parse({
       MONGODB_URI: process.env.MONGODB_URI,
+      USE_RABBITMQ: process.env.USE_RABBITMQ,
+      RABBITMQ_URL: process.env.RABBITMQ_URL,
+      RABBITMQ_USER: process.env.RABBITMQ_USER,
+      RABBITMQ_PASS: process.env.RABBITMQ_PASS,
+      RABBITMQ_VHOST: process.env.RABBITMQ_VHOST,
+      RABBITMQ_MGMT_URL: process.env.RABBITMQ_MGMT_URL,
       REDIS_URL: process.env.REDIS_URL,
       JWT_SECRET: process.env.JWT_SECRET,
       JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN,
@@ -83,7 +97,12 @@ export const getEnv = (): EnvConfig => {
 if (env.NODE_ENV === 'development') {
   console.log('🔧 Environment Configuration:');
   console.log(`  - Database: ${env.MONGODB_URI ? '✅ Configured' : '❌ Missing'}`);
-  console.log(`  - Redis: ${env.REDIS_URL ? '✅ Configured' : '❌ Missing'}`);
+  console.log(`  - Queue System: ${env.USE_RABBITMQ ? '🐰 RabbitMQ' : '🔴 Redis'}`);
+  if (env.USE_RABBITMQ) {
+    console.log(`  - RabbitMQ: ${env.RABBITMQ_URL ? '✅ Configured' : '❌ Missing'}`);
+  } else {
+    console.log(`  - Redis: ${env.REDIS_URL ? '✅ Configured' : '❌ Missing'}`);
+  }
   console.log(`  - JWT: ${env.JWT_SECRET ? '✅ Configured' : '❌ Missing'}`);
   console.log(`  - OpenAI: ${env.OPENAI_API_KEY ? '✅ Configured' : '⚠️  Not configured'}`);
   console.log(`  - Stripe: ${env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET ? '✅ Configured' : '⚠️  Not configured'}`);

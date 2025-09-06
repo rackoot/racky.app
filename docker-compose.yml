@@ -15,18 +15,28 @@ services:
     networks:
       - racky-network
 
-  # Redis Cache & Queue
-  redis:
-    image: redis:7.2-alpine
-    container_name: racky-redis
+  # RabbitMQ Message Broker (Replaces Redis for queues)
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: racky-rabbitmq
     restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${RABBITMQ_PORT:-5672}:5672"      # AMQP port
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672" # Management UI
     volumes:
-      - redis_data:/data
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/init:/docker-entrypoint-initdb.d
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-racky}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-racky123}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-racky}
     networks:
       - racky-network
-    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      timeout: 5s
+      interval: 10s
+      retries: 5
 
   # Backend Service
   backend:
@@ -39,13 +49,14 @@ services:
       - "${BACKEND_PORT}:5000"
     depends_on:
       - mongodb
-      - redis
+      - rabbitmq
     env_file:
       - .env.docker
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/racky
       - PORT=5000
-      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://racky:racky123@rabbitmq:5672/racky
+      - USE_RABBITMQ=true
     volumes:
       - ./server:/app
       - /app/node_modules
@@ -78,7 +89,7 @@ services:
 
 volumes:
   mongodb_data:
-  redis_data:
+  rabbitmq_data:
 
 networks:
   racky-network:

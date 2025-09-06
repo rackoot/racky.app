@@ -2,12 +2,15 @@ import express, { Response } from 'express';
 import Joi from 'joi';
 import { AuthenticatedRequest } from '@/common/types/express';
 import { protect, requireWorkspace } from '@/common/middleware/auth';
-import queueService, { 
+import { 
   JobType, 
   JobPriority, 
   MarketplaceSyncJobData 
-} from '@/common/services/queueService';
-import { getJobProcessorHealth } from '@/jobs/jobSetup';
+} from '@/common/types/jobTypes';
+import rabbitMQService from '@/common/services/rabbitMQService';
+import { healthMonitorService } from '@/common/services/healthMonitorService';
+import Job from '@/common/models/Job';
+import JobHistory from '@/common/models/JobHistory';
 import StoreConnection from '@/stores/models/StoreConnection';
 
 const router = express.Router();
@@ -72,7 +75,7 @@ router.post('/start', async (req: AuthenticatedRequest, res: Response) => {
       priority: JobPriority.NORMAL,
     };
 
-    const job = await queueService.addJob(
+    const job = await rabbitMQService.addJob(
       'marketplace-sync',
       JobType.MARKETPLACE_SYNC,
       syncJobData,
@@ -92,7 +95,7 @@ router.post('/start', async (req: AuthenticatedRequest, res: Response) => {
       success: true,
       message: 'Sync job started successfully',
       data: {
-        jobId: job.id!.toString(),
+        jobId: job.jobId,
         estimatedProducts,
         batchSize,
         estimatedTime,
@@ -126,26 +129,40 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       });
     }
 
-    // Get job status from marketplace-sync queue
-    const jobStatus = await queueService.getJobStatus('marketplace-sync', jobId);
+    // Get job from MongoDB with workspace validation
+    const job = await Job.findOne({ 
+      jobId,
+      workspaceId: req.workspace!._id.toString()
+    });
 
-    if (!jobStatus) {
+    if (!job) {
       return res.status(404).json({
         success: false,
         message: 'Job not found'
       });
     }
 
+    // Get child jobs if this is a parent job
+    const childJobs = await Job.find({
+      parentJobId: jobId,
+      workspaceId: req.workspace!._id.toString()
+    });
+
+    // Calculate overall progress from child jobs
+    let overallProgress = job.progress;
+    if (childJobs.length > 0) {
+      const totalProgress = childJobs.reduce((sum, child) => sum + child.progress, 0);
+      overallProgress = Math.round(totalProgress / childJobs.length);
+    }
+
     // Calculate ETA based on progress
     let eta = 'Calculating...';
-    if (typeof jobStatus.progress === 'number' && jobStatus.progress > 0) {
-      const remainingProgress = 100 - jobStatus.progress;
-      const timeElapsed = jobStatus.processedOn 
-        ? Date.now() - new Date(jobStatus.processedOn).getTime()
-        : 0;
+    if (overallProgress > 0 && job.startedAt) {
+      const remainingProgress = 100 - overallProgress;
+      const timeElapsed = Date.now() - job.startedAt.getTime();
       
       if (timeElapsed > 0) {
-        const timePerPercent = timeElapsed / jobStatus.progress;
+        const timePerPercent = timeElapsed / overallProgress;
         const remainingTime = (remainingProgress * timePerPercent) / 1000; // Convert to seconds
         
         if (remainingTime > 3600) {
@@ -159,34 +176,30 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
     }
 
     // Format progress data
-    let progressData = {
-      current: 0,
+    const progressData = {
+      current: overallProgress,
       total: 100,
-      percentage: 0,
+      percentage: overallProgress,
     };
-
-    if (typeof jobStatus.progress === 'object') {
-      progressData = jobStatus.progress as any;
-    } else if (typeof jobStatus.progress === 'number') {
-      progressData = {
-        current: jobStatus.progress,
-        total: 100,
-        percentage: jobStatus.progress,
-      };
-    }
 
     res.json({
       success: true,
       data: {
         jobId,
-        status: jobStatus.status,
+        status: job.status,
         progress: progressData,
         eta,
-        result: jobStatus.result,
-        failedReason: jobStatus.failedReason,
-        createdAt: jobStatus.data.createdAt,
-        processedOn: jobStatus.processedOn,
-        finishedOn: jobStatus.finishedOn,
+        result: job.result,
+        failedReason: job.lastError,
+        createdAt: job.createdAt,
+        processedOn: job.startedAt,
+        finishedOn: job.completedAt,
+        childJobs: childJobs.length > 0 ? childJobs.map(child => ({
+          jobId: child.jobId,
+          status: child.status,
+          progress: child.progress,
+          jobType: child.jobType
+        })) : undefined
       }
     });
 
@@ -206,19 +219,15 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
  */
 router.get('/health', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const health = await getJobProcessorHealth();
+    const systemHealth = await healthMonitorService.getSystemHealth();
 
     res.json({
       success: true,
       data: {
-        queues: health.queues,
-        summary: {
-          totalWaiting: health.totalJobs.waiting,
-          totalActive: health.totalJobs.active,
-          totalCompleted: health.totalJobs.completed,
-          totalFailed: health.totalJobs.failed,
-        },
-        timestamp: new Date().toISOString(),
+        overall: systemHealth.overall,
+        services: systemHealth.services,
+        performance: systemHealth.performance,
+        timestamp: systemHealth.timestamp,
       }
     });
 
@@ -239,81 +248,66 @@ router.get('/health', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!._id.toString();
+    const workspaceId = req.workspace!._id.toString();
     const { status, limit = 10, offset = 0 } = req.query;
 
-    // Get queue statistics for this user's jobs
-    const marketplaceQueue = queueService.getQueue('marketplace-sync');
+    // Build query filter
+    const filter: any = { 
+      userId, 
+      workspaceId,
+      jobType: { $in: [JobType.MARKETPLACE_SYNC, JobType.PRODUCT_BATCH] } // Sync-related jobs
+    };
     
-    // Get different job types based on status filter
-    let jobs: any[] = [];
-    
-    if (!status || status === 'waiting') {
-      const waitingJobs = await marketplaceQueue.getWaiting();
-      const userJobs = waitingJobs.filter(job => job.data.userId === userId);
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'waiting',
-        data: job.data,
-        createdAt: job.timestamp,
-        progress: job.progress,
-      })));
-    }
-    
-    if (!status || status === 'active') {
-      const activeJobs = await marketplaceQueue.getActive();
-      const userJobs = activeJobs.filter(job => job.data.userId === userId);
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'active',
-        data: job.data,
-        createdAt: job.timestamp,
-        progress: job.progress,
-        processedOn: job.processedOn,
-      })));
-    }
-    
-    if (!status || status === 'completed') {
-      const completedJobs = await marketplaceQueue.getCompleted();
-      const userJobs = completedJobs.filter(job => job.data.userId === userId);
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'completed',
-        data: job.data,
-        createdAt: job.timestamp,
-        processedOn: job.processedOn,
-        finishedOn: job.finishedOn,
-        result: job.returnvalue,
-      })));
-    }
-    
-    if (!status || status === 'failed') {
-      const failedJobs = await marketplaceQueue.getFailed();
-      const userJobs = failedJobs.filter(job => job.data.userId === userId);
-      jobs.push(...userJobs.map(job => ({
-        id: job.id,
-        status: 'failed',
-        data: job.data,
-        createdAt: job.timestamp,
-        processedOn: job.processedOn,
-        finishedOn: job.finishedOn,
-        failedReason: job.failedReason,
-      })));
+    if (status && status !== 'all') {
+      if (status === 'waiting') {
+        filter.status = 'queued';
+      } else if (status === 'active') {
+        filter.status = 'processing';
+      } else {
+        filter.status = status;
+      }
     }
 
-    // Sort by creation date (newest first)
-    jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // Get jobs with pagination from MongoDB
+    const [jobs, total] = await Promise.all([
+      Job.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(Number(offset))
+        .limit(Number(limit))
+        .select('jobId jobType status progress createdAt startedAt completedAt result lastError data parentJobId')
+        .lean(),
+      Job.countDocuments(filter)
+    ]);
 
-    // Apply pagination
-    const paginatedJobs = jobs.slice(Number(offset), Number(offset) + Number(limit));
+    // Format jobs for API response
+    const formattedJobs = jobs.map(job => ({
+      id: job.jobId,
+      jobId: job.jobId,
+      type: job.jobType,
+      status: job.status,
+      progress: job.progress,
+      createdAt: job.createdAt,
+      processedOn: job.startedAt,
+      finishedOn: job.completedAt,
+      result: job.result,
+      failedReason: job.lastError,
+      data: {
+        marketplace: job.data.marketplace,
+        connectionId: job.data.connectionId,
+        estimatedProducts: job.data.estimatedProducts,
+        batchSize: job.data.batchSize
+      },
+      isParent: !job.parentJobId
+    }));
 
     res.json({
       success: true,
       data: {
-        jobs: paginatedJobs,
-        total: jobs.length,
+        jobs: formattedJobs,
+        total,
         limit: Number(limit),
         offset: Number(offset),
-        hasMore: Number(offset) + Number(limit) < jobs.length,
+        hasMore: Number(offset) + Number(limit) < total,
       }
     });
 

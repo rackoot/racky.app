@@ -31,8 +31,9 @@ import workspaceRoutes from './modules/workspaces/routes/workspaces';
 import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
 import { protect, requireWorkspace } from '@/common/middleware/auth';
 import { stripeWebhookHandler } from '@/subscriptions/routes/billing';
-import queueService from '@/common/services/queueService';
-import { setupJobProcessors } from '@/jobs/jobSetup';
+import rabbitMQService from '@/common/services/rabbitMQService';
+import { setupRabbitMQJobProcessors } from '@/jobs/rabbitMQJobSetup';
+// import { healthMonitorService } from '@/common/services/healthMonitorService';
 
 
 const app = express();
@@ -113,11 +114,18 @@ const startServer = async () => {
     // Connect to database first
     await connectDB();
     
-    // Initialize queue service
-    await queueService.initialize();
+    // Initialize RabbitMQ service conditionally
+    const env = getEnv();
+    if (env.USE_RABBITMQ) {
+      await rabbitMQService.initialize();
+      // Set up RabbitMQ job processors
+      setupRabbitMQJobProcessors();
+    } else {
+      console.log('🔴 RabbitMQ disabled - running without queue system');
+    }
     
-    // Set up job processors
-    setupJobProcessors();
+    // Start health monitoring service
+    // healthMonitorService.start();
     
     const PORT = getEnv().PORT;
     const server = app.listen(PORT, () => {
@@ -135,7 +143,8 @@ const startServer = async () => {
       if (notificationCleanup) {
         notificationCleanup();
       }
-      await queueService.shutdown();
+      // healthMonitorService.stop();
+      await rabbitMQService.shutdown();
       server.close(() => {
         console.log('Server closed.');
         process.exit(0);

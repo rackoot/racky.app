@@ -1,10 +1,12 @@
-import { Job } from 'bull';
-import queueService, {
+import {
   MarketplaceSyncJobData,
   ProductBatchJobData,
   JobType,
   JobPriority,
-} from '@/common/services/queueService';
+} from '@/common/types/jobTypes';
+import rabbitMQService from '@/common/services/rabbitMQService';
+import Job from '@/common/models/Job';
+import JobHistory from '@/common/models/JobHistory';
 // import { marketplaceService } from '@/marketplaces/services/marketplaces';
 import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
@@ -21,7 +23,7 @@ export class MarketplaceSyncProcessor {
   /**
    * Process a marketplace sync job
    */
-  static async processMarketplaceSync(job: Job<MarketplaceSyncJobData>): Promise<{
+  static async processMarketplaceSync(job: any): Promise<{
     success: boolean;
     totalProducts: number;
     totalBatches: number;
@@ -69,7 +71,7 @@ export class MarketplaceSyncProcessor {
       const totalBatches = Math.ceil(totalProducts / batchSize);
 
       // Create batch jobs
-      const batchJobs: Promise<Job<ProductBatchJobData>>[] = [];
+      const batchJobs: Promise<any>[] = [];
       
       for (let batchNumber = 0; batchNumber < totalBatches; batchNumber++) {
         const startIndex = batchNumber * batchSize;
@@ -90,7 +92,7 @@ export class MarketplaceSyncProcessor {
         };
 
         // Add batch job to product-processing queue
-        const batchJobPromise = queueService.addJob<ProductBatchJobData>(
+        const batchJobPromise = rabbitMQService.addJob<ProductBatchJobData>(
           'product-processing',
           JobType.PRODUCT_BATCH,
           batchJobData,
@@ -127,7 +129,7 @@ export class MarketplaceSyncProcessor {
   /**
    * Process a product batch job
    */
-  static async processProductBatch(job: Job<ProductBatchJobData>): Promise<{
+  static async processProductBatch(job: any): Promise<{
     success: boolean;
     processedCount: number;
     failedCount: number;

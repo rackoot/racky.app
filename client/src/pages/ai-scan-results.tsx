@@ -257,9 +257,9 @@ export function AIScanResultsPage() {
       <div className="container mx-auto px-4 py-6">
         <div className="flex items-center gap-2 mb-6">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/ai-optimization">
+            <Link to="/ai-optimization/scan-history">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to AI Optimization
+              Back to Scan History
             </Link>
           </Button>
         </div>
@@ -279,9 +279,9 @@ export function AIScanResultsPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/ai-optimization">
+            <Link to="/ai-optimization/scan-history">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to AI Optimization
+              Back to Scan History
             </Link>
           </Button>
           <div className="flex items-center gap-2">
@@ -405,7 +405,7 @@ export function AIScanResultsPage() {
                 <TableHead>Product Name</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Current Description</TableHead>
-                <TableHead>AI Prompt / Generated Description</TableHead>
+                <TableHead>Generated Description</TableHead>
                 <TableHead className="w-32">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -456,26 +456,16 @@ export function AIScanResultsPage() {
                             className="min-h-[60px] resize-none text-sm border-green-200 bg-green-50"
                           />
                         </div>
-                      ) : product.descriptions.aiPrompt || product.aiMetadata?.prompt ? (
-                        // Show AI prompt for pending/processing products
-                        <div className="space-y-2">
-                          <div className="text-xs font-medium text-blue-600">
-                            {product.status === 'processing' ? '⏳ Processing with prompt:' : '💭 AI Prompt:'}
-                          </div>
-                          <Textarea 
-                            value={product.descriptions.aiPrompt || product.aiMetadata?.prompt || ''}
-                            readOnly
-                            className="min-h-[60px] resize-none text-sm border-blue-200 bg-blue-50 italic"
-                          />
-                        </div>
                       ) : (
-                        // Show status message for failed or unknown states
+                        // Show status message for pending, processing, or failed states
                         <div className="text-sm text-muted-foreground p-2 border rounded">
-                          {product.status === 'failed' 
-                            ? (product.failedReason || 'Generation failed')
+                          {product.status === 'processing' 
+                            ? '⏳ Generating description...'
+                            : product.status === 'failed' 
+                            ? `❌ ${product.failedReason || 'Generation failed'}`
                             : product.status === 'pending'
-                            ? 'Waiting to be processed...'
-                            : 'No AI data available'
+                            ? '⏱️ Waiting to be processed...'
+                            : 'No description generated yet'
                           }
                         </div>
                       )}
