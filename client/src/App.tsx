@@ -24,6 +24,7 @@ import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
+import { AdminAnalytics } from '@/pages/admin/analytics'
 import Workspaces from '@/pages/workspaces'
 import AIOptimizationPage from '@/pages/ai-optimization'
 import AIOpportunitiesPage from '@/pages/ai-optimization/opportunities'
@@ -340,10 +341,7 @@ function App() {
             <ProtectedRoute>
               <RequireSuperAdmin>
                 <AdminLayout>
-                  <div className="text-center py-10">
-                    <h1 className="text-2xl font-bold">Analytics</h1>
-                    <p className="text-muted-foreground">Detailed analytics coming soon...</p>
-                  </div>
+                  <AdminAnalytics />
                 </AdminLayout>
               </RequireSuperAdmin>
             </ProtectedRoute>

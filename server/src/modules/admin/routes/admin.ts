@@ -7,6 +7,7 @@ import Subscription from '@/subscriptions/models/Subscription';
 import Usage from '@/subscriptions/models/Usage';
 import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
+import Workspace from '@/workspaces/models/Workspace';
 import { protect, requireSuperAdmin } from '@/common/middleware/auth';
 
 const router = express.Router();
@@ -685,14 +686,17 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Get analytics data
+    // Get comprehensive analytics data
     const [
       totalUsage,
       userGrowth,
       subscriptionBreakdown,
-      revenueData,
-      totalProducts,
-      totalStoreConnections
+      userStats,
+      workspaceStats,
+      subscriptionStats,
+      storeConnectionStats,
+      productStats,
+      workspaceSubscriptionStats
     ] = await Promise.all([
       // Total platform usage
       Usage.getTotalUsageByPeriod(period),
@@ -717,7 +721,7 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
         { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
       ]),
 
-      // Subscription status breakdown
+      // Subscription status breakdown (legacy user subscriptions)
       User.aggregate([
         {
           $group: {
@@ -727,43 +731,121 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
         }
       ]),
 
-      // Revenue data - get actual subscription plan distribution
+      // User statistics
       User.aggregate([
         {
-          $match: {
-            subscriptionStatus: 'ACTIVE'
-          }
-        },
-        {
           $group: {
-            _id: '$subscriptionPlan',
-            count: { $sum: 1 }
+            _id: null,
+            totalUsers: { $sum: 1 },
+            activeUsers: { $sum: { $cond: ['$isActive', 1, 0] } },
+            superAdmins: { $sum: { $cond: [{ $eq: ['$role', 'SUPERADMIN'] }, 1, 0] } }
           }
         }
       ]),
 
-      // Total products count
-      Product.countDocuments(),
+      // Workspace statistics
+      Workspace.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalWorkspaces: { $sum: 1 },
+            activeWorkspaces: { $sum: { $cond: ['$isActive', 1, 0] } }
+          }
+        }
+      ]),
 
-      // Total store connections count
-      StoreConnection.countDocuments({ isActive: true })
+      // Active subscription statistics
+      Subscription.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalSubscriptions: { $sum: 1 },
+            activeSubscriptions: { $sum: { $cond: [{ $eq: ['$status', 'ACTIVE'] }, 1, 0] } },
+            totalRevenue: { $sum: '$amount' }
+          }
+        }
+      ]),
+
+      // Store connection statistics
+      StoreConnection.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalStoreConnections: { $sum: 1 },
+            activeStoreConnections: { $sum: { $cond: ['$isActive', 1, 0] } },
+            marketplaceBreakdown: { $push: '$marketplaces' }
+          }
+        }
+      ]),
+
+      // Product statistics
+      Product.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalProducts: { $sum: 1 },
+            syncedProducts: { $sum: { $cond: [{ $eq: ['$syncStatus', 'SYNCED'] }, 1, 0] } }
+          }
+        }
+      ]),
+
+      // Workspaces with/without subscriptions
+      Workspace.aggregate([
+        {
+          $lookup: {
+            from: 'subscriptions',
+            localField: '_id',
+            foreignField: 'workspaceId',
+            as: 'subscription'
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            totalWorkspaces: { $sum: 1 },
+            workspacesWithSubscriptions: { 
+              $sum: { $cond: [{ $gt: [{ $size: '$subscription' }, 0] }, 1, 0] } 
+            },
+            workspacesWithoutSubscriptions: { 
+              $sum: { $cond: [{ $eq: [{ $size: '$subscription' }, 0] }, 1, 0] } 
+            }
+          }
+        }
+      ])
     ]);
+
+    // Calculate additional metrics
+    const avgWorkspacesPerUser = userStats[0] ? 
+      (workspaceStats[0]?.totalWorkspaces || 0) / userStats[0].totalUsers : 0;
 
     const analytics = {
       period,
+      overview: {
+        totalUsers: userStats[0]?.totalUsers || 0,
+        activeUsers: userStats[0]?.activeUsers || 0,
+        superAdmins: userStats[0]?.superAdmins || 0,
+        totalWorkspaces: workspaceStats[0]?.totalWorkspaces || 0,
+        activeWorkspaces: workspaceStats[0]?.activeWorkspaces || 0,
+        avgWorkspacesPerUser: Number(avgWorkspacesPerUser.toFixed(2)),
+        totalSubscriptions: subscriptionStats[0]?.totalSubscriptions || 0,
+        activeSubscriptions: subscriptionStats[0]?.activeSubscriptions || 0,
+        totalRevenue: subscriptionStats[0]?.totalRevenue || 0,
+        workspacesWithSubscriptions: workspaceSubscriptionStats[0]?.workspacesWithSubscriptions || 0,
+        workspacesWithoutSubscriptions: workspaceSubscriptionStats[0]?.workspacesWithoutSubscriptions || 0,
+        totalStoreConnections: storeConnectionStats[0]?.totalStoreConnections || 0,
+        activeStoreConnections: storeConnectionStats[0]?.activeStoreConnections || 0,
+        totalProducts: productStats[0]?.totalProducts || 0,
+        syncedProducts: productStats[0]?.syncedProducts || 0
+      },
+      userGrowth,
+      subscriptionBreakdown,
       totalUsage: {
         // Use real data when available, fallback to 0
         totalApiCalls: totalUsage[0]?.totalApiCalls || 0,
         totalProductsSync: totalUsage[0]?.totalProductsSync || 0,
         totalStorageUsed: totalUsage[0]?.totalStorageUsed || 0,
-        totalUsers: totalUsage[0]?.totalUsers || 0,
-        // Add real product and store counts
-        totalProducts: totalProducts,
-        totalStoreConnections: totalStoreConnections
+        totalUsers: totalUsage[0]?.totalUsers || 0
       },
-      userGrowth,
-      subscriptionBreakdown,
-      revenueData,
       generatedAt: new Date()
     };
 

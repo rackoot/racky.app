@@ -13,13 +13,30 @@ interface AdminStats {
 
 interface AnalyticsData {
   period: string
+  overview?: {
+    totalUsers: number
+    activeUsers: number
+    superAdmins: number
+    totalWorkspaces: number
+    activeWorkspaces: number
+    avgWorkspacesPerUser: number
+    totalSubscriptions: number
+    activeSubscriptions: number
+    totalRevenue: number
+    workspacesWithSubscriptions: number
+    workspacesWithoutSubscriptions: number
+    totalStoreConnections: number
+    activeStoreConnections: number
+    totalProducts: number
+    syncedProducts: number
+  }
   totalUsage: {
     totalApiCalls: number
     totalProductsSync: number
     totalStorageUsed: number
     totalUsers: number
-    totalProducts: number
-    totalStoreConnections: number
+    totalProducts?: number
+    totalStoreConnections?: number
   }
   userGrowth: Array<{
     _id: { year: number; month: number; day: number }
@@ -29,7 +46,7 @@ interface AnalyticsData {
     _id: string
     count: number
   }>
-  revenueData: Array<{
+  revenueData?: Array<{
     _id: string
     count: number
   }>
@@ -248,12 +265,27 @@ export function AdminDashboard() {
             <CardDescription>Distribution of subscription tiers</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {analytics?.revenueData.map((plan) => (
+            {analytics?.revenueData?.map((plan) => (
               <div key={plan._id} className="flex justify-between">
-                <span className="text-sm">{plan._id}</span>
+                <span className="text-sm">{plan._id || 'Unknown'}</span>
                 <span className="font-medium">{plan.count}</span>
               </div>
-            )) || (
+            )) || analytics?.overview ? (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm">Active Subscriptions</span>
+                  <span className="font-medium">{analytics.overview.activeSubscriptions}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm">Total Revenue</span>
+                  <span className="font-medium">${(analytics.overview.totalRevenue / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm">Workspaces w/ Subscriptions</span>
+                  <span className="font-medium">{analytics.overview.workspacesWithSubscriptions}</span>
+                </div>
+              </div>
+            ) : (
               <div className="text-sm text-muted-foreground">No data available</div>
             )}
           </CardContent>
@@ -271,21 +303,29 @@ export function AdminDashboard() {
             <div className="flex justify-between">
               <span className="text-sm">Total Products</span>
               <span className="font-medium">
-                {analytics?.totalUsage.totalProducts?.toLocaleString() || 0}
+                {(analytics?.overview?.totalProducts || analytics?.totalUsage.totalProducts || 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm">Store Connections</span>
               <span className="font-medium">
-                {analytics?.totalUsage.totalStoreConnections?.toLocaleString() || 0}
+                {(analytics?.overview?.totalStoreConnections || analytics?.totalUsage.totalStoreConnections || 0).toLocaleString()}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-sm">Products Synced</span>
               <span className="font-medium">
-                {analytics?.totalUsage.totalProductsSync?.toLocaleString() || 0}
+                {(analytics?.overview?.syncedProducts || analytics?.totalUsage.totalProductsSync || 0).toLocaleString()}
               </span>
             </div>
+            {analytics?.overview && (
+              <div className="flex justify-between">
+                <span className="text-sm">Total Workspaces</span>
+                <span className="font-medium">
+                  {analytics.overview.totalWorkspaces.toLocaleString()}
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
