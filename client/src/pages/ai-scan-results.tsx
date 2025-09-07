@@ -19,8 +19,13 @@ import {
   Eye,
   ThumbsUp,
   ThumbsDown,
-  Sparkles
+  Sparkles,
+  ChevronLeft,
+  ChevronRight,
+  CheckCheck,
+  Maximize2
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface JobDetails {
   job: {
@@ -101,6 +106,15 @@ export function AIScanResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [regeneratingProducts, setRegeneratingProducts] = useState<Set<string>>(new Set());
+  const [acceptingAll, setAcceptingAll] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const PRODUCTS_PER_PAGE = 5;
+  
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalDescription, setModalDescription] = useState('');
 
   useEffect(() => {
     if (currentWorkspace && jobId) {
@@ -145,26 +159,93 @@ export function AIScanResultsPage() {
       const product = jobDetails?.products.find(p => p.id === productId);
       if (!product?.descriptions.aiGenerated) return;
 
-      const response = await fetch(`/api/products/${productId}/description`, {
-        method: 'PUT',
+      const response = await fetch(`/api/products/${productId}/description/accept`, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'X-Workspace-ID': currentWorkspace._id,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          description: product.descriptions.aiGenerated
+          description: product.descriptions.aiGenerated,
+          marketplace: product.marketplace
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to update product description: ${response.statusText}`);
+        throw new Error(`Failed to accept suggestion: ${response.statusText}`);
       }
 
-      // Reload job details to reflect the change
-      await loadJobDetails();
+      // Update product status to pending locally
+      setJobDetails(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          products: prev.products.map(p => 
+            p.id === productId 
+              ? { ...p, status: 'updating', updateStatus: 'pending' as any }
+              : p
+          )
+        };
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to accept suggestion');
+    }
+  };
+
+  const acceptAllCurrentPage = async () => {
+    if (!currentWorkspace || !currentWorkspace._id || !jobDetails) return;
+    
+    setAcceptingAll(true);
+    try {
+      const startIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
+      const endIndex = startIndex + PRODUCTS_PER_PAGE;
+      const currentPageProducts = jobDetails.products.slice(startIndex, endIndex);
+      const optimizedProducts = currentPageProducts.filter(
+        p => p.status === 'optimized' && p.descriptions.aiGenerated
+      );
+
+      if (optimizedProducts.length === 0) {
+        setError('No optimized products to accept on current page');
+        return;
+      }
+
+      const response = await fetch(`/api/products/accept-all-descriptions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'X-Workspace-ID': currentWorkspace._id,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          products: optimizedProducts.map(p => ({
+            productId: p.id,
+            description: p.descriptions.aiGenerated,
+            marketplace: p.marketplace
+          }))
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to accept all descriptions: ${response.statusText}`);
+      }
+
+      // Update product statuses to pending locally
+      setJobDetails(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          products: prev.products.map(p => 
+            optimizedProducts.some(op => op.id === p.id)
+              ? { ...p, status: 'updating', updateStatus: 'pending' as any }
+              : p
+          )
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to accept all descriptions');
+    } finally {
+      setAcceptingAll(false);
     }
   };
 
@@ -392,10 +473,34 @@ export function AIScanResultsPage() {
       {/* Products Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Product Optimization Results</CardTitle>
-          <CardDescription>
-            Review AI-generated suggestions for each product and accept or regenerate them.
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Product Optimization Results</CardTitle>
+              <CardDescription>
+                Review AI-generated suggestions for each product and accept or regenerate them.
+              </CardDescription>
+            </div>
+            {jobDetails && (() => {
+              const startIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
+              const endIndex = startIndex + PRODUCTS_PER_PAGE;
+              const currentPageProducts = jobDetails.products.slice(startIndex, endIndex);
+              const optimizedProducts = currentPageProducts.filter(p => p.status === 'optimized' && p.descriptions.aiGenerated);
+              return optimizedProducts.length > 0 ? (
+                <Button 
+                  onClick={acceptAllCurrentPage}
+                  disabled={acceptingAll}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {acceptingAll ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCheck className="h-4 w-4 mr-2" />
+                  )}
+                  Accept All ({optimizedProducts.length} products)
+                </Button>
+              ) : null;
+            })()}
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -410,7 +515,11 @@ export function AIScanResultsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {jobDetails.products.map((product) => (
+              {(() => {
+                const startIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
+                const endIndex = startIndex + PRODUCTS_PER_PAGE;
+                const currentPageProducts = jobDetails.products.slice(startIndex, endIndex);
+                return currentPageProducts.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>
                     {product.image ? (
@@ -433,15 +542,33 @@ export function AIScanResultsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {getStatusBadge(product.status)}
+                    {(product as any).updateStatus === 'pending' ? (
+                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Queued for Update</Badge>
+                    ) : getStatusBadge(product.status)}
                   </TableCell>
                   <TableCell>
                     <div className="max-w-xs">
-                      <Textarea 
-                        value={product.descriptions.current || 'No description'}
-                        readOnly
-                        className="min-h-[60px] resize-none text-sm"
-                      />
+                      <div className="relative">
+                        <Textarea 
+                          value={product.descriptions.current || 'No description'}
+                          readOnly
+                          className="min-h-[120px] resize-none text-sm pr-10"
+                          rows={6}
+                        />
+                        {product.descriptions.current && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-gray-100"
+                            onClick={() => {
+                              setModalDescription(product.descriptions.current || 'No description');
+                              setModalOpen(true);
+                            }}
+                          >
+                            <Maximize2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -449,16 +576,33 @@ export function AIScanResultsPage() {
                       {product.status === 'optimized' && product.descriptions.aiGenerated ? (
                         // Show generated description for completed products
                         <div className="space-y-2">
-                          <div className="text-xs font-medium text-green-600">✓ AI Generated:</div>
-                          <Textarea 
-                            value={product.descriptions.aiGenerated}
-                            readOnly
-                            className="min-h-[60px] resize-none text-sm border-green-200 bg-green-50"
-                          />
+                          <div className="relative">
+                            <Textarea 
+                              value={product.descriptions.aiGenerated}
+                              readOnly
+                              className="min-h-[120px] resize-none text-sm border-green-200 bg-green-50 pr-10"
+                              rows={6}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute top-2 right-2 h-6 w-6 p-0 hover:bg-green-100"
+                              onClick={() => {
+                                setModalDescription(product.descriptions.aiGenerated || '');
+                                setModalOpen(true);
+                              }}
+                            >
+                              <Maximize2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (product as any).status === 'updating' || (product as any).updateStatus === 'pending' ? (
+                        <div className="text-sm text-yellow-600 p-2 border border-yellow-200 bg-yellow-50 rounded min-h-[120px] flex items-center justify-center">
+                          ⏳ Queued for marketplace update...
                         </div>
                       ) : (
                         // Show status message for pending, processing, or failed states
-                        <div className="text-sm text-muted-foreground p-2 border rounded">
+                        <div className="text-sm text-muted-foreground p-2 border rounded min-h-[120px] flex items-center justify-center">
                           {product.status === 'processing' 
                             ? '⏳ Generating description...'
                             : product.status === 'failed' 
@@ -472,7 +616,12 @@ export function AIScanResultsPage() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {product.status === 'optimized' && product.descriptions.aiGenerated ? (
+                    {(product as any).status === 'updating' || (product as any).updateStatus === 'pending' ? (
+                      <div className="text-center">
+                        <div className="text-xs text-yellow-600 font-medium">Queued for Update</div>
+                        <div className="animate-pulse h-2 w-2 rounded-full bg-yellow-400 mx-auto mt-1"></div>
+                      </div>
+                    ) : product.status === 'optimized' && product.descriptions.aiGenerated ? (
                       <div className="flex flex-col gap-1">
                         <Button
                           size="sm"
@@ -525,9 +674,77 @@ export function AIScanResultsPage() {
                     ) : null}
                   </TableCell>
                 </TableRow>
-              ))}
+              ))
+              })()}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {jobDetails.products.length > PRODUCTS_PER_PAGE && (
+            <div className="flex items-center justify-between mt-6">
+              <div className="text-sm text-muted-foreground">
+                Showing {Math.min((currentPage - 1) * PRODUCTS_PER_PAGE + 1, jobDetails.products.length)} to{' '}
+                {Math.min(currentPage * PRODUCTS_PER_PAGE, jobDetails.products.length)} of{' '}
+                {jobDetails.products.length} products
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.ceil(jobDetails.products.length / PRODUCTS_PER_PAGE) }, (_, i) => {
+                    const page = i + 1;
+                    if (Math.ceil(jobDetails.products.length / PRODUCTS_PER_PAGE) <= 5) {
+                      return (
+                        <Button
+                          key={`page-${page}`}
+                          variant={page === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(page)}
+                        >
+                          {page}
+                        </Button>
+                      );
+                    } else {
+                      // Show first page, current page +/- 1, and last page with ellipsis
+                      if (page === 1 || 
+                          page === Math.ceil(jobDetails.products.length / PRODUCTS_PER_PAGE) ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)) {
+                        return (
+                          <Button
+                            key={`page-${page}`}
+                            variant={page === currentPage ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </Button>
+                        );
+                      } else if (page === currentPage - 2 || page === currentPage + 2) {
+                        return <span key={`ellipsis-${page}`} className="px-2">...</span>;
+                      }
+                      return null;
+                    }
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  disabled={currentPage >= Math.ceil(jobDetails.products.length / PRODUCTS_PER_PAGE)}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
 
           {jobDetails.products.length === 0 && (
             <div className="text-center py-8">
@@ -537,6 +754,28 @@ export function AIScanResultsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Description Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Full Description</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            <Textarea
+              value={modalDescription}
+              readOnly
+              className="min-h-[400px] resize-none text-sm"
+              rows={20}
+            />
+          </div>
+          <div className="flex justify-end mt-4">
+            <Button onClick={() => setModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

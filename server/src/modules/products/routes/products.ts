@@ -1335,6 +1335,220 @@ router.put('/:productId/description', async (req: AuthenticatedRequest, res: Res
   }
 });
 
+/**
+ * POST /api/products/:productId/description/accept
+ * Accept AI suggestion and queue for marketplace update
+ */
+router.post('/:productId/description/accept', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await protect(req, res, async () => {
+      await checkSubscriptionStatus(req, res, async () => {
+        await requireFeature('AI Suggestions')(req, res, async () => {
+          await trackUsage('ai_suggestion')(req, res, async () => {
+            await trackUsage('api_call')(req, res, async () => {
+              const { productId } = req.params;
+              const { description, marketplace } = req.body;
+
+              if (!description) {
+                return res.status(400).json({
+                  success: false,
+                  message: 'Description is required'
+                });
+              }
+
+              const product = await Product.findOne({
+                _id: productId,
+                workspaceId: req.workspace!._id
+              }).populate('storeConnectionId');
+
+              if (!product) {
+                return res.status(404).json({
+                  success: false,
+                  message: 'Product not found'
+                });
+              }
+
+              // Update local description
+              product.description = description;
+              product.updateStatus = 'pending';
+              product.updateError = undefined;
+              product.lastUpdateAttempt = new Date();
+              await product.save();
+
+              // Queue marketplace update using RabbitMQ
+              const RabbitMQService = require('@/common/services/rabbitMQService').default;
+              const rabbitMQService = new RabbitMQService();
+              
+              await rabbitMQService.addJob('marketplace-update', {
+                userId: req.user!._id.toString(),
+                workspaceId: req.workspace!._id.toString(),
+                productId: productId,
+                description: description,
+                marketplace: marketplace || product.marketplace,
+                connectionId: product.storeConnectionId,
+                priority: 0
+              });
+
+              // Create history entry
+              await ProductHistoryService.createAIOptimizationHistory({
+                workspaceId: req.workspace!._id.toString(),
+                userId: req.user!._id.toString(),
+                productId: productId,
+                actionType: 'AI_OPTIMIZATION_APPLIED',
+                marketplace: marketplace || product.marketplace,
+                aiModel: 'gpt-3.5-turbo',
+                originalContent: '',
+                newContent: description,
+                confidence: 0.9
+              });
+
+              res.json({
+                success: true,
+                message: 'Description accepted and queued for marketplace update',
+                data: {
+                  productId,
+                  description: product.description,
+                  status: 'pending'
+                }
+              });
+            });
+          });
+        });
+      });
+    });
+  } catch (error: any) {
+    console.error('Error accepting product description:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to accept product description',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/products/accept-all-descriptions
+ * Accept multiple AI suggestions and queue for marketplace update
+ */
+router.post('/accept-all-descriptions', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await protect(req, res, async () => {
+      await checkSubscriptionStatus(req, res, async () => {
+        await requireFeature('AI Suggestions')(req, res, async () => {
+          await trackUsage('api_call')(req, res, async () => {
+            const { products } = req.body;
+
+            if (!products || !Array.isArray(products) || products.length === 0) {
+              return res.status(400).json({
+                success: false,
+                message: 'Products array is required and must not be empty'
+              });
+            }
+
+            const results = [];
+            const RabbitMQService = require('@/common/services/rabbitMQService').default;
+            const rabbitMQService = new RabbitMQService();
+
+            for (const productData of products) {
+              const { productId, description, marketplace } = productData;
+
+              if (!productId || !description) {
+                results.push({
+                  productId,
+                  success: false,
+                  message: 'Product ID and description are required'
+                });
+                continue;
+              }
+
+              try {
+                const product = await Product.findOne({
+                  _id: productId,
+                  workspaceId: req.workspace!._id
+                }).populate('storeConnectionId');
+
+                if (!product) {
+                  results.push({
+                    productId,
+                    success: false,
+                    message: 'Product not found'
+                  });
+                  continue;
+                }
+
+                // Update local description
+                product.description = description;
+                product.updateStatus = 'pending';
+                product.updateError = undefined;
+                product.lastUpdateAttempt = new Date();
+                await product.save();
+
+                // Queue marketplace update
+                await rabbitMQService.addJob('marketplace-update', {
+                  userId: req.user!._id.toString(),
+                  workspaceId: req.workspace!._id.toString(),
+                  productId: productId,
+                  description: description,
+                  marketplace: marketplace || product.marketplace,
+                  connectionId: product.storeConnectionId,
+                  priority: 0
+                });
+
+                // Create history entry
+                await ProductHistoryService.createAIOptimizationHistory({
+                  workspaceId: req.workspace!._id.toString(),
+                  userId: req.user!._id.toString(),
+                  productId: productId,
+                  actionType: 'AI_OPTIMIZATION_APPLIED',
+                  marketplace: marketplace || product.marketplace,
+                  aiModel: 'gpt-3.5-turbo',
+                  originalContent: '',
+                  newContent: description,
+                  confidence: 0.9
+                });
+
+                // Track usage for each processed product
+                await trackUsage('ai_suggestion')(req, res, async () => {});
+
+                results.push({
+                  productId,
+                  success: true,
+                  message: 'Description accepted and queued for marketplace update'
+                });
+              } catch (productError: any) {
+                results.push({
+                  productId,
+                  success: false,
+                  message: productError.message
+                });
+              }
+            }
+
+            const successCount = results.filter(r => r.success).length;
+            
+            res.json({
+              success: true,
+              message: `Successfully queued ${successCount} of ${products.length} products for marketplace update`,
+              data: {
+                results,
+                successCount,
+                totalCount: products.length
+              }
+            });
+          });
+        });
+      });
+    });
+  } catch (error: any) {
+    console.error('Error accepting all product descriptions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to accept product descriptions',
+      error: error.message
+    });
+  }
+});
+
 // Add sync routes
 router.use('/sync', syncRoutes);
 

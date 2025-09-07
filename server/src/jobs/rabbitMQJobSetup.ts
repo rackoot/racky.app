@@ -2,6 +2,7 @@ import rabbitMQService from '@/common/services/rabbitMQService';
 import { JobType } from '@/common/types/jobTypes';
 import { processMarketplaceSync, processProductBatch } from './processors/marketplaceSyncProcessor';
 import { processAIOptimizationScan, processAIDescriptionBatch } from './processors/aiOptimizationProcessor';
+import { processMarketplaceUpdateJob } from './processors/marketplaceUpdateProcessor';
 import { rabbitMQMonitoringService } from '@/common/services/rabbitMQMonitoringService';
 
 /**
@@ -56,7 +57,7 @@ export function setupRabbitMQJobProcessors(): void {
       processAIDescriptionBatch as any
     );
 
-    // Marketplace update jobs (placeholders for now)
+    // Marketplace update jobs
     rabbitMQService.process(
       'marketplace-updates',
       JobType.MARKETPLACE_UPDATE_BATCH,
@@ -66,6 +67,14 @@ export function setupRabbitMQJobProcessors(): void {
         await new Promise(resolve => setTimeout(resolve, 3000));
         return { success: true, updatedCount: job.data.productIds?.length || 0 };
       }
+    );
+
+    // Individual marketplace update jobs
+    rabbitMQService.process(
+      'marketplace-update',
+      JobType.MARKETPLACE_UPDATE,
+      3, // Process up to 3 individual marketplace updates concurrently
+      processMarketplaceUpdateJob as any
     );
 
     console.log('✅ RabbitMQ job processors set up successfully');

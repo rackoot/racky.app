@@ -53,7 +53,8 @@ class RabbitMQService {
       [JobType.AI_OPTIMIZATION_SCAN]: 'ai.scan',
       [JobType.AI_DESCRIPTION_BATCH]: 'ai.batch'
     },
-    'marketplace-updates': 'updates.batch'
+    'marketplace-updates': 'updates.batch',
+    'marketplace-update': 'updates.individual'
   };
 
   // Exchange mapping
@@ -63,7 +64,8 @@ class RabbitMQService {
     'products.individual': 'racky.products.exchange',
     'ai.scan': 'racky.ai.exchange',
     'ai.batch': 'racky.ai.exchange',
-    'updates.batch': 'racky.updates.exchange'
+    'updates.batch': 'racky.updates.exchange',
+    'updates.individual': 'racky.updates.exchange'
   };
 
   /**

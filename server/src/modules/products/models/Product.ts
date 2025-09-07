@@ -95,6 +95,10 @@ export interface IProduct extends Document {
   category?: string;
   lastSyncedAt: Date;
   cachedDescriptions: ICachedDescription[];
+  // Update status tracking
+  updateStatus?: 'pending' | 'updating' | 'completed' | 'failed';
+  updateError?: string;
+  lastUpdateAttempt?: Date;
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -190,6 +194,14 @@ const productSchema = new Schema<IProduct>({
   stock: { type: Number, default: 0 },
   category: { type: String },
   lastSyncedAt: { type: Date, default: Date.now },
+  // Update status tracking
+  updateStatus: { 
+    type: String, 
+    enum: ['pending', 'updating', 'completed', 'failed'],
+    default: 'completed'
+  },
+  updateError: { type: String },
+  lastUpdateAttempt: { type: Date },
   cachedDescriptions: [{
     platform: { 
       type: String, 

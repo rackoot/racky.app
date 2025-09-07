@@ -4,7 +4,8 @@ export enum JobType {
   PRODUCT_INDIVIDUAL = 'product-individual',
   AI_OPTIMIZATION_SCAN = 'ai-optimization-scan',
   AI_DESCRIPTION_BATCH = 'ai-description-batch',
-  MARKETPLACE_UPDATE_BATCH = 'marketplace-update-batch'
+  MARKETPLACE_UPDATE_BATCH = 'marketplace-update-batch',
+  MARKETPLACE_UPDATE = 'marketplace-update'
 }
 
 export enum JobPriority {
@@ -98,6 +99,18 @@ export interface MarketplaceUpdateBatchJobData {
   metadata?: Record<string, any>;
 }
 
+export interface MarketplaceUpdateJobData {
+  userId: string;
+  workspaceId: string;
+  productId: string;
+  description: string;
+  marketplace: string;
+  connectionId: string;
+  createdAt: Date;
+  priority: JobPriority;
+  metadata?: Record<string, any>;
+}
+
 // Union type for all job data
 export type JobData = 
   | MarketplaceSyncJobData
@@ -105,4 +118,5 @@ export type JobData =
   | ProductIndividualJobData
   | AIOptimizationJobData
   | AIDescriptionBatchJobData
-  | MarketplaceUpdateBatchJobData;
+  | MarketplaceUpdateBatchJobData
+  | MarketplaceUpdateJobData;

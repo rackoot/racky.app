@@ -532,6 +532,38 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                         </Badge>
                       </div>
 
+                      {/* Marketplace Update Status */}
+                      {(product as any).updateStatus && (product as any).updateStatus !== 'completed' && (
+                        <div className="text-sm">
+                          <p className="text-muted-foreground mb-2">Marketplace Update:</p>
+                          <Badge 
+                            variant={
+                              (product as any).updateStatus === 'pending' ? 'secondary' :
+                              (product as any).updateStatus === 'updating' ? 'outline' :
+                              (product as any).updateStatus === 'failed' ? 'destructive' :
+                              'default'
+                            }
+                            className={
+                              (product as any).updateStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                              (product as any).updateStatus === 'updating' ? 'bg-blue-100 text-blue-800' :
+                              ''
+                            }
+                          >
+                            {(product as any).updateStatus === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                            {(product as any).updateStatus === 'updating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                            {(product as any).updateStatus === 'failed' && <X className="w-3 h-3 mr-1" />}
+                            {(product as any).updateStatus === 'pending' && 'Queued for Update'}
+                            {(product as any).updateStatus === 'updating' && 'Updating...'}
+                            {(product as any).updateStatus === 'failed' && 'Update Failed'}
+                          </Badge>
+                          {(product as any).updateError && (
+                            <p className="text-xs text-red-600 mt-1">
+                              {(product as any).updateError}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       {suggestion.status === 'pending' && (
                         <div className="space-y-2">
                           <Button 
