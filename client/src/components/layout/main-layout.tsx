@@ -79,7 +79,7 @@ export function MainLayout({ children }: MainLayoutProps) {
       
       {/* Sidebar */}
       <aside className={`
-        fixed md:relative z-50 md:z-auto
+        fixed z-50 md:z-auto
         w-64 h-screen bg-sidebar border-r border-sidebar-border
         transform transition-transform duration-200 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
@@ -102,7 +102,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             />
           </div>
           
-          <nav className="flex-1 p-4">
+          <nav className="flex-1 p-4 overflow-y-auto">
             <AppSidebar collapsed={!sidebarOpen} />
           </nav>
           <div className="p-4 border-t border-sidebar-border">
@@ -112,7 +112,11 @@ export function MainLayout({ children }: MainLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-h-screen md:ml-0">
+      <div className={`
+        flex-1 flex flex-col min-h-screen
+        transition-all duration-200 ease-in-out
+        ${sidebarOpen ? 'md:ml-64' : 'md:ml-16'}
+      `}>
         {/* Subscription Banner */}
         {shouldShowSubscriptionBanner() && bannerInfo && (
           <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-3">

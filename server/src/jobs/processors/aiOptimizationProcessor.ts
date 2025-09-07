@@ -275,6 +275,23 @@ export class AIOptimizationProcessor {
           const progressPercentage = Math.round((i / products.length) * 100);
           await job.progress(progressPercentage);
 
+          // Double-check scan limits before processing (safety measure)
+          const limitCheck = await ProductHistoryService.checkProductScanLimit(
+            product._id.toString(),
+            workspaceId
+          );
+
+          if (!limitCheck.canScan) {
+            console.log(`⏭️ Skipping product ${product._id} - scan limit reached (${limitCheck.scansInWindow}/2 scans in 24h)`);
+            results.push({ 
+              productId: product._id.toString(), 
+              status: 'failed', 
+              error: `Product has reached daily scan limit (${limitCheck.scansInWindow}/2 scans in 24 hours)`
+            });
+            failedCount++;
+            continue;
+          }
+
           // Convert to AI service format
           const aiProduct = {
             title: product.title,

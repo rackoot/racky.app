@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useWorkspace } from '@/components/workspace/workspace-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +37,7 @@ interface AIJob {
 }
 
 const AIStartScanPage = () => {
+  const navigate = useNavigate();
   const { currentWorkspace } = useWorkspace();
   const [jobs, setJobs] = useState<AIJob[]>([]);
   const [loading, setLoading] = useState(false);
@@ -72,10 +74,26 @@ const AIStartScanPage = () => {
       .filter(mp => mp.available)
       .map(mp => mp.marketplace);
     
-    return connectedMarketplaces.filter(mp => 
+    const availableMarketplaces = connectedMarketplaces.filter(mp => 
       availableMarketplaceIds.includes(mp.id) && 
       mp.connectionInfo
     );
+
+    // Debug logging
+    console.log('[DEBUG] Marketplace availability breakdown:', {
+      totalConnected: connectedMarketplaces.length,
+      availabilityData: marketplaceAvailability.map(mp => ({
+        marketplace: mp.marketplace,
+        available: mp.available,
+        availableProducts: mp.availableProducts,
+        totalProducts: mp.totalProducts,
+        reason: mp.reason
+      })),
+      availableCount: availableMarketplaces.length,
+      availableMarketplaces: availableMarketplaces.map(mp => mp.id)
+    });
+    
+    return availableMarketplaces;
   }, [marketplaceAvailability, connectedMarketplaces]);
   
   // Helper function to get marketplace availability info
@@ -219,6 +237,21 @@ const AIStartScanPage = () => {
       setError('Please select a marketplace');
       return;
     }
+
+    // Check if the selected marketplace is actually available for scanning
+    const marketplaceAvailabilityInfo = getMarketplaceAvailabilityInfo(marketplace);
+    if (marketplaceAvailabilityInfo && !marketplaceAvailabilityInfo.available) {
+      const reasonMessage = marketplaceAvailabilityInfo.reason === 'cooldown_24h' 
+        ? 'All products in this marketplace have reached their daily scan limit (2 scans per 24 hours). Please try again later.'
+        : marketplaceAvailabilityInfo.reason === 'scan_in_progress'
+        ? 'This marketplace is currently running a scan. Please wait for it to complete.'
+        : marketplaceAvailabilityInfo.reason === 'no_products'
+        ? 'This marketplace has no products available for scanning.'
+        : 'This marketplace is not available for scanning right now.';
+      
+      setError(reasonMessage);
+      return;
+    }
     
     setScanLoading(true);
     setError(null);
@@ -262,6 +295,9 @@ const AIStartScanPage = () => {
       setMaxDescriptionLength('');
       setCreatedAfter('');
       
+      // Get the job ID from the response for redirect
+      const jobId = data.data?.jobId;
+      
       // Reload jobs, marketplaces and availability to ensure form is updated
       await Promise.all([
         loadJobs(),
@@ -275,7 +311,12 @@ const AIStartScanPage = () => {
       // Reload jobs again to make sure we have the latest state
       await loadJobs();
       
-      // Clear success message after 5 seconds
+      // Redirect to the scan results page
+      if (jobId) {
+        navigate(`/ai-optimization/results/${jobId}`);
+      }
+      
+      // Clear success message after 5 seconds (will only matter if redirect fails)
       setTimeout(() => {
         setScanSuccess(false);
         setSuccessMessage('');
@@ -667,7 +708,8 @@ const AIStartScanPage = () => {
                     disabled={
                       scanLoading || 
                       getAvailableMarketplaces().length === 0 || 
-                      !marketplace
+                      !marketplace ||
+                      (marketplace && getMarketplaceAvailabilityInfo(marketplace) && !getMarketplaceAvailabilityInfo(marketplace)?.available)
                     }
                     className="flex items-center gap-2"
                   >

@@ -43,6 +43,35 @@ export interface AISuggestionsResponse {
   expiresAt?: string;
 }
 
+export interface AIScanMetrics {
+  totalScans: number;
+  completedScans: number;
+  activeScans: number;
+  totalProductsProcessed: number;
+  successRate: number;
+  lastScanAt: string | null;
+  lastScanStatus: string | null;
+}
+
+export interface ScanStatusDistribution {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface ScanTrend {
+  month: string;
+  count: number;
+}
+
+export interface AIScanStatistics {
+  metrics: AIScanMetrics;
+  charts: {
+    statusDistribution: ScanStatusDistribution[];
+    scanTrend: ScanTrend[];
+  };
+}
+
 export const dashboardService = {
   async getAnalytics(): Promise<DashboardAnalytics> {
     return dashboardApi.getAnalytics() as Promise<DashboardAnalytics>
@@ -57,5 +86,21 @@ export const dashboardService = {
       generatedAt: new Date().toISOString(),
       cached: !forceRefresh
     }
+  },
+
+  async getAIScanStatistics(workspaceId: string): Promise<AIScanStatistics> {
+    const response = await fetch('/api/opportunities/ai/statistics', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'X-Workspace-ID': workspaceId,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch AI scan statistics: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.data as AIScanStatistics;
   }
 };

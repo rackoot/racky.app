@@ -84,25 +84,25 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
         });
       }
 
-      // Check for recent scans (last 24 hours) and filter products
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
-      // Find products that have been scanned in the last 24 hours
-      const recentlyScannedProducts = await ProductHistory.find({
+      // Get all products for this marketplace that match user filters
+      const allProducts = await ProductModel.find({
+        userId,
         workspaceId,
-        actionType: 'AI_OPTIMIZATION_GENERATED',
-        createdAt: { $gte: twentyFourHoursAgo },
-        'metadata.marketplace': marketplace
-      }).distinct('productId');
+        marketplace,
+        lastSyncedAt: { $exists: true }, // Only include synced products
+        ...(createdAfter && { createdAt: { $gte: new Date(createdAfter) } })
+      }).select('_id').lean();
 
-      // Build product filters for scan
-      let productFilters: any = { workspaceId, marketplace };
-      
-      // Apply user filters
-      if (createdAfter) {
-        productFilters.createdAt = { $gte: new Date(createdAfter) };
-      }
+      // Apply description length filters if specified
+      let filteredProducts = allProducts;
       if (minDescriptionLength || maxDescriptionLength) {
+        const productFilters: any = { 
+          _id: { $in: allProducts.map(p => p._id) },
+          userId,
+          workspaceId,
+          marketplace
+        };
+        
         const descConditions: any[] = [];
         if (minDescriptionLength) {
           descConditions.push({ $gte: [{ $strLenCP: "$description" }, minDescriptionLength] });
@@ -110,32 +110,35 @@ router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
         if (maxDescriptionLength) {
           descConditions.push({ $lte: [{ $strLenCP: "$description" }, maxDescriptionLength] });
         }
-        productFilters.$expr = {
-          $and: descConditions
-        };
+        productFilters.$expr = { $and: descConditions };
+        
+        filteredProducts = await ProductModel.find(productFilters).select('_id').lean();
       }
 
-      // Exclude recently scanned products (unless they're new products created after the last scan)
-      if (recentlyScannedProducts.length > 0) {
-        productFilters._id = { $nin: recentlyScannedProducts };
-      }
+      // Check scan limits for each product (max 2 scans per 24 hours)
+      const { ProductHistoryService } = await import('@/products/services/ProductHistoryService');
+      const productIds = filteredProducts.map(p => p._id.toString());
+      const limitCheckResult = await ProductHistoryService.getProductsWithinScanLimit(
+        productIds,
+        workspaceId
+      );
 
-      // Count products available for scanning
-      const availableProductCount = await ProductModel.countDocuments(productFilters);
+      const availableProductCount = limitCheckResult.availableProducts.length;
+      const blockedProductCount = limitCheckResult.blockedProducts.length;
 
       if (availableProductCount === 0) {
-        const allProductsRecentlyScanned = recentlyScannedProducts.length === productCount;
+        const allProductsBlocked = blockedProductCount === filteredProducts.length && filteredProducts.length > 0;
         
         return res.status(400).json({
           success: false,
-          message: allProductsRecentlyScanned 
-            ? `All ${productCount} products in marketplace "${marketplace}" were scanned within the last 24 hours. Please wait before scanning again.`
+          message: allProductsBlocked
+            ? `All ${filteredProducts.length} products in marketplace "${marketplace}" have reached their daily scan limit (2 scans per 24 hours). Please try again later.`
             : `No products match the specified filters for marketplace "${marketplace}".`,
           data: {
-            totalProducts: productCount,
-            recentlyScanned: recentlyScannedProducts.length,
+            totalProducts: filteredProducts.length,
+            blockedProducts: blockedProductCount,
             availableForScan: availableProductCount,
-            cooldownEndsAt: allProductsRecentlyScanned ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null
+            nextAvailableAt: blockedProductCount > 0 ? limitCheckResult.blockedProducts[0].nextAvailableAt : null
           }
         });
       }
@@ -258,14 +261,29 @@ router.get('/marketplace-availability', async (req: AuthenticatedRequest, res: R
           };
         }
 
-        // Get all products for this marketplace
+        // Get all products for this marketplace that need optimization (same criteria as scan processor)
         const Product = (await import('@/products/models/Product')).default;
-        const marketplaceProducts = await Product.find({
+        
+        // Apply the same optimization criteria as the scan processor
+        const optimizationQuery = {
           userId,
           workspaceId,
           marketplace,
-          lastSyncedAt: { $exists: true } // Only include synced products
-        }).select('_id').lean();
+          lastSyncedAt: { $exists: true }, // Only include synced products
+          $or: [
+            { description: { $exists: false } },
+            { description: '' },
+            { description: { $regex: /^.{0,50}$/ } }, // Very short descriptions
+            {
+              $and: [
+                { description: { $exists: true } },
+                { description: { $not: { $regex: /[.!?].*[.!?]/ } } } // No proper sentences
+              ]
+            }
+          ]
+        };
+        
+        const marketplaceProducts = await Product.find(optimizationQuery).select('_id').lean();
 
         // Check scan limits for each product (max 2 scans per 24 hours)
         const { ProductHistoryService } = await import('@/products/services/ProductHistoryService');
@@ -464,39 +482,24 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
     // Get all related job IDs (main job + child batch jobs)
     const relatedJobIds = [jobId, ...childBatchJobs.map(j => j.jobId)];
     
-    // Get ALL products that match the scan filters, not just those with history entries
-    let scanFilters: any = { workspaceId };
-    
-    if (job.data.filters) {
-      if (job.data.filters.marketplace) {
-        scanFilters.marketplace = job.data.filters.marketplace;
+    // Get only products that were actually eligible for scanning (i.e., included in batch jobs)
+    // Extract product IDs from all child batch jobs
+    const batchProductIds = childBatchJobs.reduce((acc: string[], batchJob: any) => {
+      if (batchJob.data.productIds) {
+        acc.push(...batchJob.data.productIds);
       }
-      if (job.data.filters.createdAfter) {
-        scanFilters.createdAt = { $gte: new Date(job.data.filters.createdAfter) };
-      }
-      // Add description length filters if needed
-      if (job.data.filters.minDescriptionLength || job.data.filters.maxDescriptionLength) {
-        const descConditions: any = {};
-        if (job.data.filters.minDescriptionLength) {
-          descConditions.$gte = job.data.filters.minDescriptionLength;
-        }
-        if (job.data.filters.maxDescriptionLength) {
-          descConditions.$lte = job.data.filters.maxDescriptionLength;
-        }
-        scanFilters.$expr = {
-          $and: [
-            { $gte: [{ $strLenCP: "$description" }, job.data.filters.minDescriptionLength || 0] },
-            ...(job.data.filters.maxDescriptionLength ? [{ $lte: [{ $strLenCP: "$description" }, job.data.filters.maxDescriptionLength] }] : [])
-          ]
-        };
-      }
-    }
+      return acc;
+    }, []);
     
+    // Remove duplicates from batch product IDs
+    const uniqueProductIds = [...new Set(batchProductIds)];
     
-    // Get all products that should be part of this scan
-    const allScanProducts = await ProductModel.find(scanFilters)
-      .select('title externalId marketplace images description createdAt')
-      .lean();
+    // Get products that were actually eligible and included in batch processing
+    const allScanProducts = uniqueProductIds.length > 0 
+      ? await ProductModel.find({ _id: { $in: uniqueProductIds } })
+          .select('title externalId marketplace images description createdAt')
+          .lean()
+      : []; // If no products were eligible, return empty array
     
     
     // Find history entries for products that were processed
@@ -562,7 +565,7 @@ router.get('/job/:jobId/details', async (req: AuthenticatedRequest, res: Respons
       return acc;
     }, {});
 
-    // Build product list from ALL scanned products, not just those with history
+    // Build product list from only products that were eligible and included in batch processing
     const products = allScanProducts.map((product: any) => {
       const productKey = product._id.toString();
       const productHistory = historyMap[productKey] || [];
@@ -826,6 +829,124 @@ router.post('/regenerate/:productId', async (req: AuthenticatedRequest, res: Res
     res.status(500).json({
       success: false,
       message: 'Failed to regenerate AI suggestion',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/opportunities/ai/statistics
+ * Get AI optimization statistics for dashboard
+ */
+router.get('/statistics', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user!._id.toString();
+    const workspaceId = req.workspace!._id.toString();
+
+    // Get total scans count
+    const totalScans = await Job.countDocuments({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN
+    });
+
+    // Get completed scans count
+    const completedScans = await Job.countDocuments({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN,
+      status: 'completed'
+    });
+
+    // Get running/queued scans count
+    const activeScans = await Job.countDocuments({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN,
+      status: { $in: ['queued', 'processing'] }
+    });
+
+    // Get recent scans (last 30 days) with aggregated results
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentJobs = await Job.find({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN,
+      createdAt: { $gte: thirtyDaysAgo }
+    }).select('result createdAt status').lean();
+
+    // Calculate total products processed in last 30 days
+    const totalProductsProcessed = recentJobs
+      .filter(job => job.status === 'completed' && job.result?.totalProducts)
+      .reduce((sum, job) => sum + (job.result.totalProducts || 0), 0);
+
+    // Get most recent scan
+    const lastScan = await Job.findOne({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN
+    }).sort({ createdAt: -1 }).select('createdAt status result').lean();
+
+    // Get scan distribution by status for pie chart (using Racky brand colors)
+    const statusDistribution = [
+      { name: 'Completed', value: completedScans, color: '#18d2c0' }, // Racky teal
+      { name: 'Active', value: activeScans, color: '#f5ca0b' },        // Racky yellow
+      { name: 'Failed', value: totalScans - completedScans - activeScans, color: '#856dff' } // Racky purple
+    ].filter(item => item.value > 0);
+
+    // Get scan trend for last 6 months (monthly aggregation)
+    const sixMonthsAgo = new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000);
+    const scanTrendJobs = await Job.find({
+      userId,
+      workspaceId,
+      jobType: JobType.AI_OPTIMIZATION_SCAN,
+      createdAt: { $gte: sixMonthsAgo }
+    }).select('createdAt').lean();
+
+    // Group by month for trend chart
+    const monthlyScans: { [key: string]: number } = {};
+    scanTrendJobs.forEach(job => {
+      const monthKey = job.createdAt.toISOString().slice(0, 7); // YYYY-MM format
+      monthlyScans[monthKey] = (monthlyScans[monthKey] || 0) + 1;
+    });
+
+    const scanTrend = Object.entries(monthlyScans)
+      .map(([month, count]) => ({
+        month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        count
+      }))
+      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime())
+      .slice(-6); // Last 6 months
+
+    // Build response
+    const statistics = {
+      metrics: {
+        totalScans,
+        completedScans,
+        activeScans,
+        totalProductsProcessed,
+        successRate: totalScans > 0 ? Math.round((completedScans / totalScans) * 100) : 0,
+        lastScanAt: lastScan?.createdAt || null,
+        lastScanStatus: lastScan?.status || null
+      },
+      charts: {
+        statusDistribution,
+        scanTrend: scanTrend.length > 0 ? scanTrend : [
+          { month: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }), count: 0 }
+        ]
+      }
+    };
+
+    res.json({
+      success: true,
+      data: statistics
+    });
+
+  } catch (error: any) {
+    console.error('Error getting AI optimization statistics:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get AI optimization statistics',
       error: error.message
     });
   }

@@ -96,22 +96,23 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
       // Get total products for percentage calculation
       const totalForPercentage = productDistribution.reduce((sum: number, item: any) => sum + item.value, 0);
       
-      // Convert to percentages and add colors
+      // Convert to percentages and add colors (using Racky brand colors)
+      const rackyColors = ['#18d2c0', '#f5ca0b', '#856dff']; // Racky brand colors
       const marketplaceColors: Record<string, string> = {
-        shopify: '#8BC34A',
-        amazon: '#FF9800',
-        vtex: '#9C27B0',
-        mercadolibre: '#FFEB3B',
-        facebook_shop: '#2196F3',
-        google_shopping: '#F44336',
-        woocommerce: '#673AB7'
+        shopify: '#18d2c0',      // Racky teal
+        amazon: '#f5ca0b',       // Racky yellow
+        vtex: '#856dff',         // Racky purple
+        mercadolibre: '#18d2c0', // Racky teal (cycling colors)
+        facebook_shop: '#f5ca0b', // Racky yellow
+        google_shopping: '#856dff', // Racky purple
+        woocommerce: '#18d2c0'   // Racky teal
       };
 
-      const pieData: PieDataItem[] = productDistribution.map((item: any) => ({
+      const pieData: PieDataItem[] = productDistribution.map((item: any, index: number) => ({
         name: item.name,
         value: totalForPercentage > 0 ? Math.round((item.value / totalForPercentage) * 100) : 0,
         count: item.value,
-        color: marketplaceColors[item.name] || '#9E9E9E'
+        color: marketplaceColors[item.name] || rackyColors[index % rackyColors.length]
       }));
 
       // Get products created in last 6 months for trend

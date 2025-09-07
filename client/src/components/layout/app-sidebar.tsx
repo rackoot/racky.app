@@ -6,8 +6,6 @@ import {
   ShoppingCart,
   Store,
   Users,
-  Settings,
-  TrendingUp,
   CreditCard,
   Activity,
   DollarSign,
@@ -82,12 +80,6 @@ const items: NavigationItem[] = [
     requiresSubscription: true, // Requires active subscription
   },
   {
-    title: "Performance",
-    url: "/performance",
-    icon: TrendingUp,
-    requiresSubscription: true, // Requires active subscription
-  },
-  {
     title: "Customers",
     url: "/customers",
     icon: Users,
@@ -104,12 +96,6 @@ const items: NavigationItem[] = [
     url: "/subscription-manage",
     icon: CreditCard,
     requiresSubscription: true, // Only show when has active subscription
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    requiresSubscription: true, // Requires active subscription
   },
 ]
 

@@ -1,33 +1,27 @@
 import { useState, useEffect } from "react"
 import { MetricsCard } from "@/components/dashboard/metrics-card"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Package, Store, DollarSign, TrendingUp, PieChart, LineChart, Lightbulb, RefreshCw, AlertCircle, Loader2 } from "lucide-react"
+import { Package, Store, DollarSign, TrendingUp, PieChart, LineChart, Brain, RefreshCw, AlertCircle, Loader2, Activity, CheckCircle2, Clock } from "lucide-react"
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { dashboardService, type DashboardAnalytics, type AISuggestionsResponse } from "@/services/dashboard"
+import { dashboardService, type DashboardAnalytics, type AIScanStatistics } from "@/services/dashboard"
 
-const priorityColors = {
-  high: 'bg-red-100 text-red-800',
-  medium: 'bg-yellow-100 text-yellow-800',
-  low: 'bg-green-100 text-green-800'
-};
-
-const categoryIcons = {
-  marketing: '📈',
-  inventory: '📦',
-  pricing: '💰',
-  expansion: '🌐'
-};
+// Racky brand colors
+const BRAND_COLORS = {
+  primary: '#18d2c0',    // Teal
+  secondary: '#f5ca0b',  // Yellow
+  accent: '#856dff',     // Purple
+  text: '#000000'        // Black
+}
 
 export function Dashboard() {
   const { currentWorkspace } = useWorkspace()
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null)
-  const [suggestions, setSuggestions] = useState<AISuggestionsResponse | null>(null)
+  const [aiStatistics, setAiStatistics] = useState<AIScanStatistics | null>(null)
   const [loading, setLoading] = useState(true)
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false)
+  const [aiStatsLoading, setAiStatsLoading] = useState(false)
   const [error, setError] = useState("")
 
   const loadAnalytics = async () => {
@@ -44,16 +38,18 @@ export function Dashboard() {
     }
   }
 
-  const loadSuggestions = async (forceRefresh = false) => {
-    setSuggestionsLoading(true)
+  const loadAiStatistics = async () => {
+    if (!currentWorkspace?._id) return;
+    
+    setAiStatsLoading(true)
     
     try {
-      const data = await dashboardService.getAISuggestions(forceRefresh)
-      setSuggestions(data)
+      const data = await dashboardService.getAIScanStatistics(currentWorkspace._id)
+      setAiStatistics(data)
     } catch (err) {
-      console.error('Failed to load AI suggestions:', err)
+      console.error('Failed to load AI statistics:', err)
     } finally {
-      setSuggestionsLoading(false)
+      setAiStatsLoading(false)
     }
   }
 
@@ -61,7 +57,7 @@ export function Dashboard() {
     // Only load if we have a current workspace
     if (currentWorkspace) {
       loadAnalytics()
-      loadSuggestions()
+      loadAiStatistics()
     }
   }, [currentWorkspace])
 
@@ -195,9 +191,9 @@ export function Dashboard() {
                     <Line 
                       type="monotone" 
                       dataKey="count" 
-                      stroke="#2563eb" 
+                      stroke={BRAND_COLORS.primary} 
                       strokeWidth={2}
-                      dot={{ r: 4 }}
+                      dot={{ r: 4, fill: BRAND_COLORS.primary }}
                     />
                   </RechartsLineChart>
                 </ResponsiveContainer>
@@ -213,86 +209,124 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* AI Suggestions */}
+        {/* AI Scan Statistics */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-base font-normal flex items-center gap-2">
-              <Lightbulb className="h-4 w-4" />
-              AI Suggestions
+              <Brain className="h-4 w-4" />
+              AI Scan Statistics
             </CardTitle>
-            <div className="flex gap-1">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => loadSuggestions(false)}
-                disabled={suggestionsLoading}
-                title="Refresh suggestions"
-              >
-                <RefreshCw className={`w-4 h-4 ${suggestionsLoading ? 'animate-spin' : ''}`} />
-              </Button>
-              {suggestions?.cached && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => loadSuggestions(true)}
-                  disabled={suggestionsLoading}
-                  title="Generate new suggestions"
-                >
-                  <Lightbulb className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={loadAiStatistics}
+              disabled={aiStatsLoading}
+              title="Refresh AI statistics"
+            >
+              <RefreshCw className={`w-4 h-4 ${aiStatsLoading ? 'animate-spin' : ''}`} />
+            </Button>
           </CardHeader>
           <CardContent>
-            {suggestionsLoading ? (
+            {aiStatsLoading ? (
               <div className="flex items-center justify-center h-[300px]">
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
-            ) : suggestions?.suggestions && suggestions.suggestions.length > 0 ? (
+            ) : aiStatistics ? (
               <div className="space-y-4 max-h-[300px] overflow-y-auto">
-                {suggestions.suggestions.map((suggestion, index) => (
-                  <div key={index} className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-medium text-sm">{suggestion.title}</h4>
-                      <div className="flex gap-1 flex-shrink-0">
-                        <Badge 
-                          variant="secondary"
-                          className={priorityColors[suggestion.priority]}
-                        >
-                          {suggestion.priority}
-                        </Badge>
-                        <span className="text-sm">{categoryIcons[suggestion.category]}</span>
-                      </div>
+                {/* Key Metrics */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${BRAND_COLORS.primary}20` }}>
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <Activity className="h-4 w-4" style={{ color: BRAND_COLORS.primary }} />
+                      <span className="text-sm font-medium" style={{ color: BRAND_COLORS.text }}>Total Scans</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{suggestion.description}</p>
-                    <p className="text-xs font-medium text-blue-600">{suggestion.impact}</p>
+                    <p className="text-2xl font-bold" style={{ color: BRAND_COLORS.primary }}>{aiStatistics.metrics.totalScans}</p>
                   </div>
-                ))}
-                {suggestions.generatedAt && (
-                  <div className="pt-2 space-y-1">
-                    <p className="text-xs text-muted-foreground text-center">
-                      {suggestions.cached ? 'Cached' : 'Generated'} {new Date(suggestions.generatedAt).toLocaleString()}
-                    </p>
-                    {suggestions.cached && suggestions.expiresAt && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        Expires {new Date(suggestions.expiresAt).toLocaleDateString()}
-                      </p>
-                    )}
+                  <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${BRAND_COLORS.secondary}20` }}>
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      <CheckCircle2 className="h-4 w-4" style={{ color: BRAND_COLORS.secondary }} />
+                      <span className="text-sm font-medium" style={{ color: BRAND_COLORS.text }}>Success Rate</span>
+                    </div>
+                    <p className="text-2xl font-bold" style={{ color: BRAND_COLORS.secondary }}>{aiStatistics.metrics.successRate}%</p>
+                  </div>
+                </div>
+
+                {/* Status Distribution */}
+                {aiStatistics.charts.statusDistribution.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Scan Status Distribution</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {aiStatistics.charts.statusDistribution.map((item, index) => (
+                        <div key={index} className="flex items-center gap-1">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="text-xs">{item.name}: {item.value}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                {/* Additional Metrics */}
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Products Processed (30d):</span>
+                    <span className="font-medium">{aiStatistics.metrics.totalProductsProcessed.toLocaleString()}</span>
+                  </div>
+                  {aiStatistics.metrics.activeScans > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Active Scans:</span>
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" style={{ color: BRAND_COLORS.secondary }} />
+                        <span className="font-medium" style={{ color: BRAND_COLORS.secondary }}>{aiStatistics.metrics.activeScans}</span>
+                      </div>
+                    </div>
+                  )}
+                  {aiStatistics.metrics.lastScanAt && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Last Scan:</span>
+                      <span className="font-medium">{new Date(aiStatistics.metrics.lastScanAt).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Actions */}
+                <div className="pt-2 border-t">
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => window.location.href = '/ai-optimization/start-scan'}
+                      className="flex-1 text-xs"
+                    >
+                      <Brain className="w-3 h-3 mr-1" />
+                      Start New Scan
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => window.location.href = '/ai-optimization/scan-history'}
+                      className="flex-1 text-xs"
+                    >
+                      <Activity className="w-3 h-3 mr-1" />
+                      View History
+                    </Button>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="h-[300px] flex items-center justify-center">
                 <div className="text-center">
-                  <Lightbulb className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">No suggestions available</p>
+                  <Brain className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-muted-foreground mb-2">No AI scans yet</p>
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={() => loadSuggestions()}
-                    className="mt-2"
+                    onClick={() => window.location.href = '/ai-optimization/start-scan'}
                   >
-                    Generate Suggestions
+                    Start Your First Scan
                   </Button>
                 </div>
               </div>
