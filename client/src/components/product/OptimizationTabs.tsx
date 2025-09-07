@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { 
-  Lightbulb, 
   RefreshCw, 
   Check, 
   X, 
@@ -15,7 +15,10 @@ import {
   Sparkles,
   Zap,
   Timer,
-  Crown
+  Crown,
+  Video,
+  FileText,
+  Image
 } from "lucide-react"
 import { optimizationsService, type OptimizationSuggestion } from "@/services/optimizations"
 import type { ProductDetail } from "@/types/product"
@@ -104,6 +107,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [initialLoadComplete, setInitialLoadComplete] = useState(false)
+  const [activeTab, setActiveTab] = useState<'descriptions' | 'video'>('descriptions')
   
   // Get platforms available for this specific product (memoized to prevent infinite loops)
   const availablePlatforms = useMemo(() => getAvailablePlatforms(product), [product.marketplace, product.platforms])
@@ -323,7 +327,22 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
             View and manage AI-generated optimizations from bulk scans or generate individual optimizations for your products.
           </p>
         </CardHeader>
-      </Card>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'descriptions' | 'video')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="descriptions" className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Description Optimization
+              </TabsTrigger>
+              <TabsTrigger value="video" className="flex items-center gap-2">
+                <Video className="w-4 h-4" />
+                Video Content
+                <Badge variant="secondary" className="ml-1 text-xs">Coming Soon</Badge>
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="descriptions" className="mt-6">
+              <div className="space-y-6">
 
       {!initialLoadComplete ? (
         <Card>
@@ -417,27 +436,6 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
                         Regenerate
                       </Button>
                     </>
-                  )}
-                  {(aiState === 'processing' || aiState === 'queued' || aiState === 'none') && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        console.log('Generate button clicked for platform:', platform, 'aiState:', aiState)
-                        loadSuggestion(platform, false)
-                      }}
-                      disabled={loadingStates[platform] || aiState === 'processing'}
-                    >
-                      {loadingStates[platform] ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Lightbulb className="w-4 h-4" />
-                      )}
-                      {aiState === 'processing' ? 'Processing...' : 'Generate'}
-                    </Button>
                   )}
                 </div>
               </div>
@@ -685,7 +683,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
               {aiState === 'none' && !loadingStates[platform] && (
                 <div className="bg-slate-50 rounded-lg p-8 border border-slate-200">
                   <div className="text-center text-muted-foreground">
-                    <Lightbulb className="w-12 h-12 mx-auto mb-4" />
+                    <Sparkles className="w-12 h-12 mx-auto mb-4" />
                     <h3 className="text-lg font-semibold mb-2">No AI Optimization Available</h3>
                     <p className="mb-4">
                       This product hasn't been included in an AI optimization scan yet.<br />
@@ -722,6 +720,118 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
           })}
         </div>
       )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="video" className="mt-6">
+              <VideoContentTab product={product} />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// Video Content Tab Component
+function VideoContentTab({ product }: { product: ProductDetail }) {
+  const hasImages = product.images && product.images.length > 0
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Video className="w-5 h-5" />
+            Product Video Generation
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Generate promotional videos for your product using AI-powered video creation.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {!hasImages ? (
+            <div className="text-center py-12 border-2 border-dashed border-muted-foreground/20 rounded-lg">
+              <Image className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">No Images Available</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Product video generation requires at least one product image. Please add images to your product to enable video creation.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium mb-3">Product Images ({product.images.length})</h4>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                    {product.images.map((image, index) => (
+                      <div key={index} className="aspect-square rounded-lg overflow-hidden bg-muted">
+                        <img 
+                          src={image.url} 
+                          alt={image.altText || `Product image ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium mb-3">Video Generation</h4>
+                  <div className="space-y-4">
+                    <div className="p-4 border rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-4 h-4 text-blue-500" />
+                        <span className="text-sm font-medium">AI-Powered Video Creation</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Create engaging product videos automatically using your product images, title, and description.
+                      </p>
+                      <div className="space-y-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>High-quality video output</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Multiple aspect ratios</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Background music options</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Text overlay customization</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <Button 
+                      size="lg" 
+                      disabled={true}
+                      className="w-full relative overflow-hidden"
+                    >
+                      <Video className="w-4 h-4 mr-2" />
+                      Generate Product Video
+                      <Badge 
+                        variant="secondary" 
+                        className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-200"
+                      >
+                        Coming Soon
+                      </Badge>
+                    </Button>
+                    
+                    <p className="text-xs text-center text-muted-foreground">
+                      Video generation will be processed using our AI service queue for optimal performance.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -932,10 +932,35 @@ router.get('/products/:id/status', async (req: AuthenticatedRequest, res: Respon
         // Check if in queue
         const queueStatus = await getProductAIOptimizationStatus(productId, workspaceId.toString(), platform);
         
-        // Check for cached description
-        const cachedDescription = product.cachedDescriptions?.find(
+        // Check for cached description in product.cachedDescriptions
+        let cachedDescription: any = product.cachedDescriptions?.find(
           (cached: any) => cached.platform === platform
         );
+
+        // If not found in cachedDescriptions, check in Opportunity model for AI-generated descriptions
+        if (!cachedDescription) {
+          const Opportunity = (await import('../models/Opportunity')).default;
+          const aiDescription = await Opportunity.findOne({
+            productId,
+            workspaceId,
+            category: 'description',
+            marketplace: platform,
+            aiGenerated: true,
+            status: { $in: ['open', 'in_progress'] } // Only show active opportunities
+          }).sort({ createdAt: -1 }); // Get the most recent one
+
+          if (aiDescription) {
+            cachedDescription = {
+              _id: aiDescription._id,
+              platform: platform,
+              content: aiDescription.description,
+              confidence: aiDescription.aiMetadata?.confidence || 0.8,
+              tokens: aiDescription.aiMetadata?.tokens || 0,
+              createdAt: aiDescription.createdAt,
+              status: 'pending' // AI scan results are always pending until accepted
+            };
+          }
+        }
 
         platformStatuses[platform] = {
           inQueue: queueStatus?.status === 'queued' || queueStatus?.status === 'processing',
