@@ -124,4 +124,32 @@ export const ENDPOINTS = {
   DEMO: {
     UPGRADE_SUBSCRIPTION: "/demo/upgrade-subscription",
   },
+
+  // Tasks Management
+  TASKS: {
+    LIST: "/tasks",
+    CREATE: "/tasks",
+    GET: (id: string) => `/tasks/${id}`,
+    UPDATE: (id: string) => `/tasks/${id}`,
+    DELETE: (id: string) => `/tasks/${id}`,
+
+    // Task Types
+    TYPES: {
+      LIST: "/tasks/types",
+      CREATE: "/tasks/types",
+      GET: (id: string) => `/tasks/types/${id}`,
+      UPDATE: (id: string) => `/tasks/types/${id}`,
+      DELETE: (id: string) => `/tasks/types/${id}`,
+    },
+
+    // Usage and Analytics
+    USAGE: {
+      CALCULATE: "/tasks/usage/calculate",
+      CAN_EXECUTE: "/tasks/usage/can-execute",
+    },
+
+    ANALYTICS: {
+      SUMMARY: "/tasks/analytics/summary",
+    },
+  },
 } as const;

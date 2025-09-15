@@ -136,3 +136,62 @@ export interface UpdateUserRoleRequest {
   role: 'USER' | 'SUPERADMIN'
 }
 
+// Task-related types (complementing tasks.ts API types)
+export interface TaskUsageMetrics {
+  currentPeriod: {
+    unitsConsumed: number
+    unitsRemaining: number
+    totalTasks: number
+    completedTasks: number
+    pendingTasks: number
+    failedTasks: number
+  }
+  limits: {
+    subscriptionLimit: number
+    percentageUsed: number
+  }
+  billingPeriod: {
+    startDate: string
+    endDate: string
+    daysRemaining: number
+    daysElapsed: number
+    renewalDate: string
+  }
+  subscription: {
+    planType: string
+    planName: string
+    status: string
+    isActive: boolean
+  }
+}
+
+export interface TaskTypeStats {
+  taskTypeId: string
+  name: string
+  unitCost: number
+  unitType?: string
+  tasksCount: number
+  unitsConsumed: number
+  percentageOfTotal: number
+  color?: string
+  icon?: string
+}
+
+export interface DailyUsagePoint {
+  date: string
+  taskCount: number
+  unitsConsumed: number
+  dayOfWeek: string
+  isToday: boolean
+}
+
+export interface TaskUsageChartData {
+  dailyUsage: DailyUsagePoint[]
+  taskTypeBreakdown: TaskTypeStats[]
+  weeklyTrend: {
+    current: number
+    previous: number
+    change: number
+  }
+}
+

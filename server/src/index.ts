@@ -28,6 +28,7 @@ import subscriptionRoutes from '@/subscriptions/routes/subscription';
 import billingRoutes from '@/subscriptions/routes/billing';
 import demoRoutes from '@/demo/routes/demo';
 import workspaceRoutes from './modules/workspaces/routes/workspaces';
+import taskRoutes from './modules/task/routes/tasks';
 import { initializeNotificationScheduler } from '@/notifications/services/notificationScheduler';
 import { protect, requireWorkspace } from '@/common/middleware/auth';
 import { stripeWebhookHandler } from '@/subscriptions/routes/billing';
@@ -101,6 +102,7 @@ app.use('/api/opportunities/ai', protect, requireWorkspace, aiOptimizationRoutes
 app.use('/api/billing', protect, requireWorkspace, billingRoutes);
 
 app.use('/api/demo', protect, requireWorkspace, demoRoutes);
+app.use('/api/tasks', protect, requireWorkspace, taskRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'OK', message: 'Racky API is running with hot reload!' });
