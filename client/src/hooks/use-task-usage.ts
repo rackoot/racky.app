@@ -101,7 +101,7 @@ export function useTaskUsage(options: UseTaskUsageOptions = {}): UseTaskUsageRet
       },
       subscription: {
         planType: subscription.currentPlan?.contributorType || 'JUNIOR',
-        planName: subscription.currentPlan?.planDisplayName || 'Plan Básico',
+        planName: subscription.currentPlan?.planDisplayName || 'Basic Plan',
         status: subscription.subscription.status,
         isActive: subscription.subscription.hasActiveSubscription,
       }
@@ -140,7 +140,7 @@ export function useTaskUsage(options: UseTaskUsageOptions = {}): UseTaskUsageRet
 
     } catch (err) {
       console.error('Error loading task usage data:', err)
-      setError(err instanceof Error ? err.message : 'Error al cargar datos de uso')
+      setError(err instanceof Error ? err.message : 'Error loading usage data')
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)

@@ -91,7 +91,7 @@ export function useTaskAnalytics(options: UseTaskAnalyticsOptions = {}): UseTask
         date: day.date,
         taskCount: day.taskCount,
         unitsConsumed: day.unitsConsumed,
-        dayOfWeek: date.toLocaleDateString('es-ES', { weekday: 'short' }),
+        dayOfWeek: date.toLocaleDateString('en-US', { weekday: 'short' }),
         isToday: date.getTime() === today.getTime()
       }
     })
@@ -213,7 +213,7 @@ export function useTaskAnalytics(options: UseTaskAnalyticsOptions = {}): UseTask
       setAnalytics(analyticsData)
     } catch (err) {
       console.error('Error loading task analytics:', err)
-      setError(err instanceof Error ? err.message : 'Error al cargar analíticas')
+      setError(err instanceof Error ? err.message : 'Error loading analytics')
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
@@ -239,7 +239,7 @@ export function useTaskAnalytics(options: UseTaskAnalyticsOptions = {}): UseTask
       setTasks(tasksData)
     } catch (err) {
       console.error('Error loading tasks:', err)
-      setTasksError(err instanceof Error ? err.message : 'Error al cargar tareas')
+      setTasksError(err instanceof Error ? err.message : 'Error loading tasks')
     } finally {
       setIsLoadingTasks(false)
     }

@@ -5,14 +5,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
-  Zap,
   Calendar,
-  TrendingUp,
   AlertTriangle,
-  CheckCircle2,
   Clock,
   RefreshCw,
-  Activity,
   BarChart3,
   Target,
   Info
@@ -33,7 +29,7 @@ import { getBillingPeriodInfo, getUsageAlert, formatRenewalDate } from "@/lib/ta
 
 export function Usage() {
   const { currentWorkspace } = useWorkspace()
-  const [currentPage, setCurrentPage] = useState(1)
+  const [, setCurrentPage] = useState(1)
   const [taskFilters, setTaskFilters] = useState<TaskListFilters>({})
 
   // Use our custom hooks
@@ -45,7 +41,6 @@ export function Usage() {
     isRefreshing,
     error: usageError,
     refresh: refreshUsage,
-    unitsRemaining,
     percentageUsed,
     daysRemainingInPeriod,
     isNearLimit,
@@ -62,7 +57,6 @@ export function Usage() {
     isLoadingTasks,
     error: analyticsError,
     loadTasks,
-    totalUnitsConsumed,
     completionRate,
     mostUsedTaskType
   } = useTaskAnalytics({
@@ -100,12 +94,12 @@ export function Usage() {
     return (
       <div className="p-6 space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Panel de Uso</h1>
-          <p className="text-muted-foreground">Monitorea el consumo de tareas y límites de tu suscripción</p>
+          <h1 className="text-3xl font-bold">Usage Dashboard</h1>
+          <p className="text-muted-foreground">Monitor your task consumption and subscription limits</p>
         </div>
         <div className="text-center py-10">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground mt-2">Cargando datos de uso...</p>
+          <p className="text-muted-foreground mt-2">Loading usage data...</p>
         </div>
       </div>
     )
@@ -117,18 +111,18 @@ export function Usage() {
     return (
       <div className="p-6 space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Panel de Uso</h1>
-          <p className="text-muted-foreground">Monitorea el consumo de tareas y límites de tu suscripción</p>
+          <h1 className="text-3xl font-bold">Usage Dashboard</h1>
+          <p className="text-muted-foreground">Monitor your task consumption and subscription limits</p>
         </div>
         <Card>
           <CardContent className="p-6">
             <div className="text-center text-destructive">
               <AlertTriangle className="w-12 h-12 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Error al cargar los datos</h3>
+              <h3 className="text-lg font-semibold mb-2">Failed to Load Data</h3>
               <p className="mb-4">{error}</p>
               <Button onClick={handleRefresh} variant="outline">
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Reintentar
+                Retry
               </Button>
             </div>
           </CardContent>
@@ -142,7 +136,7 @@ export function Usage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Panel de Uso</h1>
+          <h1 className="text-3xl font-bold">Usage Dashboard</h1>
           <p className="text-muted-foreground">
             Workspace: <span className="font-medium">{currentWorkspace?.name}</span>
           </p>
@@ -151,7 +145,7 @@ export function Usage() {
           {isRefreshing && (
             <Badge variant="outline" className="animate-pulse">
               <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-              Actualizando...
+              Refreshing...
             </Badge>
           )}
           <Button
@@ -161,7 +155,7 @@ export function Usage() {
             disabled={isRefreshing}
           >
             <RefreshCw className="w-4 h-4 mr-2" />
-            Actualizar
+            Refresh
           </Button>
         </div>
       </div>
@@ -175,9 +169,9 @@ export function Usage() {
             {isOverLimit && (
               <div className="mt-2">
                 <Badge variant="destructive" className="mr-2">
-                  Límite excedido
+                  Limit exceeded
                 </Badge>
-                <span className="text-sm">Considera actualizar tu plan para continuar ejecutando tareas.</span>
+                <span className="text-sm">Consider upgrading your plan to continue executing tasks.</span>
               </div>
             )}
           </AlertDescription>
@@ -190,7 +184,7 @@ export function Usage() {
         <UnitsConsumedCard
           unitsUsed={usage?.totalUnitsConsumed || 0}
           unitsLimit={subscription?.limits?.apiCallsPerMonth || 1000}
-          description="Unidades utilizadas este período de facturación"
+          description="Units used this billing period"
         />
 
         {/* Tasks Executed */}
@@ -222,9 +216,9 @@ export function Usage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600" />
-              Resumen del Período
+              Period Summary
             </CardTitle>
-            <CardDescription>Estadísticas del período de facturación actual</CardDescription>
+            <CardDescription>Current billing period statistics</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -232,13 +226,13 @@ export function Usage() {
                 <div className="text-2xl font-bold text-blue-600">
                   {Math.round(percentageUsed)}%
                 </div>
-                <div className="text-sm text-muted-foreground">Límite usado</div>
+                <div className="text-sm text-muted-foreground">Limit used</div>
               </div>
               <div className="text-center p-3 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">
                   {completionRate}%
                 </div>
-                <div className="text-sm text-muted-foreground">Tareas completadas</div>
+                <div className="text-sm text-muted-foreground">Tasks completed</div>
               </div>
             </div>
 
@@ -246,15 +240,15 @@ export function Usage() {
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  Días transcurridos
+                  Days elapsed
                 </span>
-                <span className="font-medium">{billingPeriod.elapsedDays} de {billingPeriod.totalDays}</span>
+                <span className="font-medium">{billingPeriod.elapsedDays} of {billingPeriod.totalDays}</span>
               </div>
 
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  Renovación
+                  Renewal
                 </span>
                 <Badge variant={renewalInfo.urgency === 'high' ? 'destructive' : 'outline'}>
                   {renewalInfo.text}
@@ -265,7 +259,7 @@ export function Usage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2">
                     <Target className="w-4 h-4" />
-                    Tipo más usado
+                    Most used type
                   </span>
                   <span className="font-medium">{mostUsedTaskType.name}</span>
                 </div>
@@ -299,30 +293,30 @@ export function Usage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Info className="w-5 h-5 text-blue-600" />
-            Información Adicional
+            Additional Information
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
-              <h4 className="font-medium mb-2">Unidades</h4>
+              <h4 className="font-medium mb-2">Units</h4>
               <p className="text-muted-foreground">
-                Las unidades representan el costo de ejecutar diferentes tipos de tareas.
-                Cada tipo de tarea tiene un costo específico en unidades.
+                Units represent the cost of executing different types of tasks.
+                Each task type has a specific cost in units.
               </p>
             </div>
             <div>
-              <h4 className="font-medium mb-2">Renovación</h4>
+              <h4 className="font-medium mb-2">Renewal</h4>
               <p className="text-muted-foreground">
-                Tu límite de unidades se renueva automáticamente cada período de facturación.
-                Las unidades no utilizadas no se acumulan.
+                Your unit limit renews automatically each billing period.
+                Unused units do not carry over.
               </p>
             </div>
             <div>
-              <h4 className="font-medium mb-2">Límites</h4>
+              <h4 className="font-medium mb-2">Limits</h4>
               <p className="text-muted-foreground">
-                Cuando alcances tu límite mensual, las nuevas tareas quedarán en espera
-                hasta la próxima renovación o actualización de plan.
+                When you reach your monthly limit, new tasks will queue
+                until the next renewal or plan upgrade.
               </p>
             </div>
           </div>

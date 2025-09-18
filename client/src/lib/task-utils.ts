@@ -11,13 +11,13 @@ export const formatTaskDate = (dateString: string, format: 'short' | 'long' | 'r
     case 'relative':
       if (diffInHours < 1) {
         const diffInMinutes = Math.floor(diffInHours * 60)
-        return diffInMinutes < 1 ? 'Ahora mismo' : `Hace ${diffInMinutes}m`
+        return diffInMinutes < 1 ? 'Just now' : `${diffInMinutes}m ago`
       } else if (diffInHours < 24) {
-        return `Hace ${Math.floor(diffInHours)}h`
+        return `${Math.floor(diffInHours)}h ago`
       } else if (diffInDays < 7) {
-        return `Hace ${Math.floor(diffInDays)} días`
+        return `${Math.floor(diffInDays)} days ago`
       } else {
-        return date.toLocaleDateString('es-ES', {
+        return date.toLocaleDateString('en-US', {
           day: '2-digit',
           month: '2-digit',
           year: '2-digit'
@@ -25,7 +25,7 @@ export const formatTaskDate = (dateString: string, format: 'short' | 'long' | 'r
       }
 
     case 'long':
-      return date.toLocaleDateString('es-ES', {
+      return date.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
@@ -37,18 +37,18 @@ export const formatTaskDate = (dateString: string, format: 'short' | 'long' | 'r
     case 'short':
     default:
       if (diffInHours < 24) {
-        return date.toLocaleTimeString('es-ES', {
+        return date.toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
           hour12: false
         })
       } else if (diffInDays < 7) {
-        return date.toLocaleDateString('es-ES', {
+        return date.toLocaleDateString('en-US', {
           weekday: 'short',
           day: 'numeric'
         })
       } else {
-        return date.toLocaleDateString('es-ES', {
+        return date.toLocaleDateString('en-US', {
           day: '2-digit',
           month: '2-digit'
         })
@@ -87,14 +87,14 @@ export const formatRenewalDate = (renewalDate: Date | string) => {
   const diffInDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 
   if (diffInDays <= 0) {
-    return { text: 'Hoy', urgency: 'high' as const }
+    return { text: 'Today', urgency: 'high' as const }
   } else if (diffInDays === 1) {
-    return { text: 'Mañana', urgency: 'high' as const }
+    return { text: 'Tomorrow', urgency: 'high' as const }
   } else if (diffInDays <= 7) {
-    return { text: `En ${diffInDays} días`, urgency: 'medium' as const }
+    return { text: `In ${diffInDays} days`, urgency: 'medium' as const }
   } else {
     return {
-      text: date.toLocaleDateString('es-ES', {
+      text: date.toLocaleDateString('en-US', {
         day: 'numeric',
         month: 'short'
       }),
@@ -107,49 +107,49 @@ export const formatRenewalDate = (renewalDate: Date | string) => {
 export const getTaskStatusInfo = (status: TaskStatus) => {
   const statusInfo = {
     completed: {
-      label: 'Completada',
+      label: 'Completed',
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200',
       variant: 'default' as const,
       icon: 'check-circle-2',
-      description: 'Tarea ejecutada exitosamente'
+      description: 'Task executed successfully'
     },
     in_progress: {
-      label: 'En Progreso',
+      label: 'In Progress',
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
       variant: 'secondary' as const,
       icon: 'play-circle',
-      description: 'Tarea siendo ejecutada'
+      description: 'Task being executed'
     },
     pending: {
-      label: 'Pendiente',
+      label: 'Pending',
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-50',
       borderColor: 'border-yellow-200',
       variant: 'outline' as const,
       icon: 'clock',
-      description: 'Tarea en cola para ejecución'
+      description: 'Task queued for execution'
     },
     failed: {
-      label: 'Fallida',
+      label: 'Failed',
       color: 'text-red-600',
       bgColor: 'bg-red-50',
       borderColor: 'border-red-200',
       variant: 'destructive' as const,
       icon: 'x-circle',
-      description: 'Tarea falló durante la ejecución'
+      description: 'Task failed during execution'
     },
     cancelled: {
-      label: 'Cancelada',
+      label: 'Cancelled',
       color: 'text-gray-600',
       bgColor: 'bg-gray-50',
       borderColor: 'border-gray-200',
       variant: 'secondary' as const,
       icon: 'alert-circle',
-      description: 'Tarea cancelada por el usuario'
+      description: 'Task cancelled by user'
     }
   }
 
@@ -170,7 +170,7 @@ export const formatNumber = (num: number, decimals: number = 0): string => {
   } else if (num >= 1000) {
     return `${(num / 1000).toFixed(decimals)}K`
   }
-  return num.toLocaleString('es-ES', {
+  return num.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals
   })
@@ -178,7 +178,7 @@ export const formatNumber = (num: number, decimals: number = 0): string => {
 
 // Format units with appropriate suffix
 export const formatUnits = (units: number, unitType?: string): string => {
-  const suffix = unitType || 'unidades'
+  const suffix = unitType || 'units'
   return `${formatNumber(units)} ${suffix}`
 }
 
@@ -372,8 +372,8 @@ export const getUsageAlert = (percentage: number) => {
   if (percentage >= 100) {
     return {
       level: 'critical' as const,
-      title: 'Límite Excedido',
-      message: 'Has superado tu límite de unidades mensuales',
+      title: 'Limit Exceeded',
+      message: 'You have exceeded your monthly unit limit',
       color: 'text-red-600',
       bgColor: 'bg-red-50',
       borderColor: 'border-red-200'
@@ -381,8 +381,8 @@ export const getUsageAlert = (percentage: number) => {
   } else if (percentage >= 90) {
     return {
       level: 'high' as const,
-      title: 'Límite Casi Alcanzado',
-      message: 'Estás cerca de alcanzar tu límite mensual',
+      title: 'Limit Almost Reached',
+      message: 'You are close to reaching your monthly limit',
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
       borderColor: 'border-orange-200'
@@ -390,8 +390,8 @@ export const getUsageAlert = (percentage: number) => {
   } else if (percentage >= 75) {
     return {
       level: 'medium' as const,
-      title: 'Uso Elevado',
-      message: 'Has usado más del 75% de tu límite mensual',
+      title: 'High Usage',
+      message: 'You have used more than 75% of your monthly limit',
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-50',
       borderColor: 'border-yellow-200'
@@ -399,8 +399,8 @@ export const getUsageAlert = (percentage: number) => {
   } else {
     return {
       level: 'low' as const,
-      title: 'Uso Normal',
-      message: 'Tu uso está dentro de los límites normales',
+      title: 'Normal Usage',
+      message: 'Your usage is within normal limits',
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200'

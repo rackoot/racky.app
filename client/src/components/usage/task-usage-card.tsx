@@ -144,16 +144,16 @@ export function UnitsConsumedCard({ unitsUsed, unitsLimit, description }: {
 }) {
   return (
     <TaskUsageCard
-      title="Unidades Consumidas"
+      title="Units Consumed"
       icon={<Zap className="h-4 w-4 text-blue-500" />}
       value={unitsUsed}
-      description={description || "Unidades utilizadas este período"}
+      description={description || "Units used this period"}
       progress={{
         current: unitsUsed,
         max: unitsLimit,
       }}
       badge={{
-        text: `${unitsLimit - unitsUsed} restantes`,
+        text: `${unitsLimit - unitsUsed} remaining`,
         variant: unitsUsed / unitsLimit >= 0.9 ? "destructive" : "outline"
       }}
     />
@@ -167,23 +167,23 @@ export function TasksExecutedCard({ totalTasks, completedTasks, pendingTasks }: 
 }) {
   return (
     <TaskUsageCard
-      title="Tareas Ejecutadas"
+      title="Tasks Executed"
       icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
       value={totalTasks}
-      description="Total de tareas en el período"
+      description="Total tasks in this period"
       trend={
         completedTasks > 0 ? {
           value: Math.round((completedTasks / totalTasks) * 100),
           direction: "up",
-          label: "completadas"
+          label: "completed"
         } : undefined
       }
       badge={
         pendingTasks > 0 ? {
-          text: `${pendingTasks} pendientes`,
+          text: `${pendingTasks} pending`,
           variant: "outline"
         } : {
-          text: "Todo completado",
+          text: "All completed",
           variant: "default"
         }
       }
@@ -195,7 +195,7 @@ export function BillingPeriodCard({ daysRemaining, renewalDate }: {
   daysRemaining: number
   renewalDate: string
 }) {
-  const renewalFormatted = new Date(renewalDate).toLocaleDateString('es-ES', {
+  const renewalFormatted = new Date(renewalDate).toLocaleDateString('en-US', {
     day: 'numeric',
     month: 'short',
     year: 'numeric'
@@ -203,12 +203,12 @@ export function BillingPeriodCard({ daysRemaining, renewalDate }: {
 
   return (
     <TaskUsageCard
-      title="Período de Facturación"
+      title="Billing Period"
       icon={<Calendar className="h-4 w-4 text-purple-500" />}
-      value={`${daysRemaining} días`}
-      description={`Se renueva el ${renewalFormatted}`}
+      value={`${daysRemaining} days`}
+      description={`Renews on ${renewalFormatted}`}
       badge={{
-        text: daysRemaining <= 7 ? "Próximo a vencer" : "Activo",
+        text: daysRemaining <= 7 ? "Expiring soon" : "Active",
         variant: daysRemaining <= 7 ? "destructive" : "outline"
       }}
     />
@@ -233,17 +233,17 @@ export function SubscriptionStatusCard({
   }
 
   const getStatusBadge = () => {
-    if (!isActive) return { text: "Inactiva", variant: "destructive" as const }
-    if (status === 'ACTIVE') return { text: "Activa", variant: "default" as const }
-    return { text: "Pendiente", variant: "outline" as const }
+    if (!isActive) return { text: "Inactive", variant: "destructive" as const }
+    if (status === 'ACTIVE') return { text: "Active", variant: "default" as const }
+    return { text: "Pending", variant: "outline" as const }
   }
 
   return (
     <TaskUsageCard
-      title="Suscripción"
+      title="Subscription"
       icon={getStatusIcon()}
       value={planName}
-      description={`${monthlyUnits.toLocaleString()} unidades mensuales`}
+      description={`${monthlyUnits.toLocaleString()} monthly units`}
       badge={getStatusBadge()}
     />
   )

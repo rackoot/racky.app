@@ -94,11 +94,11 @@ export function TaskExecutionList({
 
   const getStatusBadge = (status: TaskStatus) => {
     const statusConfig = {
-      completed: { text: "Completada", variant: "default" as const },
-      in_progress: { text: "En Progreso", variant: "secondary" as const },
-      pending: { text: "Pendiente", variant: "outline" as const },
-      failed: { text: "Fallida", variant: "destructive" as const },
-      cancelled: { text: "Cancelada", variant: "secondary" as const },
+      completed: { text: "Completed", variant: "default" as const },
+      in_progress: { text: "In Progress", variant: "secondary" as const },
+      pending: { text: "Pending", variant: "outline" as const },
+      failed: { text: "Failed", variant: "destructive" as const },
+      cancelled: { text: "Cancelled", variant: "secondary" as const },
     }
     return statusConfig[status] || { text: status, variant: "outline" as const }
   }
@@ -109,18 +109,18 @@ export function TaskExecutionList({
     const diffInHours = Math.abs(now.getTime() - date.getTime()) / (1000 * 60 * 60)
 
     if (diffInHours < 24) {
-      return date.toLocaleTimeString('es-ES', {
+      return date.toLocaleTimeString('en-US', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false
       })
     } else if (diffInHours < 24 * 7) {
-      return date.toLocaleDateString('es-ES', {
+      return date.toLocaleDateString('en-US', {
         weekday: 'short',
         day: 'numeric'
       })
     } else {
-      return date.toLocaleDateString('es-ES', {
+      return date.toLocaleDateString('en-US', {
         day: '2-digit',
         month: '2-digit'
       })
@@ -140,7 +140,7 @@ export function TaskExecutionList({
         <CardContent className="p-6">
           <div className="text-center text-destructive">
             <XCircle className="w-12 h-12 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Error al cargar tareas</h3>
+            <h3 className="text-lg font-semibold mb-2">Error loading tasks</h3>
             <p>{error}</p>
           </div>
         </CardContent>
@@ -155,10 +155,10 @@ export function TaskExecutionList({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Hash className="w-5 h-5 text-blue-600" />
-              Tareas Ejecutadas
+              Tasks Executed
             </CardTitle>
             <CardDescription>
-              {pagination ? `${pagination.totalItems} tareas en total` : 'Historial de tareas del período'}
+              {pagination ? `${pagination.totalItems} tasks in total` : 'Task history for this period'}
             </CardDescription>
           </div>
         </div>
@@ -168,7 +168,7 @@ export function TaskExecutionList({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar tareas..."
+              placeholder="Search tasks..."
               value={filters.search || ""}
               onChange={(e) => handleFilterChange('search', e.target.value)}
               className="pl-10"
@@ -180,15 +180,15 @@ export function TaskExecutionList({
             onValueChange={(value) => handleFilterChange('status', value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Estado" />
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="completed">Completadas</SelectItem>
-              <SelectItem value="in_progress">En progreso</SelectItem>
-              <SelectItem value="pending">Pendientes</SelectItem>
-              <SelectItem value="failed">Fallidas</SelectItem>
-              <SelectItem value="cancelled">Canceladas</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+              <SelectItem value="in_progress">In Progress</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="failed">Failed</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
 
@@ -197,10 +197,10 @@ export function TaskExecutionList({
             onValueChange={(value) => handleFilterChange('taskTypeId', value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Tipo de tarea" />
+              <SelectValue placeholder="Task type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los tipos</SelectItem>
+              <SelectItem value="all">All types</SelectItem>
               {taskTypes.map(type => (
                 <SelectItem key={type.id} value={type.id}>
                   {type.name}
@@ -233,8 +233,8 @@ export function TaskExecutionList({
         ) : tasks.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Hash className="w-12 h-12 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No hay tareas</h3>
-            <p>No se encontraron tareas para los filtros seleccionados</p>
+            <h3 className="text-lg font-semibold mb-2">No tasks found</h3>
+            <p>No tasks were found for the selected filters</p>
           </div>
         ) : (
           <>
@@ -300,7 +300,7 @@ export function TaskExecutionList({
             {pagination && pagination.totalPages > 1 && (
               <div className="flex items-center justify-between p-4 border-t">
                 <p className="text-sm text-muted-foreground">
-                  Página {pagination.currentPage} de {pagination.totalPages}
+                  Page {pagination.currentPage} of {pagination.totalPages}
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -310,7 +310,7 @@ export function TaskExecutionList({
                     disabled={!pagination.hasPrevPage}
                   >
                     <ChevronLeft className="w-4 h-4" />
-                    Anterior
+                    Previous
                   </Button>
                   <Button
                     variant="outline"
@@ -318,7 +318,7 @@ export function TaskExecutionList({
                     onClick={() => onPageChange?.(pagination.currentPage + 1)}
                     disabled={!pagination.hasNextPage}
                   >
-                    Siguiente
+                    Next
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
