@@ -1,15 +1,14 @@
 import express, { Request, Response } from 'express';
 import Joi from 'joi';
 import { TaskService } from '../services/TaskService';
-import { ICreateTaskRequest, IUpdateTaskRequest, TaskStatus } from '../interfaces/task';
+import { ICreateTaskRequest, IUpdateTaskRequest, TaskStatus, TaskTypeSlug } from '../interfaces/task';
 
 const router = express.Router();
 
 // Validation schemas
 const createTaskSchema = Joi.object({
-  taskTypeId: Joi.string().required(),
+  taskTypeSlug: Joi.string().valid(...Object.values(TaskTypeSlug)).required(),
   date: Joi.date().optional(),
-  quantity: Joi.number().integer().min(1).optional(),
   duration: Joi.number().min(0).optional(),
   description: Joi.string().max(1000).optional(),
   status: Joi.string().valid('pending', 'in_progress', 'completed', 'failed', 'cancelled').optional(),
@@ -18,9 +17,8 @@ const createTaskSchema = Joi.object({
 });
 
 const updateTaskSchema = Joi.object({
-  taskTypeId: Joi.string().optional(),
+  taskTypeSlug: Joi.string().valid(...Object.values(TaskTypeSlug)).optional(),
   date: Joi.date().optional(),
-  quantity: Joi.number().integer().min(1).optional(),
   duration: Joi.number().min(0).optional(),
   description: Joi.string().max(1000).optional(),
   status: Joi.string().valid('pending', 'in_progress', 'completed', 'failed', 'cancelled').optional(),
@@ -30,6 +28,7 @@ const updateTaskSchema = Joi.object({
 
 const createTaskTypeSchema = Joi.object({
   name: Joi.string().required().trim().max(100),
+  slug: Joi.string().valid(...Object.values(TaskTypeSlug)).required(),
   description: Joi.string().max(500).optional(),
   unitCost: Joi.number().min(0).required(),
   unitType: Joi.string().max(50).optional(),
@@ -38,6 +37,7 @@ const createTaskTypeSchema = Joi.object({
 
 const updateTaskTypeSchema = Joi.object({
   name: Joi.string().trim().max(100).optional(),
+  slug: Joi.string().valid(...Object.values(TaskTypeSlug)).optional(),
   description: Joi.string().max(500).optional(),
   unitCost: Joi.number().min(0).optional(),
   unitType: Joi.string().max(50).optional(),
@@ -48,7 +48,7 @@ const queryParamsSchema = Joi.object({
   page: Joi.number().integer().min(1).optional(),
   limit: Joi.number().integer().min(1).max(100).optional(),
   status: Joi.string().valid('pending', 'in_progress', 'completed', 'failed', 'cancelled').optional(),
-  taskTypeId: Joi.string().optional(),
+  taskTypeSlug: Joi.string().valid(...Object.values(TaskTypeSlug)).optional(),
   userId: Joi.string().optional(),
   startDate: Joi.date().iso().optional(),
   endDate: Joi.date().iso().optional(),
@@ -61,8 +61,7 @@ const usageCalculationSchema = Joi.object({
 });
 
 const executionCheckSchema = Joi.object({
-  taskTypeId: Joi.string().required(),
-  quantity: Joi.number().integer().min(1).optional(),
+  taskTypeSlug: Joi.string().valid(...Object.values(TaskTypeSlug)).required(),
   subscriptionLimit: Joi.number().min(0).required()
 });
 
@@ -275,9 +274,8 @@ router.post('/usage/can-execute', async (req: Request, res: Response) => {
     const workspaceId = (req as any).workspaceId;
     const result = await TaskService.canExecuteTask(
       workspaceId,
-      value.taskTypeId,
-      value.subscriptionLimit,
-      value.quantity
+      value.taskTypeSlug,
+      value.subscriptionLimit
     );
 
     res.json({

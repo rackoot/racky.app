@@ -3,10 +3,16 @@ import { Types } from 'mongoose';
 // Task Status Types
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
 
+// TaskType Slug Enum
+export enum TaskTypeSlug {
+  PRODUCT_OPTIMIZATION = 'product-optimization'
+}
+
 // TaskType Interfaces
 export interface ITaskType {
   _id: string;
   name: string;
+  slug: TaskTypeSlug;
   description?: string;
   unitCost: number;
   unitType?: string;
@@ -17,6 +23,7 @@ export interface ITaskType {
 
 export interface ICreateTaskTypeRequest {
   name: string;
+  slug: TaskTypeSlug;
   description?: string;
   unitCost: number;
   unitType?: string;
@@ -25,6 +32,7 @@ export interface ICreateTaskTypeRequest {
 
 export interface IUpdateTaskTypeRequest {
   name?: string;
+  slug?: TaskTypeSlug;
   description?: string;
   unitCost?: number;
   unitType?: string;
@@ -34,10 +42,9 @@ export interface IUpdateTaskTypeRequest {
 // Task Interfaces
 export interface ITask {
   _id: string;
-  taskTypeId: string;
+  taskTypeSlug: TaskTypeSlug;
   workspaceId: string;
   date: Date;
-  quantity: number;
   duration?: number;
   description?: string;
   status: TaskStatus;
@@ -47,10 +54,11 @@ export interface ITask {
   updatedAt: Date;
 }
 
-export interface ITaskWithDetails extends Omit<ITask, 'taskTypeId' | 'userId'> {
+export interface ITaskWithDetails extends Omit<ITask, 'taskTypeSlug' | 'userId'> {
   taskType: {
     _id: string;
     name: string;
+    slug: TaskTypeSlug;
     description?: string;
     unitCost: number;
     unitType?: string;
@@ -65,9 +73,8 @@ export interface ITaskWithDetails extends Omit<ITask, 'taskTypeId' | 'userId'> {
 }
 
 export interface ICreateTaskRequest {
-  taskTypeId: string;
+  taskTypeSlug: TaskTypeSlug;
   date?: Date;
-  quantity?: number;
   duration?: number;
   description?: string;
   status?: TaskStatus;
@@ -76,9 +83,8 @@ export interface ICreateTaskRequest {
 }
 
 export interface IUpdateTaskRequest {
-  taskTypeId?: string;
+  taskTypeSlug?: TaskTypeSlug;
   date?: Date;
-  quantity?: number;
   duration?: number;
   description?: string;
   status?: TaskStatus;
@@ -91,7 +97,7 @@ export interface ITaskQueryParams {
   page?: number;
   limit?: number;
   status?: TaskStatus;
-  taskTypeId?: string;
+  taskTypeSlug?: TaskTypeSlug;
   userId?: string;
   startDate?: string;
   endDate?: string;
@@ -99,12 +105,11 @@ export interface ITaskQueryParams {
 }
 
 export interface ITaskTypeUsageBreakdown {
-  _id: string;
+  slug: TaskTypeSlug;
   taskTypeName: string;
   unitCost: number;
   unitType?: string;
   totalTasks: number;
-  totalQuantity: number;
   totalUnits: number;
 }
 
@@ -157,7 +162,7 @@ export interface ITaskAnalytics {
     count: number;
   }[];
   tasksByType: {
-    taskTypeId: string;
+    taskTypeSlug: TaskTypeSlug;
     taskTypeName: string;
     count: number;
     totalUnits: number;

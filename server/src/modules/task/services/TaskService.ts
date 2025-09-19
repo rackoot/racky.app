@@ -13,6 +13,7 @@ import {
   IPaginatedTaskResponse,
   TaskErrorCode,
   ITaskError,
+  TaskTypeSlug,
 } from "../interfaces/task";
 
 export class TaskService {
@@ -24,9 +25,9 @@ export class TaskService {
     taskData: ICreateTaskRequest
   ): Promise<ITaskWithDetails> {
     // Validate TaskType exists and is active
-    const taskType = await TaskType.findById(taskData.taskTypeId);
+    const taskType = await TaskType.findBySlug(taskData.taskTypeSlug);
     if (!taskType) {
-      throw new Error(`Task type not found: ${taskData.taskTypeId}`);
+      throw new Error(`Task type not found: ${taskData.taskTypeSlug}`);
     }
     if (!taskType.isActive) {
       throw new Error(`Task type is inactive: ${taskType.name}`);
@@ -34,10 +35,9 @@ export class TaskService {
 
     // Create task
     const task = new Task({
-      taskTypeId: taskData.taskTypeId,
+      taskTypeSlug: taskData.taskTypeSlug,
       workspaceId: new Types.ObjectId(workspaceId),
       date: taskData.date || new Date(),
-      quantity: taskData.quantity || 1,
       duration: taskData.duration,
       description: taskData.description,
       status: taskData.status || "pending",
@@ -49,10 +49,9 @@ export class TaskService {
 
     // Return task with populated details
     const populatedTask = await Task.findById(task._id)
-      .populate("taskTypeId", "name description unitCost unitType")
       .populate("userId", "firstName lastName email");
 
-    return this.transformTaskToWithDetails(populatedTask);
+    return this.transformTaskToWithDetails(populatedTask, taskType);
   }
 
   /**
@@ -85,12 +84,11 @@ export class TaskService {
       endDate,
       totalUnitsConsumed,
       taskTypeBreakdown: taskTypeBreakdown.map((item) => ({
-        _id: item._id.toString(),
+        slug: item._id as TaskTypeSlug,
         taskTypeName: item.taskTypeName,
         unitCost: item.unitCost,
         unitType: item.unitType,
         totalTasks: item.totalTasks,
-        totalQuantity: item.totalQuantity,
         totalUnits: item.totalUnits,
       })),
     };
@@ -101,12 +99,11 @@ export class TaskService {
    */
   static async canExecuteTask(
     workspaceId: string,
-    taskTypeId: string,
-    subscriptionLimit: number,
-    quantity: number = 1
+    taskTypeSlug: TaskTypeSlug,
+    subscriptionLimit: number
   ): Promise<ITaskExecutionCheck> {
     // Get task type
-    const taskType = await TaskType.findById(taskTypeId);
+    const taskType = await TaskType.findBySlug(taskTypeSlug);
     if (!taskType) {
       return {
         canExecute: false,
@@ -149,8 +146,8 @@ export class TaskService {
       endOfMonth
     );
 
-    // Calculate units required for new task
-    const unitsRequired = taskType.unitCost * quantity;
+    // Calculate units required for new task (always 1 since tasks are unitary)
+    const unitsRequired = taskType.unitCost;
 
     // Check if execution would exceed limit
     const totalAfterExecution = unitsUsed + unitsRequired;
@@ -186,12 +183,17 @@ export class TaskService {
       return null;
     }
 
-    // If taskTypeId is being updated, validate it
-    if (updateData.taskTypeId) {
-      const taskType = await TaskType.findById(updateData.taskTypeId);
+    let taskType: ITaskType | null = null;
+    
+    // If taskTypeSlug is being updated, validate it
+    if (updateData.taskTypeSlug) {
+      taskType = await TaskType.findBySlug(updateData.taskTypeSlug);
       if (!taskType || !taskType.isActive) {
         throw new Error("Invalid or inactive task type");
       }
+    } else {
+      // Get current task type for transform
+      taskType = await TaskType.findBySlug(task.taskTypeSlug);
     }
 
     // Update task fields
@@ -205,10 +207,9 @@ export class TaskService {
 
     // Return updated task with populated details
     const populatedTask = await Task.findById(task._id)
-      .populate("taskTypeId", "name description unitCost unitType")
       .populate("userId", "firstName lastName email");
 
-    return this.transformTaskToWithDetails(populatedTask);
+    return this.transformTaskToWithDetails(populatedTask, taskType!);
   }
 
   /**
@@ -222,10 +223,16 @@ export class TaskService {
       _id: taskId,
       workspaceId: new Types.ObjectId(workspaceId),
     })
-      .populate("taskTypeId", "name description unitCost unitType")
       .populate("userId", "firstName lastName email");
 
-    return task ? this.transformTaskToWithDetails(task) : null;
+    if (!task) return null;
+
+    const taskType = await TaskType.findBySlug(task.taskTypeSlug);
+    if (!taskType) {
+      throw new Error(`Task type not found: ${task.taskTypeSlug}`);
+    }
+
+    return this.transformTaskToWithDetails(task, taskType);
   }
 
   /**
@@ -239,7 +246,7 @@ export class TaskService {
       page = 1,
       limit = 20,
       status,
-      taskTypeId,
+      taskTypeSlug,
       userId,
       startDate,
       endDate,
@@ -250,7 +257,7 @@ export class TaskService {
     const query: any = { workspaceId: new Types.ObjectId(workspaceId) };
 
     if (status) query.status = status;
-    if (taskTypeId) query.taskTypeId = new Types.ObjectId(taskTypeId);
+    if (taskTypeSlug) query.taskTypeSlug = taskTypeSlug;
     if (userId) query.userId = new Types.ObjectId(userId);
 
     if (startDate || endDate) {
@@ -267,7 +274,6 @@ export class TaskService {
     const skip = (page - 1) * limit;
     const [tasks, totalItems] = await Promise.all([
       Task.find(query)
-        .populate("taskTypeId", "name description unitCost unitType")
         .populate("userId", "firstName lastName email")
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -275,10 +281,24 @@ export class TaskService {
       Task.countDocuments(query),
     ]);
 
+    // Get unique task type slugs to fetch task types
+    const uniqueTaskTypeSlugs = [...new Set(tasks.map(task => task.taskTypeSlug))];
+    const taskTypes = await TaskType.find({ 
+      slug: { $in: uniqueTaskTypeSlugs },
+      isActive: true 
+    });
+    
+    // Create a map for quick lookup
+    const taskTypeMap = new Map(taskTypes.map(tt => [tt.slug, tt]));
+
     // Transform tasks
-    const transformedTasks = tasks.map((task) =>
-      this.transformTaskToWithDetails(task)
-    );
+    const transformedTasks = tasks.map((task) => {
+      const taskType = taskTypeMap.get(task.taskTypeSlug);
+      if (!taskType) {
+        throw new Error(`Task type not found: ${task.taskTypeSlug}`);
+      }
+      return this.transformTaskToWithDetails(task, taskType);
+    });
 
     // Calculate pagination
     const totalPages = Math.ceil(totalItems / limit);
@@ -389,7 +409,7 @@ export class TaskService {
         count: item.count,
       })),
       tasksByType: tasksByType.map((item) => ({
-        taskTypeId: item._id.toString(),
+        taskTypeSlug: item._id as TaskTypeSlug,
         taskTypeName: item.taskTypeName,
         count: item.totalTasks,
         totalUnits: item.totalUnits,
@@ -434,7 +454,7 @@ export class TaskService {
           },
           taskCount: { $sum: 1 },
           unitsConsumed: {
-            $sum: { $multiply: ["$quantity", "$taskType.unitCost"] },
+            $sum: "$taskType.unitCost",
           },
         },
       },
@@ -467,31 +487,28 @@ export class TaskService {
   /**
    * Transform Task model to TaskWithDetails interface
    */
-  private static transformTaskToWithDetails(task: any): ITaskWithDetails {
-    const taskType = task.taskTypeId;
+  private static transformTaskToWithDetails(task: any, taskType: ITaskType): ITaskWithDetails {
     const user = task.userId;
-    const totalUnits = task.quantity * (taskType?.unitCost || 0);
+    const totalUnits = taskType.unitCost;
 
     return {
       _id: task._id.toString(),
       workspaceId: task.workspaceId.toString(),
       date: task.date,
-      quantity: task.quantity,
       duration: task.duration,
       description: task.description,
       status: task.status,
       metadata: task.metadata,
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
-      taskType: taskType
-        ? {
-            _id: taskType._id.toString(),
-            name: taskType.name,
-            description: taskType.description,
-            unitCost: taskType.unitCost,
-            unitType: taskType.unitType,
-          }
-        : null,
+      taskType: {
+        _id: taskType._id.toString(),
+        name: taskType.name,
+        slug: taskType.slug,
+        description: taskType.description,
+        unitCost: taskType.unitCost,
+        unitType: taskType.unitType,
+      },
       user: user
         ? {
             _id: user._id.toString(),
@@ -529,5 +546,9 @@ export class TaskService {
   static async deleteTaskType(id: string): Promise<boolean> {
     const result = await TaskType.findByIdAndUpdate(id, { isActive: false });
     return result !== null;
+  }
+
+  static async getTaskTypeBySlug(slug: TaskTypeSlug): Promise<ITaskType | null> {
+    return TaskType.findBySlug(slug);
   }
 }

@@ -166,7 +166,7 @@ export interface TaskUsageMetrics {
 }
 
 export interface TaskTypeStats {
-  taskTypeId: string
+  taskTypeSlug: string
   name: string
   unitCost: number
   unitType?: string

@@ -1,115 +1,45 @@
 import { apiGet, apiPost, apiPut, apiDelete } from './client'
 import { ENDPOINTS } from './config'
 
-// Task Types Interfaces
-export interface TaskType {
-  _id: string;
-  name: string;
-  description?: string;
-  unitCost: number;
-  unitType?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+// Import types from backend to ensure consistency
+export type {
+  TaskStatus,
+  TaskTypeSlug,
+  ITaskType as TaskType,
+  ICreateTaskTypeRequest as CreateTaskTypeRequest,
+  IUpdateTaskTypeRequest as UpdateTaskTypeRequest,
+  ITask as Task,
+  ITaskWithDetails as TaskWithDetails,
+  ICreateTaskRequest as CreateTaskRequest,
+  IUpdateTaskRequest as UpdateTaskRequest,
+  ITaskQueryParams as TaskQueryParams,
+  IPaginatedTaskResponse as PaginatedTaskResponse,
+  ITaskTypeUsageBreakdown as TaskTypeUsageBreakdown,
+  IWorkspaceUsageCalculation as WorkspaceUsageCalculation,
+  ITaskExecutionCheck as TaskExecutionCheck,
+  ITaskAnalytics as TaskAnalytics
+} from '../../../server/src/modules/task/interfaces/task'
 
-export interface CreateTaskTypeRequest {
-  name: string;
-  description?: string;
-  unitCost: number;
-  unitType?: string;
-  isActive?: boolean;
-}
-
-export interface UpdateTaskTypeRequest {
-  name?: string;
-  description?: string;
-  unitCost?: number;
-  unitType?: string;
-  isActive?: boolean;
-}
-
-// Task Interfaces
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
-
-export interface Task {
-  _id: string;
-  taskTypeId: string;
-  workspaceId: string;
+// Frontend-specific interfaces for date strings (API response format)
+export interface TaskFrontend extends Omit<Task, 'date' | 'createdAt' | 'updatedAt'> {
   date: string;
-  quantity: number;
-  duration?: number;
-  description?: string;
-  status: TaskStatus;
-  userId?: string;
-  metadata: any;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface TaskWithDetails {
-  _id: string;
-  workspaceId: string;
+export interface TaskWithDetailsFrontend extends Omit<TaskWithDetails, 'date' | 'createdAt' | 'updatedAt'> {
   date: string;
-  quantity: number;
-  duration?: number;
-  description?: string;
-  status: TaskStatus;
-  metadata: any;
   createdAt: string;
   updatedAt: string;
-  taskType: {
-    _id: string;
-    name: string;
-    description?: string;
-    unitCost: number;
-    unitType?: string;
-  };
-  user?: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  };
-  totalUnits: number;
 }
 
-export interface CreateTaskRequest {
-  taskTypeId: string;
-  date?: string;
-  quantity?: number;
-  duration?: number;
-  description?: string;
-  status?: TaskStatus;
-  userId?: string;
-  metadata?: any;
+export interface TaskTypeFrontend extends Omit<TaskType, 'createdAt' | 'updatedAt'> {
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface UpdateTaskRequest {
-  taskTypeId?: string;
-  date?: string;
-  quantity?: number;
-  duration?: number;
-  description?: string;
-  status?: TaskStatus;
-  userId?: string;
-  metadata?: any;
-}
-
-// Query and Filter Interfaces
-export interface TaskQueryParams {
-  page?: number;
-  limit?: number;
-  status?: TaskStatus;
-  taskTypeId?: string;
-  userId?: string;
-  startDate?: string;
-  endDate?: string;
-  search?: string;
-}
-
-export interface PaginatedTaskResponse {
-  tasks: TaskWithDetails[];
+export interface PaginatedTaskResponseFrontend {
+  tasks: TaskWithDetailsFrontend[];
   pagination: {
     currentPage: number;
     totalPages: number;
@@ -120,56 +50,13 @@ export interface PaginatedTaskResponse {
   };
 }
 
-// Usage Calculation Interfaces
-export interface TaskTypeUsageBreakdown {
-  _id: string;
-  taskTypeName: string;
-  unitCost: number;
-  unitType?: string;
-  totalTasks: number;
-  totalQuantity: number;
-  totalUnits: number;
-}
-
-export interface WorkspaceUsageCalculation {
+// Frontend-specific usage calculation interfaces
+export interface WorkspaceUsageCalculationFrontend {
   workspaceId: string;
   startDate: string;
   endDate: string;
   totalUnitsConsumed: number;
   taskTypeBreakdown: TaskTypeUsageBreakdown[];
-}
-
-export interface TaskExecutionCheck {
-  canExecute: boolean;
-  unitsUsed: number;
-  unitsRequired: number;
-  unitsRemaining: number;
-  subscriptionLimit: number;
-  message?: string;
-}
-
-// Analytics Interfaces
-export interface TaskAnalytics {
-  totalTasks: number;
-  completedTasks: number;
-  pendingTasks: number;
-  totalUnitsConsumed: number;
-  averageTaskDuration?: number;
-  tasksByStatus: {
-    status: TaskStatus;
-    count: number;
-  }[];
-  tasksByType: {
-    taskTypeId: string;
-    taskTypeName: string;
-    count: number;
-    totalUnits: number;
-  }[];
-  usageByDay: {
-    date: string;
-    taskCount: number;
-    unitsConsumed: number;
-  }[];
 }
 
 export interface UsageCalculationRequest {
@@ -178,8 +65,7 @@ export interface UsageCalculationRequest {
 }
 
 export interface ExecutionCheckRequest {
-  taskTypeId: string;
-  quantity?: number;
+  taskTypeSlug: TaskTypeSlug;
   subscriptionLimit: number;
 }
 
