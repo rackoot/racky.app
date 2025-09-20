@@ -5,8 +5,12 @@ data:
   FRONTEND_PORT: 5173
   VITE_API_URL: http://localhost:5000/api
   CLIENT_URL: http://localhost:5173
-  MONGODB_DATABASE: {{ .Values.mongodb.username }}
-  MONGODB_URI: {{ .Values.mongodb.host }}
+  #MONGODB_DATABASE: {{ .Values.mongodb.username }}
+  #MONGODB_URI: {{ .Values.mongodb.host }}
+  MONGODB_PORT: 27017
+  MONGODB_HOST: mongodb
+  MONGODB_DATABASE: racky
+  MONGODB_URI: mongodb://mongodb:27017/racky
   VITE_STRIPE_PUBLIC_KEY: {{ .Values.stripe.public_key }}
 kind: ConfigMap
 metadata:
