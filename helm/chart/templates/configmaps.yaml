@@ -1,13 +1,13 @@
 apiVersion: v1
 data:
-  client_creation_url: "http://clients-scripts:3000"
-  frontend_url: http://localhost:5173
-  server_port: "3005"
-  db_username: {{ .Values.mongodb.username }}
-  db_host: {{ .Values.mongodb.host }}
-  email_user: racky@racky.ai
-  frontend_url: {{ .Values.frontend.url }}
-  environment: {{ .Values.environment }}
+  BACKEND_PORT: 5000
+  NODE_ENV: development
+  FRONTEND_PORT: 5173
+  VITE_API_URL: http://localhost:5000/api
+  CLIENT_URL: http://localhost:5173
+  MONGODB_DATABASE: {{ .Values.mongodb.username }}
+  MONGODB_URI: {{ .Values.mongodb.host }}
+  VITE_STRIPE_PUBLIC_KEY: {{ .Values.stripe.public_key }}
 kind: ConfigMap
 metadata:
   name: racky-app-env
