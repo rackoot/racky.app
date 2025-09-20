@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/issuer: letsencrypt
+    kubernetes.io/ingress.name: nginx
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-name: {{ .Values.subdomain }}
+  name: racky-app-ingress
+  namespace: {{ .Values.environment }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: {{ .Values.subdomain }}.racky.ai
+      http:
+        paths:
+          - backend:
+              service:
+                name: racky-app
+                port:
+                  number: 3005
+            path: /
+            pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - {{ .Values.subdomain }}.racky.ai
+    secretName: wc-racky-ai

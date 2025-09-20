@@ -1,0 +1,18 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name:  racky-app
+spec:
+  minReplicas: {{ int .Values.hpa.replicaCount.min }}
+  maxReplicas: {{ int .Values.hpa.replicaCount.max }}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name:  racky-app
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

@@ -1,0 +1,22 @@
+aws:
+  region: "us-east-1-"
+  default_region: "us-east-1"
+
+node_selector: "devNodes"
+
+subdomain: "dev-rackyapp"
+
+secrets:
+  path: dev
+
+hpa:
+  replicaCount: 
+    min: "1"
+    max: "1"
+
+frontend:
+  url: https://dev-get.racky.ai
+
+mongodb:
+  username: dev-kubernetes
+  host: customer-panel-dev.3d6znq1.mongodb.net

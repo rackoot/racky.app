@@ -1,0 +1,36 @@
+on:
+  workflow_dispatch:
+    inputs:
+      Action:
+        description: "Tag name: "
+        required: true
+
+permissions: read-all
+
+name: "Build Helm Package"
+
+env:
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_533267199925 }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_533267199925 }}
+  GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+  DEPLOYMENT: ${{ vars.DEPLOYMENT }}
+
+jobs:
+  set-release-revision:
+    runs-on: ubuntu-latest
+    outputs:
+      RELEASE_REVISION: ${{ steps.set-release-revision.outputs.RELEASE_REVISION }}
+    steps:
+    - name: Set env
+      id: set-release-revision
+      run: |
+        echo "RELEASE_REVISION=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
+
+  build-helm-package:
+    needs: [set-release-revision]
+    uses: rackoot/common-workflows/.github/workflows/buildHelmPackage.yml@main
+    with:
+      LOCAL_PATH: ./helm/chart
+      RELEASE_REVISION: ${{ github.event.inputs.Action }}
+      HELM_CHART_REPO: s3://racky-helm-charts
+    secrets: inherit
