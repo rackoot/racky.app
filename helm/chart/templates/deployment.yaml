@@ -84,9 +84,6 @@ spec:
           requests:
             cpu: 100m
             memory: 256Mi
-      - name: mongodb-app
-        image: "mongo:7.0"
-        imagePullPolicy: Always
       nodeSelector:
         eks.amazonaws.com/nodegroup: {{ .Values.node_selector }}
       dnsPolicy: ClusterFirst
