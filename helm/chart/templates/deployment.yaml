@@ -87,9 +87,6 @@ spec:
       - name: mongodb-app
         image: "mongo:7.0"
         imagePullPolicy: Always
-      - name: rabbitmq-app
-        image: "rabbitmq:3.13-management-alpine"
-        imagePullPolicy: Always
       nodeSelector:
         eks.amazonaws.com/nodegroup: {{ .Values.node_selector }}
       dnsPolicy: ClusterFirst
