@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      allowedHosts: ['dev-suite.racky.ai', 'localhost', '127.0.0.1'],
       proxy: {
         '/api': {
           target: backendUrl,
