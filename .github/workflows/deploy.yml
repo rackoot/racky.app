@@ -1,130 +1,75 @@
 on:
-  push:
-    tags:
-    - '**'
+  workflow_dispatch:
+    inputs: 
+      Environment: 
+        type: choice
+        description: "Select target environment"
+        default: dev
+        options:
+          - dev
+          - test
+          - prod
+        required: true
+      Version: 
+        description: "Tag name: "
+        required: true
+      Dryrun:
+        type: boolean
+        description: "Dry run"
+      Debug:
+        type: boolean
+        description: "Debug"
 
 permissions: read-all
 
-name: "Build"
-
-env:
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_533267199925 }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_533267199925 }}
-  GITHUB_TOKEN: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
-  DEPLOYMENT: ${{ vars.DEPLOYMENT }}
-  SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+name: "Deploy"
+run-name: "Deploy ${{ inputs.Version }} to ${{ inputs.Environment }}, Account ${{ inputs.aws-account }} - Dry run ${{ inputs.Dryrun }}" 
 
 jobs:
-  set-release-revision:
-    runs-on: ubuntu-latest
-    outputs: 
-      RELEASE_REVISION: ${{ steps.set-release-revision.outputs.RELEASE_REVISION }}
-    steps:
-    - name: Set env
-      id: set-release-revision
-      run: | 
-        echo "RELEASE_REVISION=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
-
   slack-start:
-    needs: set-release-revision
-    uses: rackoot/common-workflows/.github/workflows/slackStartNotif.yml@main
-    with:
-      SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      GITHUB_ACTOR: ${{ github.actor }}
-    secrets: inherit
-
-  build-docker-image:
-    needs: [set-release-revision]
-    uses: rackoot/common-workflows/.github/workflows/buildDockerImage.yml@main
-    with:
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      DOCKER_FILE: docker/dockerfile
-      ECR_REPOSITORY: "rackoot/racky.app"
-    secrets: inherit
-
-  scan-image:
-    needs: [set-release-revision, build-docker-image]
-    uses: rackoot/common-workflows/.github/workflows/trivyScanner.yml@main
-    with:
-      ECR_REPOSITORY: "rackoot/${{ vars.DEPLOYMENT }}"
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      DEPLOYMENT: ${{ vars.DEPLOYMENT }}
-    secrets: inherit
-
-  build-helm-package:
-    needs: [set-release-revision, build-docker-image] 
-    uses: rackoot/common-workflows/.github/workflows/buildHelmPackage.yml@main
-    with:
-      LOCAL_PATH: ./helm/chart
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      HELM_CHART_REPO: s3://racky-helm-charts
-      DEPLOYMENT: ${{ vars.DEPLOYMENT }}
-    secrets: inherit
-
-  slack-failed:
-    if: ${{ failure() }}
-    needs: [set-release-revision, build-helm-package]
-    uses: rackoot/common-workflows/.github/workflows/slackFailNotif.yml@main
-    with:
-      SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      GITHUB_ACTOR: ${{ github.actor }}
-    secrets: inherit
-
-  slack-success:
-    if: ${{ success() }}
-    needs: [set-release-revision, build-helm-package]
-    uses: rackoot/common-workflows/.github/workflows/slackSuccessNotif.yml@main
-    with:
-      SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      GITHUB_ACTOR: ${{ github.actor }}
-    secrets: inherit
-
-  slack-deploy-start:
-    needs: [set-release-revision, build-helm-package]
     name: Slack start message
     uses: rackoot/common-workflows/.github/workflows/slackStartDeployNotif.yml@main
     with:
       SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      ENVIRONMENT: dev
+      RELEASE_REVISION: ${{ inputs.Version }}
+      ENVIRONMENT: ${{ inputs.Environment }}
       GITHUB_ACTOR: ${{ github.actor }}
     secrets: inherit
 
   deploy:
-    needs: [set-release-revision, slack-deploy-start]
+    needs: [slack-start]
     name: Deploy Chart
     uses: rackoot/common-workflows/.github/workflows/deployHelmChart-V2.yml@main
     with:
       AWS_ACCOUNT: 533267199925
       DEPLOYMENT: ${{ vars.DEPLOYMENT }}
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
+      RELEASE_REVISION: ${{ inputs.Version }}
       HELM_CHART_REPO: s3://racky-helm-charts
-      ENVIRONMENT: dev
+      ENVIRONMENT: ${{ inputs.Environment }}
+      DRYRUN: ${{ inputs.Dryrun }}
+      DEBUG: ${{ inputs.Debug }}
     secrets: inherit
 
-  slack-deploy-failed:
+  slack-failed:
     name: Slack result message
     if: ${{ failure() }}
-    needs: [set-release-revision, deploy]
+    needs: [deploy]
     uses: rackoot/common-workflows/.github/workflows/slackFailDeployNotif.yml@main
     with:
       SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      ENVIRONMENT: dev
+      RELEASE_REVISION: ${{ inputs.Version }}
+      ENVIRONMENT: ${{ inputs.Environment }}
       GITHUB_ACTOR: ${{ github.actor }}
     secrets: inherit  
 
-  slack-deploy-success:
+  slack-success:
     name: Slack result message
     if: ${{ success() }}
-    needs: [set-release-revision, deploy]
+    needs: [deploy]
     uses: rackoot/common-workflows/.github/workflows/slackSuccessDeployNotif.yml@main
     with:
       SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      ENVIRONMENT: dev
+      RELEASE_REVISION: ${{ inputs.Version }}
+      ENVIRONMENT: ${{ inputs.Environment }}
       GITHUB_ACTOR: ${{ github.actor }}
-    secrets: inherit 
+    secrets: inherit  
