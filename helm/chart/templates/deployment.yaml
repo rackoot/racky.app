@@ -1,24 +1,22 @@
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: racky-app
   labels:
     app: racky-app
-  name: racky-app
 spec:
-  progressDeadlineSeconds: 600
   replicas: 1
-  revisionHistoryLimit: 10
-  selector:
-    matchLabels:
-      app: racky-app
   strategy:
+    type: RollingUpdate
     rollingUpdate:
       maxSurge: 25%
       maxUnavailable: 25%
-    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: racky-app
   template:
     metadata:
-      creationTimestamp: null
       labels:
         app: racky-app
     spec:
@@ -33,17 +31,14 @@ spec:
                 - racky-app
             topologyKey: "kubernetes.io/hostname"
       containers:
-      - envFrom:
+      - name: backend
+        image: "{{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.backend:{{ .Values.backend.image.tag }}"
+        imagePullPolicy: Always
+        envFrom:
         - secretRef:
             name: racky-app-secrets
         - configMapRef:
             name: racky-app-env
-        image: {{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky-app:{{ .Values.app_version }}
-        imagePullPolicy: Always
-        name: racky-app
-        resources: {}
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
         resources:
           limits:
             cpu: 200m
@@ -74,6 +69,27 @@ spec:
           initialDelaySeconds: 10
           periodSeconds: 10
           failureThreshold: 30
+      - name: frontend
+        image: "{{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.frontend:{{ .Values.frontend.image.tag }}"
+        imagePullPolicy: Always
+        envFrom:
+        - secretRef:
+            name: racky-app-secrets
+        - configMapRef:
+            name: racky-app-env
+        resources:
+          limits:
+            cpu: 200m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+      - name: mongodb.app
+        image: "mongo:7.0"
+        imagePullPolicy: Always
+      - name: rabbitmq.app
+        image: "rabbitmq:3.13-management-alpine"
+        imagePullPolicy: Always
       nodeSelector:
         eks.amazonaws.com/nodegroup: {{ .Values.node_selector }}
       dnsPolicy: ClusterFirst

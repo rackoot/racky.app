@@ -19,4 +19,4 @@ mongodb:
   host: customer-panel-dev.3d6znq1.mongodb.net
 
 stripe:
-  public_key: "pk_test_51OKRPyCAwpKOzXIuhLuw1aFrtrXmGIbTzkaZIPFNDEiIe6bQQ3k9mwcricGx1P0Zjx0y2mdcLGWgIUyHPEn1VrHU00bQZKT3rf"
+  public_key: "pk_test_51RMALBC0dRh4ObHWRwnAsXU5dxQUXLtjNSDO6xy6LA5vgVES6P3qPKqpnAQbFB9WUwxh4BgqBO4OtPaZHizoDMV6001MXHKYu0"

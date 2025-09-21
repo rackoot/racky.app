@@ -34,17 +34,44 @@ jobs:
       GITHUB_ACTOR: ${{ github.actor }}
     secrets: inherit
 
-  build-docker-image:
+
+  build-docker-images:
     needs: [set-release-revision]
-    uses: rackoot/common-workflows/.github/workflows/buildDockerImage.yml@main
-    with:
-      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
-      DOCKER_FILE: docker/dockerfile
-      ECR_REPOSITORY: "rackoot/racky.app"
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_533267199925 }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_533267199925 }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Build & Push Backend Image
+        run: |
+          docker buildx build \
+            --push \
+            -t 533267199925.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.backend:${{ needs.set-release-revision.outputs.RELEASE_REVISION }} \
+            -f server/Dockerfile ./server
+
+      - name: Build & Push Frontend Image
+        run: |
+          docker buildx build \
+            --push \
+            -t 533267199925.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.frontend:${{ needs.set-release-revision.outputs.RELEASE_REVISION }} \
+            -f client/Dockerfile ./client
 
   scan-image:
-    needs: [set-release-revision, build-docker-image]
+    needs: [set-release-revision, build-docker-images]
     uses: rackoot/common-workflows/.github/workflows/trivyScanner.yml@main
     with:
       ECR_REPOSITORY: "rackoot/${{ vars.DEPLOYMENT }}"
@@ -53,7 +80,7 @@ jobs:
     secrets: inherit
     
   build-helm-package:
-    needs: [set-release-revision, build-docker-image] 
+    needs: [set-release-revision, build-docker-images]
     uses: rackoot/common-workflows/.github/workflows/buildHelmPackage.yml@main
     with:
       LOCAL_PATH: ./helm/chart
