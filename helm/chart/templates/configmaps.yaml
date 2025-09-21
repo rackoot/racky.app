@@ -8,13 +8,12 @@ data:
   #MONGODB_DATABASE: {{ .Values.mongodb.username }}
   #MONGODB_URI: {{ .Values.mongodb.host }}
   USE_RABBITMQ: "true"
-  MONGODB_URI: mongodb://mongodb.app:27017/racky
   MONGODB_PORT: "55007"
   MONGODB_DATABASE: racky
   RABBITMQ_VHOST: racky
   RABBITMQ_PORT: "5672"
   RABBITMQ_MGMT_PORT: "15672"
-  RABBITMQ_MGMT_URL: http://rabbitmq.app:15672
+  RABBITMQ_MGMT_URL: http://rabbitmq-app:15672
   VITE_STRIPE_PUBLISHABLE_KEY: {{ .Values.stripe.public_key }}
   CLIENT_URL: http://localhost:5173
 kind: ConfigMap
