@@ -19,7 +19,7 @@ spec:
               service:
                 name: racky-app
                 port:
-                  number: 3005
+                  number: 5173
             path: /
             pathType: ImplementationSpecific
   tls:

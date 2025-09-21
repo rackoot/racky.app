@@ -6,9 +6,9 @@ metadata:
 spec:
   externalTrafficPolicy: Cluster
   ports:
-  - port: 3005
+  - port: 5173
     protocol: TCP
-    targetPort: 3005
+    targetPort: 5173
   selector:
     app: racky-app
   sessionAffinity: None
