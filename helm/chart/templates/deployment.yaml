@@ -32,7 +32,7 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: backend
-        image: "{{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.backend:{{ .Values.backend.image.tag }}"
+        image: "{{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.backend:{{ .Values.app_version }}"
         imagePullPolicy: Always
         envFrom:
         - secretRef:
@@ -70,7 +70,7 @@ spec:
           periodSeconds: 10
           failureThreshold: 30
       - name: frontend
-        image: "{{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.frontend:{{ .Values.frontend.image.tag }}"
+        image: "{{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.frontend:{{ .Values.app_version }}"
         imagePullPolicy: Always
         envFrom:
         - secretRef:
