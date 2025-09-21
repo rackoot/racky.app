@@ -14,6 +14,7 @@ data:
   RABBITMQ_PORT: "5672"
   RABBITMQ_MGMT_PORT: "15672"
   RABBITMQ_MGMT_URL: http://rabbitmq-app:15672
+  RABBITMQ_URL: amqp://racky:racky123@rabbitmq-app:5672/racky
   VITE_STRIPE_PUBLISHABLE_KEY: {{ .Values.stripe.public_key }}
   CLIENT_URL: http://localhost:5173
 kind: ConfigMap
