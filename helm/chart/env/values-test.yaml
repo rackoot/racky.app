@@ -4,7 +4,7 @@ aws:
 
 node_selector: "testNodes"
 
-subdomain: "test-rackyapp"
+subdomain: "test-suite"
 
 secrets:
   path: dev

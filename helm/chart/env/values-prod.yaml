@@ -4,7 +4,7 @@ aws:
 
 node_selector: "prodNodes"
 
-subdomain: "rackyapp"
+subdomain: "suite"
 
 secrets:
   path: prod
