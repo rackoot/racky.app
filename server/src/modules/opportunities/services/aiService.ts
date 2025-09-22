@@ -95,9 +95,11 @@ class AIService {
       const response: AIResponse = JSON.parse(responseContent);
       const opportunities = response.opportunities || [];
 
-      // Add AI metadata to each opportunity
+      // Add AI metadata to each opportunity and clean up marketplace field
       return opportunities.map(opp => ({
         ...opp,
+        // Convert string "null" to actual null for marketplace field
+        marketplace: (opp.marketplace === 'null' || opp.marketplace === 'undefined') ? null : opp.marketplace,
         aiMetadata: {
           model: env.OPENAI_MODEL,
           prompt: prompt.substring(0, 500) + '...', // Truncate for storage

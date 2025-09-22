@@ -118,7 +118,7 @@ export function AdminSubscriptions() {
       })
 
       console.log('Loading subscriptions with params:', params.toString())
-      const response = await fetch(`http://localhost:5000/api/admin/subscriptions?${params}`, {
+      const response = await fetch(`/api/admin/subscriptions?${params}`, {
         headers: getAuthHeaders()
       })
 

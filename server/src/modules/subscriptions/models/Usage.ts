@@ -29,11 +29,14 @@ export interface IUsage extends Document {
 }
 
 export interface IUsageModel extends Model<IUsage> {
-  incrementUserUsage(userId: string, metric: string, amount?: number): Promise<IUsage>;
-  getCurrentMonthUsage(userId: string): Promise<IUsage | null>;
-  getUserUsageHistory(userId: string, months?: number): Promise<IUsage[]>;
+  incrementWorkspaceUsage(workspaceId: string, metric: string, amount?: number): Promise<IUsage>;
+  getCurrentMonthUsage(workspaceId: string): Promise<IUsage | null>;
+  getWorkspaceUsageHistory(workspaceId: string, months?: number): Promise<IUsage[]>;
   getTotalUsageByPeriod(period: string): Promise<any[]>;
-  resetMonthlyUsage(userId: string): Promise<IUsage>;
+  resetMonthlyUsage(workspaceId: string): Promise<IUsage>;
+  // Legacy methods for backward compatibility during migration
+  incrementUserUsage(userId: string, metric: string, amount?: number): Promise<IUsage>;
+  getUserUsageHistory(userId: string, months?: number): Promise<IUsage[]>;
 }
 
 const usageSchema = new Schema<IUsage>({
@@ -132,15 +135,15 @@ const usageSchema = new Schema<IUsage>({
   timestamps: true
 });
 
-// Static method to increment user usage
-usageSchema.statics.incrementUserUsage = async function(userId: string, metric: string, amount: number = 1): Promise<IUsage> {
+// Static method to increment workspace usage (new primary method)
+usageSchema.statics.incrementWorkspaceUsage = async function(workspaceId: string, metric: string, amount: number = 1): Promise<IUsage> {
   const currentDate = new Date();
   const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
   // Find or create usage record for current month
   const filter = {
-    userId: new mongoose.Types.ObjectId(userId),
+    workspaceId: new mongoose.Types.ObjectId(workspaceId),
     billingPeriodStart: startOfMonth
   };
 
@@ -183,7 +186,7 @@ usageSchema.statics.incrementUserUsage = async function(userId: string, metric: 
 
   // Create setOnInsert object without the field being incremented to avoid conflict
   const setOnInsert: any = {
-    userId: new mongoose.Types.ObjectId(userId),
+    workspaceId: new mongoose.Types.ObjectId(workspaceId),
     date: currentDate,
     billingPeriodStart: startOfMonth,
     billingPeriodEnd: endOfMonth,
@@ -223,22 +226,67 @@ usageSchema.statics.incrementUserUsage = async function(userId: string, metric: 
   }
 };
 
-// Get current month usage for a user
-usageSchema.statics.getCurrentMonthUsage = async function(userId: string): Promise<IUsage | null> {
-  const currentDate = new Date();
-  const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-  
-  return await this.findOne({
+// Legacy method for backward compatibility - now delegates to workspace method
+usageSchema.statics.incrementUserUsage = async function(userId: string, metric: string, amount: number = 1): Promise<IUsage> {
+  // For legacy support, we need to find the user's workspace
+  // In practice, this should be replaced with direct workspace calls
+  console.warn('incrementUserUsage is deprecated. Use incrementWorkspaceUsage instead.');
+
+  // Try to find a workspace for this user - this is a temporary bridge during migration
+  const User = mongoose.model('User');
+  const Workspace = mongoose.model('Workspace');
+  const WorkspaceUser = mongoose.model('WorkspaceUser');
+
+  const workspaceUser = await WorkspaceUser.findOne({
     userId: new mongoose.Types.ObjectId(userId),
-    billingPeriodStart: startOfMonth
-  });
+    isActive: true
+  }).populate('workspaceId');
+
+  if (!workspaceUser || !workspaceUser.workspaceId) {
+    throw new Error(`No active workspace found for user ${userId}`);
+  }
+
+  return await (this as any).incrementWorkspaceUsage(workspaceUser.workspaceId._id.toString(), metric, amount);
 };
 
-// Get user usage history
+// Get current month usage for a workspace (new primary method)
+usageSchema.statics.getCurrentMonthUsage = async function(workspaceIdOrUserId: string): Promise<IUsage | null> {
+  const currentDate = new Date();
+  const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+
+  // Try to find by workspaceId first (new approach)
+  let result = await this.findOne({
+    workspaceId: new mongoose.Types.ObjectId(workspaceIdOrUserId),
+    billingPeriodStart: startOfMonth
+  });
+
+  // If not found and this might be a userId (legacy), try that
+  if (!result) {
+    result = await this.findOne({
+      userId: new mongoose.Types.ObjectId(workspaceIdOrUserId),
+      billingPeriodStart: startOfMonth
+    });
+  }
+
+  return result;
+};
+
+// Get workspace usage history (new primary method)
+usageSchema.statics.getWorkspaceUsageHistory = async function(workspaceId: string, months: number = 12): Promise<IUsage[]> {
+  const currentDate = new Date();
+  const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - months, 1);
+
+  return await this.find({
+    workspaceId: new mongoose.Types.ObjectId(workspaceId),
+    billingPeriodStart: { $gte: startDate }
+  }).sort({ billingPeriodStart: -1 });
+};
+
+// Get user usage history (legacy method)
 usageSchema.statics.getUserUsageHistory = async function(userId: string, months: number = 12): Promise<IUsage[]> {
   const currentDate = new Date();
   const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - months, 1);
-  
+
   return await this.find({
     userId: new mongoose.Types.ObjectId(userId),
     billingPeriodStart: { $gte: startDate }
@@ -305,14 +353,15 @@ usageSchema.statics.getTotalUsageByPeriod = async function(period: string = '30d
 };
 
 // Reset monthly usage (typically called at billing cycle)
-usageSchema.statics.resetMonthlyUsage = async function(userId: string): Promise<IUsage> {
+usageSchema.statics.resetMonthlyUsage = async function(workspaceIdOrUserId: string): Promise<IUsage> {
   const currentDate = new Date();
   const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
 
-  return await this.findOneAndUpdate(
+  // Try workspace-based approach first
+  let result = await this.findOneAndUpdate(
     {
-      userId: new mongoose.Types.ObjectId(userId),
+      workspaceId: new mongoose.Types.ObjectId(workspaceIdOrUserId),
       billingPeriodStart: startOfMonth
     },
     {
@@ -330,6 +379,32 @@ usageSchema.statics.resetMonthlyUsage = async function(userId: string): Promise<
       setDefaultsOnInsert: true
     }
   );
+
+  // If not found, try legacy userId approach
+  if (!result) {
+    result = await this.findOneAndUpdate(
+      {
+        userId: new mongoose.Types.ObjectId(workspaceIdOrUserId),
+        billingPeriodStart: startOfMonth
+      },
+      {
+        apiCalls: 0,
+        productSyncs: 0,
+        storeConnections: 0,
+        storageUsed: 0,
+        date: currentDate,
+        billingPeriodStart: startOfMonth,
+        billingPeriodEnd: endOfMonth
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
+  }
+
+  return result;
 };
 
 // Indexes for performance

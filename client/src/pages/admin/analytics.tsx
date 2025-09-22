@@ -85,7 +85,7 @@ export function AdminAnalytics() {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`http://localhost:5000/api/admin/analytics?period=${period}`, {
+      const response = await fetch(`/api/admin/analytics?period=${period}`, {
         headers: getAuthHeaders()
       })
 

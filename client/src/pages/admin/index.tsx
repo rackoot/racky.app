@@ -68,10 +68,10 @@ export function AdminDashboard() {
       setError(null)
 
       const [usersResponse, analyticsResponse] = await Promise.all([
-        fetch('http://localhost:5000/api/admin/users?limit=1', {
+        fetch('/api/admin/users?limit=1', {
           headers: getAuthHeaders()
         }),
-        fetch('http://localhost:5000/api/admin/analytics', {
+        fetch('/api/admin/analytics', {
           headers: getAuthHeaders()
         })
       ])

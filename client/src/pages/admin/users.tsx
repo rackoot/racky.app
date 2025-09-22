@@ -124,7 +124,7 @@ export function AdminUsers() {
       })
 
       console.log('Loading users with headers:', getAuthHeaders())
-      const response = await fetch(`http://localhost:5000/api/admin/users?${params}`, {
+      const response = await fetch(`/api/admin/users?${params}`, {
         headers: getAuthHeaders()
       })
 

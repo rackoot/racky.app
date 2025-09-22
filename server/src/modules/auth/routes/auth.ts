@@ -111,9 +111,14 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
       // Don't fail registration if workspace creation fails, but log the error
     }
 
-    // Create initial usage record for the user
+    // Create initial usage record for the workspace
     try {
-      await Usage.getCurrentMonthUsage(user._id.toString());
+      if (defaultWorkspace) {
+        await Usage.getCurrentMonthUsage(defaultWorkspace._id);
+      } else {
+        // Fallback to user-based usage (legacy)
+        await Usage.getCurrentMonthUsage(user._id.toString());
+      }
     } catch (usageError) {
       console.error('Error creating initial usage record:', usageError);
       // Don't fail registration if usage creation fails
