@@ -236,7 +236,7 @@ const AIScanHistoryPage = () => {
                         </p>
                       )}
                     </div>
-                    {job.status === 'completed' && (
+                    {(job.status === 'completed' || job.status === 'active') && (
                       <Button
                         variant="outline"
                         size="sm"
