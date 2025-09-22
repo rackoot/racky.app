@@ -9,7 +9,7 @@ interface RequireSubscriptionProps {
   fallback?: string
 }
 
-export function RequireSubscription({ children, fallback = "/pricing-internal" }: RequireSubscriptionProps) {
+export function RequireSubscription({ children, fallback = "/pricing" }: RequireSubscriptionProps) {
   const [checking, setChecking] = useState(true)
   const [hasSubscription, setHasSubscription] = useState(false)
   const user = getCurrentUser()

@@ -79,21 +79,21 @@ export function Usage() {
 
       const usageData: UsageData = {
         currentPeriod: {
-          month: new Date().toISOString().substring(0, 7), // Current month
           apiCalls: currentData.apiCalls || 0,
-          productSyncs: currentData.productSyncs || 0,
+          productsSync: currentData.productSyncs || 0,
           storesConnected: currentData.storeConnections || 0,
-          totalProducts: 0, // May need to be added to API
+          storageUsed: currentData.storageUsed || 0,
           features: {
-            aiSuggestions: 0,
-            opportunityScans: 0,
-            bulkOperations: 0
+            aiSuggestions: currentData.aiSuggestions || 0,
+            opportunityScans: currentData.opportunityScans || 0,
+            bulkOperations: currentData.bulkOperations || 0
           }
         },
         limits: currentData.limit || {
-          apiCalls: 1000,
-          productSyncs: 100,
-          storeConnections: 1
+          maxStores: 1,
+          maxProducts: 100,
+          maxMarketplaces: 2,
+          apiCallsPerMonth: 1000
         },
         trends: trendsData || [],
         history: historyData || []
@@ -198,7 +198,7 @@ export function Usage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {usageData.currentPeriod.apiCalls.toLocaleString()}
+                  {usageData.currentPeriod.apiCalls?.toLocaleString() || '0'}
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   {getTrendIcon(usageData.trends.apiCallsGrowth)}
@@ -213,7 +213,7 @@ export function Usage() {
                     className="h-2"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {usageData.limits.apiCallsPerMonth.toLocaleString()} monthly limit
+                    {usageData.limits.apiCallsPerMonth?.toLocaleString() || 'N/A'} monthly limit
                   </p>
                 </div>
               </CardContent>
@@ -227,7 +227,7 @@ export function Usage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {usageData.currentPeriod.productsSync.toLocaleString()}
+                  {usageData.currentPeriod.productsSync?.toLocaleString() || '0'}
                 </div>
                 <div className="flex items-center gap-2 mt-2">
                   {getTrendIcon(usageData.trends.productsSyncGrowth)}
@@ -242,7 +242,7 @@ export function Usage() {
                     className="h-2"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {usageData.limits.maxProducts.toLocaleString()} product limit
+                    {usageData.limits.maxProducts?.toLocaleString() || 'N/A'} product limit
                   </p>
                 </div>
               </CardContent>

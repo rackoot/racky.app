@@ -124,7 +124,6 @@ const createPlans = async () => {
 
     const contributorPlans = [
       {
-        name: "BASIC",
         displayName: "Junior Contributor",
         description:
           "Perfect for small teams getting started with marketplace automation",
@@ -132,8 +131,8 @@ const createPlans = async () => {
         actionsPerContributor: 1000,
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
-        monthlyPrice: 5000, // $50.00 per contributor
-        stripeMonthlyPriceId: "price_1RoS28C0dRh4ObHWOlCINkwn",
+        monthlyPrice: 9900, // $100.00 per contributor
+        stripeMonthlyPriceId: "price_1SAGBHC0dRh4ObHWb6mez2Ed",
         limits: {
           maxStores: 2,
           maxProducts: 1000,
@@ -172,7 +171,6 @@ const createPlans = async () => {
         trialDays: 14,
       },
       {
-        name: "PRO",
         displayName: "Senior Contributor",
         description:
           "Advanced contributors with AI assistance for growing businesses",
@@ -180,8 +178,8 @@ const createPlans = async () => {
         actionsPerContributor: 5000,
         maxContributorsPerWorkspace: 5,
         isContactSalesOnly: false,
-        monthlyPrice: 10000, // $100.00 per contributor
-        stripeMonthlyPriceId: "price_1RoS2UC0dRh4ObHWIVQporSy",
+        monthlyPrice: 19900, // $200.00 per contributor
+        stripeMonthlyPriceId: "price_1SAGBoC0dRh4ObHWwNyiz4Ew",
         limits: {
           maxStores: 5,
           maxProducts: 10000,
@@ -224,71 +222,15 @@ const createPlans = async () => {
         sortOrder: 2,
         trialDays: 14,
       },
-      {
-        name: "ENTERPRISE",
-        displayName: "Executive Contributor",
-        description:
-          "Premium contributors with unlimited capabilities and dedicated support",
-        contributorType: "EXECUTIVE",
-        actionsPerContributor: -1, // Unlimited actions
-        maxContributorsPerWorkspace: 50,
-        isContactSalesOnly: true,
-        monthlyPrice: 19900, // $199.00 per contributor (contact for pricing)
-        stripeMonthlyPriceId: "price_executive_monthly",
-        limits: {
-          maxStores: 50,
-          maxProducts: 100000,
-          maxMarketplaces: 10,
-          maxSyncFrequency: 1,
-          apiCallsPerMonth: 100000,
-        },
-        features: [
-          {
-            name: "Unlimited Operations",
-            description: "No limits on actions or complexity",
-            enabled: true,
-          },
-          {
-            name: "Custom AI Models",
-            description: "Tailored AI solutions for your business",
-            enabled: true,
-          },
-          {
-            name: "Dedicated Support",
-            description: "24/7 dedicated account manager",
-            enabled: true,
-          },
-          {
-            name: "Unlimited Actions",
-            description: "No monthly action limits",
-            enabled: true,
-          },
-          {
-            name: "Custom Integrations",
-            description: "Bespoke marketplace and tool integrations",
-            enabled: true,
-          },
-          {
-            name: "White-label Solution",
-            description: "Branded interface and API access",
-            enabled: true,
-          },
-          {
-            name: "SLA Guarantee",
-            description: "99.9% uptime with guaranteed response times",
-            enabled: true,
-          },
-        ],
-        sortOrder: 3,
-        trialDays: 30,
-      },
     ];
 
     let created = 0;
     let updated = 0;
 
     for (const planData of contributorPlans) {
-      const existingPlan = await Plan.findOne({ name: planData.name });
+      const existingPlan = await Plan.findOne({
+        contributorType: planData.contributorType,
+      });
 
       if (existingPlan) {
         Object.assign(existingPlan, planData);

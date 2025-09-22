@@ -3,8 +3,7 @@ import { loadStripe } from "@stripe/stripe-js"
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle, CreditCard, ArrowLeft, Loader2 } from "lucide-react"
-import { getAuthHeaders } from "@/lib/utils"
+import { CreditCard, ArrowLeft, Loader2 } from "lucide-react"
 import { billingApi } from "@/api"
 
 interface EmbeddedCheckoutProps {
@@ -28,7 +27,6 @@ export function EmbeddedCheckoutWrapper({
   const [clientSecret, setClientSecret] = useState<string>("")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>("")
-  const [isProduction, setIsProduction] = useState(false)
 
   useEffect(() => {
     createCheckoutSession()
@@ -37,7 +35,7 @@ export function EmbeddedCheckoutWrapper({
   const createCheckoutSession = async () => {
     setLoading(true)
     setError("")
-    
+
     try {
       const data = await billingApi.createCheckoutSession({
         contributorType,
@@ -45,24 +43,20 @@ export function EmbeddedCheckoutWrapper({
         successUrl: window.location.origin + '/purchase-success?session_id={CHECKOUT_SESSION_ID}',
         cancelUrl: window.location.origin + '/pricing'
       })
-      
-      // Check if this is a production response with real Stripe data
-      const isProductionResponse = data.isProduction === true
-      setIsProduction(isProductionResponse)
-      
+
       if (data.url) {
-        // For both Stripe URLs and development internal URLs, redirect
+        // Redirect to Stripe checkout URL
         window.location.href = data.url
       } else if (data.clientSecret) {
         // For embedded checkout, use the client secret
         setClientSecret(data.clientSecret)
       } else {
-        // Only set error if we don't have URL or clientSecret
-        setError("Failed to create checkout session")
+        // Set error if we don't have URL or clientSecret
+        setError("Failed to create checkout session. Please try again.")
       }
     } catch (error) {
       console.error('Error creating checkout session:', error)
-      setError('Failed to initialize checkout')
+      setError('Failed to initialize checkout. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -98,90 +92,48 @@ export function EmbeddedCheckoutWrapper({
     )
   }
 
-  if (error || !isProduction) {
+  if (error) {
     return (
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="w-5 h-5" />
-            Demo Checkout
+            Checkout Error
           </CardTitle>
           <CardDescription>
-            {error || "Stripe is not configured. This is a development environment."}
+            {error}
           </CardDescription>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
-          {/* Plan Summary */}
-          <div className="p-4 bg-muted/50 rounded-lg">
-            <h3 className="font-semibold">{contributorType} Plan</h3>
-            <p className="text-sm text-muted-foreground">
-              {contributorCount} contributor{contributorCount > 1 ? 's' : ''} • Billed monthly
-            </p>
-          </div>
-
-          {/* Mock Payment Form */}
-          <div className="space-y-4">
-            <div className="p-4 border rounded-lg">
-              <div className="flex items-center gap-3 mb-3">
-                <CreditCard className="w-5 h-5" />
-                <span className="font-medium">Payment Method (Demo)</span>
-              </div>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <div>•••• •••• •••• 4242 (Demo Card)</div>
-                <div>Expires: 12/25 • CVC: 123</div>
-              </div>
-            </div>
-
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg">
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-blue-900 dark:text-blue-100">Demo Mode</p>
-                  <p className="text-blue-700 dark:text-blue-200">
-                    Stripe is not configured. In production, this would show the real payment form.
-                  </p>
-                </div>
+          <div className="p-4 bg-red-50 dark:bg-red-950/50 rounded-lg">
+            <div className="flex items-start gap-2">
+              <div className="w-4 h-4 bg-red-600 rounded-full mt-0.5 flex-shrink-0"></div>
+              <div className="text-sm">
+                <p className="font-medium text-red-900 dark:text-red-100">Payment Setup Failed</p>
+                <p className="text-red-700 dark:text-red-200">
+                  We couldn't set up your payment. Please try again or contact support if the problem persists.
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="space-y-3">
-            <Button 
-              className="w-full" 
-
-              onClick={() => {
-                // Simulate successful payment and redirect to purchase-success
-                setTimeout(() => {
-                  window.location.href = '/purchase-success?demo=true'
-                }, 1000)
-              }}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                'Complete Demo Payment'
-              )}
-            </Button>
-            
-            <Button 
-              variant="outline" 
+            <Button
               className="w-full"
-              onClick={onBack}
+              onClick={() => window.location.href = '/pricing'}
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Plan Selection
+              Back to Pricing
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={createCheckoutSession}
+            >
+              Try Again
             </Button>
           </div>
-
-          <p className="text-xs text-center text-muted-foreground">
-            🔒 This is a demo environment. No real payment will be processed.
-          </p>
         </CardContent>
       </Card>
     )
@@ -196,8 +148,18 @@ export function EmbeddedCheckoutWrapper({
             Unable to initialize checkout. Please try again.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Button onClick={onBack} variant="outline" className="w-full">
+        <CardContent className="space-y-3">
+          <Button
+            onClick={() => window.location.href = '/pricing'}
+            className="w-full"
+          >
+            Back to Pricing
+          </Button>
+          <Button
+            onClick={onBack}
+            variant="outline"
+            className="w-full"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Plan Selection
           </Button>
