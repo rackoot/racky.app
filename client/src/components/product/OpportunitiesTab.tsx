@@ -233,7 +233,7 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
             {opportunity.description}
           </p>
           
-          {opportunity.actionRequired && (
+          {/* {opportunity.actionRequired && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
               <h4 className="font-medium text-blue-800 mb-1">Action Required:</h4>
               <p className="text-sm text-blue-700">{opportunity.actionRequired}</p>
@@ -296,7 +296,7 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
                 AI Confidence: {Math.round(opportunity.aiMetadata.confidence * 100)}%
               </div>
             )}
-          </div>
+          </div> */}
         </CardContent>
       </Card>
     );
