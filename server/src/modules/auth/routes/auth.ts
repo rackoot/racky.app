@@ -6,6 +6,8 @@ import User from '../models/User';
 import Usage from '@/subscriptions/models/Usage';
 import { generateToken, protect } from '@/common/middleware/auth';
 import getEnv from '@/common/config/env';
+import { WorkspaceService } from '../../workspaces/services/workspaceService';
+import { Types } from 'mongoose';
 
 const router = express.Router();
 
@@ -87,6 +89,28 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
       role: 'USER' // New users are regular users by default
     });
 
+    // Create default workspace for the new user
+    let defaultWorkspace;
+    try {
+      const workspaceName = `${firstName}'s Workspace`;
+      defaultWorkspace = await WorkspaceService.createWorkspace(
+        user._id as Types.ObjectId,
+        {
+          name: workspaceName,
+          description: 'Default workspace for managing your e-commerce operations',
+          settings: {
+            timezone: 'UTC',
+            currency: 'USD',
+            language: 'en'
+          }
+        }
+      );
+      console.log(`✅ Created default workspace "${workspaceName}" for user ${email}`);
+    } catch (workspaceError) {
+      console.error('Error creating default workspace:', workspaceError);
+      // Don't fail registration if workspace creation fails, but log the error
+    }
+
     // Create initial usage record for the user
     try {
       await Usage.getCurrentMonthUsage(user._id.toString());
@@ -108,7 +132,12 @@ router.post('/register', async (req: express.Request<{}, {}, RegisterRequestBody
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role
-        }
+        },
+        defaultWorkspace: defaultWorkspace ? {
+          _id: defaultWorkspace._id,
+          name: defaultWorkspace.name,
+          slug: defaultWorkspace.slug
+        } : null
       }
     });
   } catch (error: any) {

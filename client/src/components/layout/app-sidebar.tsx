@@ -87,7 +87,7 @@ const items: NavigationItem[] = [
   },
   {
     title: "Pricing",
-    url: "/pricing-internal",
+    url: "/pricing",
     icon: DollarSign,
     requiresNoSubscription: true, // Only show when no active subscription
   },

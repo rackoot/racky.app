@@ -6,6 +6,8 @@ node_selector: "testNodes"
 
 subdomain: "test-suite"
 
+frontend_url: "https://test-suite.racky.ai"
+
 secrets:
   path: dev
 
