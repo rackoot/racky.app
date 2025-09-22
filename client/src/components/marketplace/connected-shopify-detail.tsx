@@ -257,7 +257,12 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
                     />
                   )}
                   <div className="flex-1">
-                    <h4 className="font-medium">{product.title}</h4>
+                    <h4
+                      className="font-medium hover:text-primary cursor-pointer transition-colors"
+                      onClick={() => navigate(`/products/${product._id || product.id}`)}
+                    >
+                      {product.title}
+                    </h4>
                     <p className="text-sm text-muted-foreground">
                       ${product.price} • {product.inventory} in stock
                     </p>

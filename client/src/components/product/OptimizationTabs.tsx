@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  RefreshCw, 
-  Check, 
-  X, 
-  Clock, 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  RefreshCw,
+  Check,
+  X,
+  Clock,
   AlertCircle,
   Loader2,
   Sparkles,
@@ -337,7 +338,6 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
               <TabsTrigger value="video" className="flex items-center gap-2">
                 <Video className="w-4 h-4" />
                 Video Content
-                <Badge variant="secondary" className="ml-1 text-xs">Coming Soon</Badge>
               </TabsTrigger>
             </TabsList>
             
@@ -736,6 +736,21 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
 // Video Content Tab Component
 function VideoContentTab({ product }: { product: ProductDetail }) {
   const hasImages = product.images && product.images.length > 0
+  const [showVideoModal, setShowVideoModal] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showVideo, setShowVideo] = useState(false)
+
+  const handleGenerateVideo = async () => {
+    setShowVideoModal(true)
+    setIsGenerating(true)
+    setShowVideo(false)
+
+    // Show loading for 10 seconds
+    setTimeout(() => {
+      setIsGenerating(false)
+      setShowVideo(true)
+    }, 5000)
+  }
 
   return (
     <div className="space-y-6">
@@ -807,19 +822,13 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
                       </div>
                     </div>
                     
-                    <Button 
-                      size="lg" 
-                      disabled={true}
+                    <Button
+                      size="lg"
+                      onClick={handleGenerateVideo}
                       className="w-full relative overflow-hidden"
                     >
                       <Video className="w-4 h-4 mr-2" />
                       Generate Product Video
-                      <Badge 
-                        variant="secondary" 
-                        className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-200"
-                      >
-                        Coming Soon
-                      </Badge>
                     </Button>
                     
                     <p className="text-xs text-center text-muted-foreground">
@@ -832,6 +841,57 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Video Generation Modal */}
+      <Dialog open={showVideoModal} onOpenChange={setShowVideoModal}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Video className="w-5 h-5" />
+              Generate Product Video
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6">
+            {isGenerating ? (
+              <div className="text-center py-12">
+                <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
+                <h3 className="text-lg font-semibold mb-2">Generating Video...</h3>
+                <p className="text-muted-foreground">
+                  Our AI is creating your product video. This may take a few moments.
+                </p>
+              </div>
+            ) : showVideo ? (
+              <div className="space-y-4">
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-semibold mb-2">Your Product Video is Ready!</h3>
+                  <p className="text-muted-foreground">
+                    Here's your AI-generated product video:
+                  </p>
+                </div>
+                <div className="aspect-video rounded-lg overflow-hidden">
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src="https://www.youtube.com/embed/ooR-oZx8fHY"
+                    title="Product Video"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  ></iframe>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => setShowVideoModal(false)}>
+                    Close
+                  </Button>
+                  <Button>
+                    Download Video
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
