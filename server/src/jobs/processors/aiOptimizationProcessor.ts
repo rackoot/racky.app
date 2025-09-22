@@ -224,6 +224,11 @@ export class AIOptimizationProcessor {
 
     } catch (error) {
       console.error(`❌ AI optimization scan failed:`, error);
+
+      // Mark job as failed
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await job.markFailed(errorMessage);
+
       throw error;
     }
   }
@@ -474,6 +479,9 @@ export class AIOptimizationProcessor {
         products: results,
       };
 
+      // Mark this batch job as completed
+      await job.markCompleted(result);
+
       console.log(`✅ AI batch ${batchNumber}/${totalBatches} completed: ${processedCount} success, ${failedCount} failed`);
       
       // Check if all sibling batches are complete
@@ -504,6 +512,11 @@ export class AIOptimizationProcessor {
 
     } catch (error) {
       console.error(`❌ AI description batch processing failed:`, error);
+
+      // Mark job as failed
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      await job.markFailed(errorMessage);
+
       throw error;
     }
   }
