@@ -944,7 +944,6 @@ router.get('/products/:id/status', async (req: AuthenticatedRequest, res: Respon
             productId,
             workspaceId,
             category: 'description',
-            marketplace: platform,
             aiGenerated: true,
             status: { $in: ['open', 'in_progress'] } // Only show active opportunities
           }).sort({ createdAt: -1 }); // Get the most recent one
