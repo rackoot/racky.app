@@ -48,6 +48,8 @@ export interface IOpportunity extends Document {
   expiresAt: Date;
   // AI metadata
   aiMetadata: IAIMetadata;
+  // AI generated flag
+  aiGenerated?: boolean;
   // Legacy type field for backward compatibility
   type?: OpportunityType;
   // Timestamps
@@ -148,6 +150,11 @@ const opportunitySchema = new Schema<IOpportunity>({
       min: 0,
       max: 1
     }
+  },
+  // AI generated flag
+  aiGenerated: {
+    type: Boolean,
+    default: false
   },
   // Legacy type field for backward compatibility
   type: {
