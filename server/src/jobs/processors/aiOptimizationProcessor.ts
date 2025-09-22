@@ -351,13 +351,30 @@ export class AIOptimizationProcessor {
             });
 
             if (!existingOpportunity) {
-              // Validate and clean marketplace field
+              // Validate and clean marketplace field - handle multiple values, null strings, and invalid values
               const validMarketplaces = ['shopify', 'vtex', 'mercadolibre', 'amazon', 'facebook_shop', 'google_shopping', 'woocommerce'];
               let marketplaceValue = oppData.marketplace;
 
-              // Convert string "null" to actual null
+              // Convert string "null" or "undefined" to actual null
               if (marketplaceValue === 'null' || marketplaceValue === 'undefined') {
                 marketplaceValue = null;
+              }
+
+              // Handle comma-separated marketplaces - take the first valid one
+              if (typeof marketplaceValue === 'string' && marketplaceValue.includes(',')) {
+                const marketplaces = marketplaceValue.split(',').map(m => m.trim());
+                const firstValidMarketplace = marketplaces.find(m => validMarketplaces.includes(m));
+                marketplaceValue = firstValidMarketplace || null;
+              }
+
+              // Validate single marketplace value (trim whitespace)
+              if (marketplaceValue && typeof marketplaceValue === 'string' && !marketplaceValue.includes(',')) {
+                const trimmedValue = marketplaceValue.trim();
+                if (validMarketplaces.includes(trimmedValue)) {
+                  marketplaceValue = trimmedValue;
+                } else {
+                  marketplaceValue = null;
+                }
               }
 
               // If oppData.marketplace is null/invalid, use product.marketplace or default to null

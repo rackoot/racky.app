@@ -98,8 +98,34 @@ class AIService {
       // Add AI metadata to each opportunity and clean up marketplace field
       return opportunities.map(opp => ({
         ...opp,
-        // Convert string "null" to actual null for marketplace field
-        marketplace: (opp.marketplace === 'null' || opp.marketplace === 'undefined') ? null : opp.marketplace,
+        // Clean up marketplace field - handle multiple values, null strings, and invalid values
+        marketplace: (() => {
+          const validMarketplaces = ['shopify', 'vtex', 'mercadolibre', 'amazon', 'facebook_shop', 'google_shopping', 'woocommerce'];
+          let marketplaceValue = opp.marketplace;
+
+          // Convert string "null" or "undefined" to actual null
+          if (marketplaceValue === 'null' || marketplaceValue === 'undefined') {
+            return null;
+          }
+
+          // Handle comma-separated marketplaces - take the first valid one or null
+          if (typeof marketplaceValue === 'string' && marketplaceValue.includes(',')) {
+            const marketplaces = marketplaceValue.split(',').map(m => m.trim());
+            const firstValidMarketplace = marketplaces.find(m => validMarketplaces.includes(m));
+            return firstValidMarketplace || null;
+          }
+
+          // Validate single marketplace value (trim whitespace)
+          if (marketplaceValue && typeof marketplaceValue === 'string') {
+            const trimmedValue = marketplaceValue.trim();
+            if (validMarketplaces.includes(trimmedValue)) {
+              return trimmedValue;
+            }
+          }
+
+          // Default to null for any invalid value
+          return null;
+        })(),
         aiMetadata: {
           model: env.OPENAI_MODEL,
           prompt: prompt.substring(0, 500) + '...', // Truncate for storage
