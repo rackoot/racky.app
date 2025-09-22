@@ -18,7 +18,6 @@ import { Subscription } from '@/pages/subscription'
 import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
-import { InternalPricing } from '@/pages/internal-pricing'
 import { PurchaseSuccess } from '@/pages/purchase-success'
 import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
@@ -26,7 +25,6 @@ import { AdminUsers } from '@/pages/admin/users'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import { AdminAnalytics } from '@/pages/admin/analytics'
 import Workspaces from '@/pages/workspaces'
-import AIOptimizationPage from '@/pages/ai-optimization'
 import AIOpportunitiesPage from '@/pages/ai-optimization/opportunities'
 import AIStartScanPage from '@/pages/ai-optimization/start-scan'
 import AIScanHistoryPage from '@/pages/ai-optimization/scan-history'
@@ -44,16 +42,15 @@ function App() {
         {/* Legacy redirects */}
         <Route path="/login" element={<Navigate to="/auth/login" replace />} />
         <Route path="/register" element={<Navigate to="/auth/register" replace />} />
-        <Route path="/pricing" element={<Pricing />} />
         <Route path="/demo-checkout" element={<DemoCheckout />} />
         
-        {/* Internal pricing page for authenticated users without subscription */}
+        {/* Pricing page for authenticated users without subscription */}
         <Route
-          path="/pricing-internal"
+          path="/pricing"
           element={
             <ProtectedRoute>
               <MainLayout>
-                <InternalPricing />
+                <Pricing />
               </MainLayout>
             </ProtectedRoute>
           }
