@@ -346,6 +346,22 @@ export class AIOptimizationProcessor {
             });
 
             if (!existingOpportunity) {
+              // Validate and clean marketplace field
+              const validMarketplaces = ['shopify', 'vtex', 'mercadolibre', 'amazon', 'facebook_shop', 'google_shopping', 'woocommerce'];
+              let marketplaceValue = oppData.marketplace;
+
+              // Convert string "null" to actual null
+              if (marketplaceValue === 'null' || marketplaceValue === 'undefined') {
+                marketplaceValue = null;
+              }
+
+              // If oppData.marketplace is null/invalid, use product.marketplace or default to null
+              if (!marketplaceValue || !validMarketplaces.includes(marketplaceValue)) {
+                marketplaceValue = (product.marketplace && validMarketplaces.includes(product.marketplace))
+                  ? product.marketplace
+                  : null;
+              }
+
               const opportunity = new Opportunity({
                 userId,
                 workspaceId,
@@ -353,7 +369,7 @@ export class AIOptimizationProcessor {
                 title: oppData.title,
                 description: oppData.description,
                 category: oppData.category,
-                marketplace: product.marketplace || 'shopify',
+                marketplace: marketplaceValue,
                 priority: oppData.priority,
                 potentialImpact: oppData.potentialImpact,
                 actionRequired: oppData.actionRequired,
@@ -379,6 +395,12 @@ export class AIOptimizationProcessor {
             aiGenerated: true
           });
 
+          // Validate marketplace for description opportunity too
+          const validMarketplaces = ['shopify', 'vtex', 'mercadolibre', 'amazon', 'facebook_shop', 'google_shopping', 'woocommerce'];
+          const descriptionMarketplace = (product.marketplace && validMarketplaces.includes(product.marketplace))
+            ? product.marketplace
+            : null;
+
           const descriptionOpportunity = new Opportunity({
             userId,
             workspaceId,
@@ -386,7 +408,7 @@ export class AIOptimizationProcessor {
             title: "AI-Generated Product Description",
             description: descriptionResult.description, // This is the ACTUAL generated description
             category: 'description',
-            marketplace: product.marketplace || 'shopify',
+            marketplace: descriptionMarketplace,
             priority: 'high',
             potentialImpact: { revenue: 0, percentage: 30 },
             actionRequired: "Review and apply the generated description",
