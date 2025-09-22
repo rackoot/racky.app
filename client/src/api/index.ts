@@ -2,7 +2,7 @@
 export { authApi } from './auth'
 export { workspacesApi } from './workspaces'
 export { marketplacesApi } from './marketplaces'
-export { productsApi } from './products'
+export { productsApi, getMarketplaceProductUrl } from './products'
 export { dashboardApi } from './dashboard'
 export { opportunitiesApi } from './opportunities'
 export { billingApi } from './billing'

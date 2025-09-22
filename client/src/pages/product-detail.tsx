@@ -19,8 +19,7 @@ import {
   Clock,
   TrendingUp
 } from "lucide-react"
-import { productsService } from "@/services/products"
-import { getMarketplaceProductUrl } from "@/api/products"
+import { productsService, getMarketplaceProductUrl } from "@/services/products"
 import { ProductImageGallery } from "@/components/product/ProductImageGallery"
 import { OptimizationTabs } from "@/components/product/OptimizationTabs"
 import { ProductHistory } from "@/components/product/ProductHistory"
