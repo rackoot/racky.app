@@ -240,6 +240,7 @@ Product (1) ──→ (N) Opportunity/Suggestion
 - `/login` and `/register` are public routes, all others require authentication
 - JWT middleware (`src/middleware/auth.js`) injects `req.user` on protected routes
 - All routes except `/api/auth` and `/api/health` require Bearer token authentication
+- **New User Registration**: Automatically creates a default workspace named "{firstName}'s Workspace" with basic settings (UTC timezone, USD currency, English language)
 
 ## Marketplace Integration
 The application supports 7 marketplace types:
@@ -329,7 +330,7 @@ PORT=5000
 - `GET /api/plans/user/current` - Get current user's plan info (requires auth)
 
 ### Authentication (Enhanced)
-- `POST /api/auth/register` - Register new user (starts 14-day trial)
+- `POST /api/auth/register` - Register new user (starts 14-day trial) and automatically creates a default workspace
 - `POST /api/auth/login` - Login with enhanced response including subscription info
 
 ### Setup & Initialization

@@ -6,6 +6,8 @@ node_selector: "prodNodes"
 
 subdomain: "suite"
 
+frontend_url: "https://suite.racky.ai"
+
 secrets:
   path: prod
 

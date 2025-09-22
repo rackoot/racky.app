@@ -36,16 +36,27 @@ describe('Authentication Integration Tests', () => {
         success: true,
         message: 'Account created successfully',
         data: {
-          email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          role: 'USER',
+          user: {
+            email: userData.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            role: 'USER',
+          },
           token: expect.any(String),
+          defaultWorkspace: {
+            _id: expect.any(String),
+            name: `${userData.firstName}'s Workspace`,
+            slug: expect.any(String)
+          }
         },
       });
 
       // Password should not be included in response
-      expect(response.body.data.password).toBeUndefined();
+      expect(response.body.data.user.password).toBeUndefined();
+
+      // Verify default workspace was created
+      expect(response.body.data.defaultWorkspace).toBeDefined();
+      expect(response.body.data.defaultWorkspace.name).toBe(`${userData.firstName}'s Workspace`);
     });
 
     it('should reject registration with invalid email', async () => {

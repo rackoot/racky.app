@@ -85,7 +85,7 @@ export const createEmbeddedCheckoutSession = async (
     workspace,
     userId,
     successUrl = `${env.CLIENT_URL}/dashboard?checkout=success`,
-    cancelUrl = `${env.CLIENT_URL}/pricing-internal?checkout=cancelled`,
+    cancelUrl = `${env.CLIENT_URL}/pricing?checkout=cancelled`,
   } = params;
 
   // Get the plan details
@@ -170,7 +170,7 @@ export const createCheckoutSession = async (
     workspace,
     userId,
     successUrl = `${env.CLIENT_URL}/dashboard?checkout=success`,
-    cancelUrl = `${env.CLIENT_URL}/pricing-internal?checkout=cancelled`,
+    cancelUrl = `${env.CLIENT_URL}/pricing?checkout=cancelled`,
   } = params;
 
   // Get the plan details

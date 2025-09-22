@@ -8,7 +8,6 @@ interface RequireSubscriptionProps {
   children: React.ReactNode;
   fallback?: string;
 }
-
 export function RequireSubscription({
   children,
   fallback = "/pricing",

@@ -4,7 +4,7 @@ data:
   NODE_ENV: development
   FRONTEND_PORT: "5173"
   VITE_API_URL: http://localhost:5000/api
-  CLIENT_URL: http://localhost:5173
+  CLIENT_URL: {{ .Values.stripe.frontend_url }}
   #MONGODB_DATABASE: {{ .Values.mongodb.username }}
   #MONGODB_URI: {{ .Values.mongodb.host }}
   USE_RABBITMQ: "true"
@@ -15,7 +15,7 @@ data:
   RABBITMQ_MGMT_PORT: "15672"
   RABBITMQ_MGMT_URL: http://rabbitmq:15672
   VITE_STRIPE_PUBLISHABLE_KEY: {{ .Values.stripe.public_key }}
-  CLIENT_URL: http://localhost:5173
+  CLIENT_URL: {{ .Values.stripe.frontend_url }}
 kind: ConfigMap
 metadata:
   name: racky-app-env
