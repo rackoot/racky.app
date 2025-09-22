@@ -74,7 +74,7 @@ export const ENDPOINTS = {
   OPPORTUNITIES: {
     LIST: "/opportunities",
     GET: (id: string) => `/opportunities/${id}`,
-    GENERATE: (id: string) => `/opportunities/${id}/generate`,
+    GENERATE: (id: string) => `/opportunities/products/${id}/generate`,
     OPTIMIZE: (id: string) => `/opportunities/${id}/optimize`,
   },
 
