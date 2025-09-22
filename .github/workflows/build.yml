@@ -74,7 +74,16 @@ jobs:
     needs: [set-release-revision, build-docker-images]
     uses: rackoot/common-workflows/.github/workflows/trivyScanner.yml@main
     with:
-      ECR_REPOSITORY: "rackoot/${{ vars.DEPLOYMENT }}"
+      ECR_REPOSITORY: "rackoot/racky.app.backend"
+      RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
+      DEPLOYMENT: ${{ vars.DEPLOYMENT }}
+    secrets: inherit
+    
+  scan-image-backend:
+    needs: [set-release-revision, build-docker-images]
+    uses: rackoot/common-workflows/.github/workflows/trivyScanner.yml@main
+    with:
+      ECR_REPOSITORY: "rackoot/racky.app.frontend"
       RELEASE_REVISION: ${{ needs.set-release-revision.outputs.RELEASE_REVISION }}
       DEPLOYMENT: ${{ vars.DEPLOYMENT }}
     secrets: inherit
