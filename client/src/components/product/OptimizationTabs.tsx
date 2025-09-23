@@ -869,15 +869,19 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
                   </p>
                 </div>
                 <div className="aspect-video rounded-lg overflow-hidden">
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    src="https://www.youtube.com/embed/ooR-oZx8fHY"
-                    title="Product Video"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  ></iframe>
+                  <video
+                    controls
+                    className="w-full h-full rounded-lg"
+                    src={
+                      product.externalId === "gid://shopify/Product/8845938098350"
+                        ? "https://www.racky.ai/videos/fifter.mp4"
+                        : product.externalId === "gid://shopify/Product/8807895924910"
+                        ? "https://www.racky.ai/videos/snowboard.mp4"
+                        : "https://www.racky.ai/videos/snowboard.mp4" // Default video
+                    }
+                  >
+                    Your browser does not support the video tag.
+                  </video>
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button variant="outline" onClick={() => setShowVideoModal(false)}>
