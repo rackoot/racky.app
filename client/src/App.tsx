@@ -14,7 +14,6 @@ import { MarketplacePage } from '@/pages/stores/[marketplace]'
 import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
 import { Account } from '@/pages/account'
-import { Subscription } from '@/pages/subscription'
 import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
@@ -276,16 +275,6 @@ function App() {
           }
         />
         
-        <Route
-          path="/subscription-legacy"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <Subscription />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
         <Route
           path="/usage"
           element={
