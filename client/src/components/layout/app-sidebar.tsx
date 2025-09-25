@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   Brain,
   Home,
   Package,
@@ -72,12 +71,6 @@ const items: NavigationItem[] = [
     title: "Orders",
     url: "/orders",
     icon: ShoppingCart,
-    requiresSubscription: true, // Requires active subscription
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
     requiresSubscription: true, // Requires active subscription
   },
   {
