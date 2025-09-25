@@ -11,6 +11,7 @@ import {
   DollarSign,
   ChevronDown,
   ChevronRight,
+  Video,
 } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 import { useState } from "react"
@@ -50,6 +51,12 @@ const items: NavigationItem[] = [
     title: "Products",
     url: "/products",
     icon: Package,
+    requiresSubscription: true, // Requires active subscription
+  },
+  {
+    title: "Videos",
+    url: "/videos",
+    icon: Video,
     requiresSubscription: true, // Requires active subscription
   },
   {

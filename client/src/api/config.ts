@@ -49,6 +49,7 @@ export const ENDPOINTS = {
 
   // Products
   PRODUCTS: {
+    BASE: "/products",
     LIST: "/products",
     GET: (id: string) => `/products/${id}`,
     STORE_PRODUCTS: (connectionId: string) => `/products/store/${connectionId}`,

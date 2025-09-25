@@ -778,13 +778,13 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium mb-3">Product Images ({product.images.length})</h4>
-                  <div className="grid grid-cols-2 gap-2 max-h-48 _overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-2 overflow-y-auto">
                     {product.images.map((image, index) => (
-                      <div key={index} className="aspect-square rounded-lg overflow-hidden bg-muted">
-                        <img 
-                          src={image.url} 
+                      <div key={index} className="rounded-lg overflow-hidden bg-muted">
+                        <img
+                          src={image.url}
                           alt={image.altText || `Product image ${index + 1}`}
-                          className="w-full h-full object-cover"
+                          className="max-w-[400px] h-auto object-cover"
                         />
                       </div>
                     ))}

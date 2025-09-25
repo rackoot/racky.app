@@ -669,3 +669,4 @@ Before committing code with new endpoints or components:
 7. **Cleanup** - Clean up resources after tests complete
 
 **FAILURE TO TEST**: Any new endpoints or components without proper tests will be rejected. Testing is not optional - it's a fundamental requirement for code quality and system reliability.
+- this project uses docker, don't run npm run dev or similar commands to test. ALWAYS go to the docker container

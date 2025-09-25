@@ -153,4 +153,11 @@ export const productsApi = {
   async getProductById(id: string): Promise<any> {
     return apiGet<any>(ENDPOINTS.PRODUCTS.GET(id))
   },
+
+  /**
+   * Resync a single product from its marketplace
+   */
+  async resyncProduct(id: string): Promise<any> {
+    return apiPost<any>(`${ENDPOINTS.PRODUCTS.BASE}/${id}/resync`)
+  },
 }

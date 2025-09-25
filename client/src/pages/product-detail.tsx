@@ -7,17 +7,27 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { 
-  ArrowLeft, 
-  Package, 
-  Store, 
-  Tag, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  ArrowLeft,
+  Package,
+  Store,
+  Tag,
   Calendar,
   AlertCircle,
   Loader2,
   ExternalLink,
   Clock,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from "lucide-react"
 import { productsService, getMarketplaceProductUrl } from "@/services/products"
 import { ProductImageGallery } from "@/components/product/ProductImageGallery"
@@ -75,6 +85,8 @@ export function ProductDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState("details")
+  const [resyncing, setResyncing] = useState(false)
+  const [resyncDialogOpen, setResyncDialogOpen] = useState(false)
 
   useEffect(() => {
     if (id && currentWorkspace) {
@@ -84,10 +96,10 @@ export function ProductDetail() {
 
   const loadProduct = async () => {
     if (!id) return
-    
+
     setLoading(true)
     setError("")
-    
+
     try {
       const data = await productsService.getProductById(id)
       setProduct(data)
@@ -95,6 +107,25 @@ export function ProductDetail() {
       setError(err instanceof Error ? err.message : "Failed to load product")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResync = async () => {
+    if (!product || !id) return
+
+    setResyncing(true)
+    setError("")
+    setResyncDialogOpen(false) // Close dialog when starting resync
+
+    try {
+      // Call the resync endpoint
+      const updatedProduct = await productsService.resyncProduct(id)
+      setProduct(updatedProduct)
+      // Show success message (you might want to add a toast notification here)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to resync product")
+    } finally {
+      setResyncing(false)
     }
   }
 
@@ -167,20 +198,65 @@ export function ProductDetail() {
             </div>
           </div>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => {
-            const url = product.marketplaceUrl || getMarketplaceProductUrl(product)
-            if (url) {
-              window.open(url, '_blank', 'noopener,noreferrer')
-            }
-          }}
-          disabled={!product.marketplaceUrl && !getMarketplaceProductUrl(product)}
-        >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          View in {product.marketplace}
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={resyncDialogOpen} onOpenChange={setResyncDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={resyncing || !product.marketplace}
+              >
+                {resyncing ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Re-sync
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Re-sync Product Data</DialogTitle>
+                <DialogDescription>
+                  This will fetch the latest data for this product from {product.marketplace} and
+                  overwrite all local information including:
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                  <li>Product title and description</li>
+                  <li>Price and inventory</li>
+                  <li>Images and variants</li>
+                  <li>Status (active/draft/archived)</li>
+                </ul>
+                <p className="mt-4 text-sm font-semibold">This action cannot be undone.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setResyncDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleResync}>
+                  Confirm Re-sync
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url = product.marketplaceUrl || getMarketplaceProductUrl(product)
+              if (url) {
+                window.open(url, '_blank', 'noopener,noreferrer')
+              }
+            }}
+            disabled={!product.marketplaceUrl && !getMarketplaceProductUrl(product)}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            View in {product.marketplace}
+          </Button>
+        </div>
       </div>
 
       {/* Main Content Tabs */}

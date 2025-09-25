@@ -103,6 +103,7 @@ app.use("/api/products", protect, requireWorkspace, productRoutes);
 app.use("/api/dashboard", protect, requireWorkspace, dashboardRoutes);
 app.use("/api/optimizations", protect, requireWorkspace, optimizationRoutes);
 app.use("/api/opportunities", protect, requireWorkspace, opportunityRoutes);
+app.use("/api/videos", protect, requireWorkspace, require('./modules/videos/routes/videos').default);
 
 app.use("/api/subscription", protect, subscriptionRoutes);
 app.use("/api/usage", protect, usageRoutes);
@@ -132,9 +133,15 @@ const startServer = async () => {
     // Initialize RabbitMQ service conditionally
     const env = getEnv();
     if (env.USE_RABBITMQ) {
-      await rabbitMQService.initialize();
-      // Set up RabbitMQ job processors
-      setupRabbitMQJobProcessors();
+      try {
+        await rabbitMQService.initialize();
+        // Set up RabbitMQ job processors
+        setupRabbitMQJobProcessors();
+        console.log("✅ RabbitMQ initialized successfully");
+      } catch (error) {
+        console.error("❌ Failed to initialize RabbitMQ:", error.message);
+        console.log("⚠️  Server will continue without queue system");
+      }
     } else {
       console.log("🔴 RabbitMQ disabled - running without queue system");
     }

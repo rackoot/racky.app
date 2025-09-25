@@ -245,6 +245,21 @@ erDiagram
         Date updatedAt "Auto timestamp"
     }
 
+    AIVideo {
+        ObjectId _id PK
+        ObjectId userId FK "References User._id"
+        ObjectId workspaceId FK "References Workspace._id"
+        ObjectId productId FK "References Product._id"
+        String title "Required, trimmed"
+        String description "Required"
+        Date generatedDate "Default Date.now"
+        String status "ENUM: pending|generating|completed|failed, default pending"
+        Mixed metadata "Object with duration, format, resolution, fileSize, videoUrl, thumbnailUrl, generationTime, aiModel, etc."
+        String error "Optional, error message if generation failed"
+        Date createdAt "Auto timestamp"
+        Date updatedAt "Auto timestamp"
+    }
+
     %% Relationships
     User ||--o{ Workspace : "owns (1:N)"
     User ||--o{ WorkspaceUser : "belongs to (1:N)"
@@ -256,12 +271,14 @@ erDiagram
     Workspace ||--o{ Subscription : "has (1:N)"
     Workspace ||--o{ Usage : "tracks (1:N)"
     Workspace ||--o{ GeneralSuggestion : "receives (1:N)"
-    
+    Workspace ||--o{ AIVideo : "contains (1:N)"
+
     StoreConnection ||--o{ Product : "contains (1:N)"
-    
+
     Product ||--o{ Opportunity : "generates (1:N)"
     Product ||--o{ Suggestion : "gets (1:N)"
-    
+    Product ||--o{ AIVideo : "generates videos (1:N)"
+
     Plan ||--o{ Subscription : "defines (1:N)"
     
     %% Index Information
@@ -277,6 +294,7 @@ erDiagram
     %% Usage: workspaceId + billingPeriodStart (unique compound), userId + billingPeriodStart (backward compatibility), billingPeriodStart, createdAt
     %% GeneralSuggestion: workspaceId + isActive + expiresAt
     %% OpportunityCategory: id (unique)
+    %% AIVideo: userId + workspaceId + status (compound), workspaceId + createdAt, productId + createdAt, userId, workspaceId, productId
 ```
 
 ## Descripción de las Entidades
@@ -417,7 +435,7 @@ erDiagram
 
 #### OpportunityCategory
 - **Propósito**: Definición y configuración de categorías de oportunidades
-- **Características**: 
+- **Características**:
   - ID único de texto para referencia
   - Configuración visual: icon, color
   - Diferenciación entre categorías generales y específicas de marketplace
@@ -425,6 +443,17 @@ erDiagram
   - Inicialización automática de categorías por defecto
 - **Relaciones**: Entidad de referencia independiente (sin FK directas)
 - **Índices**: id (único)
+
+#### AIVideo (Nueva)
+- **Propósito**: Gestión de videos generados por IA para productos
+- **Características**:
+  - Estados de generación: pending (default), generating, completed, failed
+  - Metadata flexible para almacenar información del video: duración, formato, resolución, tamaño, URLs, tiempo de generación, modelo de IA usado
+  - Relación directa con producto para generación de videos específicos
+  - Gestión de errores con mensajes descriptivos
+  - Tracking completo de fechas de generación y creación
+- **Relaciones**: Pertenece a User (N:1), Workspace (N:1) y Product (N:1)
+- **Índices**: userId + workspaceId + status (compuesto), workspaceId + createdAt, productId + createdAt, userId, workspaceId, productId
 
 ## Principales Relaciones
 
@@ -532,11 +561,11 @@ La base de datos ha sido **rediseñada** para soportar múltiples workspaces por
 
 ## Última Actualización
 
-**Fecha**: 2025-08-22  
-**Entidades incluidas**: 12 (2 nuevas entidades de workspace)  
-**Relaciones mapeadas**: 15+ (rediseñadas para arquitectura multi-workspace)  
-**Índices documentados**: 30+ (incluyendo índices de workspace)  
-**Campos totales**: 170+ (incluyendo campos de workspace y compatibilidad)
+**Fecha**: 2025-09-24
+**Entidades incluidas**: 13 (incluyendo nueva entidad AIVideo)
+**Relaciones mapeadas**: 16+ (incluyendo relaciones de AIVideo con User, Workspace y Product)
+**Índices documentados**: 35+ (incluyendo índices optimizados para AIVideo)
+**Campos totales**: 180+ (incluyendo campos de AIVideo y metadata flexible)
 
 ---
 

@@ -425,6 +425,16 @@ async function syncShopifyProducts(
       console.log(`Retrieved ${products.length} products from Shopify`);
       
       for (const productEdge of products) {
+        // Log product status for debugging
+        console.log(`Product: ${productEdge.node.title}, Status: ${productEdge.node.status}`);
+
+        // Skip draft products - only sync active products
+        // Shopify status values are: ACTIVE, ARCHIVED, DRAFT
+        if (productEdge.node.status === 'DRAFT' || productEdge.node.status === 'ARCHIVED') {
+          console.log(`Skipping non-active product: ${productEdge.node.title} (Status: ${productEdge.node.status})`);
+          continue;
+        }
+
         const syncResult = await saveShopifyProduct(productEdge.node, userId, workspaceId, connectionId);
         totalProducts++;
         if (syncResult.isNew) {
@@ -438,6 +448,18 @@ async function syncShopifyProducts(
       cursor = (response as any).data.products.pageInfo.endCursor;
       
       console.log(`Synced ${totalProducts} products so far...`);
+    }
+
+    // Clean up any draft products that may have been synced previously
+    const draftCleanup = await Product.deleteMany({
+      workspaceId,
+      storeConnectionId: connectionId,
+      'platforms.platform': 'shopify',
+      'platforms.platformStatus': { $in: ['DRAFT', 'ARCHIVED'] }
+    });
+
+    if (draftCleanup.deletedCount > 0) {
+      console.log(`Cleaned up ${draftCleanup.deletedCount} draft/archived products from database`);
     }
 
     console.log(`Shopify sync completed. Total: ${totalProducts}, New: ${newProducts}, Updated: ${updatedProducts}`);
@@ -549,28 +571,49 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, workspace
     let isNew = false;
 
     if (existingProduct) {
-      // Update existing product
+      // Update existing product with ALL data from Shopify
       const platformIndex = existingProduct.platforms.findIndex((p: any) => p.platform === 'shopify');
-      
+
       if (platformIndex >= 0) {
         existingProduct.platforms[platformIndex] = shopifyPlatform;
       } else {
         existingProduct.platforms.push(shopifyPlatform);
       }
 
-      // Update other fields
-      if (!existingProduct.description && shopifyProduct.description) {
-        existingProduct.description = shopifyProduct.description;
-      }
-      
-      if (shopifyProduct.images.edges.length > 0 && existingProduct.images.length === 0) {
-        existingProduct.images = shopifyProduct.images.edges.map((edge: any) => ({
-          shopifyId: edge.node.id,
-          url: edge.node.url,
-          altText: edge.node.altText || ''
-        }));
-      }
+      // Always update ALL fields from Shopify (source of truth)
+      existingProduct.title = shopifyProduct.title;
+      existingProduct.description = shopifyProduct.description || '';
+      existingProduct.price = shopifyProduct.variants.edges[0]?.node.price ? parseFloat(shopifyProduct.variants.edges[0].node.price) : 0;
+      existingProduct.compareAtPrice = shopifyProduct.variants.edges[0]?.node.compareAtPrice ? parseFloat(shopifyProduct.variants.edges[0].node.compareAtPrice) : undefined;
+      existingProduct.sku = shopifyProduct.handle;
+      existingProduct.inventory = shopifyProduct.variants.edges.reduce((sum: number, edge: any) => sum + (edge.node.inventoryQuantity || 0), 0);
+      existingProduct.vendor = shopifyProduct.vendor || '';
+      existingProduct.productType = shopifyProduct.productType || '';
+      existingProduct.tags = shopifyProduct.tags || [];
 
+      // Always update images from Shopify
+      existingProduct.images = shopifyProduct.images.edges.map((edge: any) => ({
+        shopifyId: edge.node.id,
+        url: edge.node.url,
+        altText: edge.node.altText || ''
+      }));
+
+      // Always update variants from Shopify
+      existingProduct.variants = shopifyProduct.variants.edges.map((edge: any) => ({
+        id: edge.node.id,
+        shopifyId: edge.node.id,
+        title: edge.node.title,
+        price: edge.node.price || '0',
+        compareAtPrice: edge.node.compareAtPrice || undefined,
+        sku: edge.node.sku || '',
+        inventory: edge.node.inventoryQuantity || 0,
+        inventoryQuantity: edge.node.inventoryQuantity || 0
+      }));
+
+      // Update status based on Shopify status
+      existingProduct.status = shopifyProduct.status === 'ACTIVE' ? 'active' : 'archived';
+
+      // Update Shopify-specific fields
       existingProduct.shopifyId = shopifyProduct.id;
       existingProduct.handle = shopifyProduct.handle;
       existingProduct.shopifyUpdatedAt = new Date(shopifyProduct.updatedAt);
@@ -927,9 +970,207 @@ router.patch('/:id/description', async (req: AuthenticatedRequest, res: Response
   }
 });
 
+// POST /products/:id/resync - Resync a single product from its marketplace
+router.post('/:id/resync', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await protect(req, res, async () => {
+      await trackUsage('product_resync')(req, res, async () => {
+        const { id } = req.params;
+
+        // Find the product
+        const product = await Product.findOne({
+          _id: id,
+          workspaceId: req.workspace!._id
+        }).populate('storeConnectionId');
+
+        if (!product) {
+          return res.status(404).json({
+            success: false,
+            message: 'Product not found'
+          });
+        }
+
+        const connection = product.storeConnectionId as any;
+        if (!connection || !connection.credentials) {
+          return res.status(400).json({
+            success: false,
+            message: 'Store connection not found or invalid'
+          });
+        }
+
+        const marketplace = product.platforms?.[0]?.platform || connection.marketplaceType;
+        if (!marketplace) {
+          return res.status(400).json({
+            success: false,
+            message: 'Product marketplace not found'
+          });
+        }
+
+        let syncedProduct;
+
+        // Resync based on marketplace type
+        switch (marketplace) {
+          case 'shopify':
+            // For Shopify, fetch single product by ID
+            const { shop_url, access_token } = connection.credentials;
+            if (!shop_url || !access_token) {
+              return res.status(400).json({
+                success: false,
+                message: 'Invalid Shopify credentials'
+              });
+            }
+
+            // Extract the numeric ID from the Shopify GID
+            const shopifyId = product.platforms?.[0]?.platformId || product.shopifyId || product.externalId;
+            if (!shopifyId) {
+              return res.status(400).json({
+                success: false,
+                message: 'Shopify product ID not found'
+              });
+            }
+
+            // Query for single product
+            const storeName = shop_url
+              .replace(/^https?:\/\//, '')
+              .replace(/\/$/, '')
+              .replace(/\.myshopify\.com$/, '');
+
+            const apiUrl = `https://${storeName}.myshopify.com/admin/api/2023-10/graphql.json`;
+
+            // Use the GID directly in the GraphQL query
+            const query = `
+              query GetProduct($id: ID!) {
+                product(id: $id) {
+                  id
+                  title
+                  handle
+                  description
+                  productType
+                  vendor
+                  tags
+                  status
+                  createdAt
+                  updatedAt
+                  images(first: 10) {
+                    edges {
+                      node {
+                        id
+                        url
+                        altText
+                      }
+                    }
+                  }
+                  variants(first: 100) {
+                    edges {
+                      node {
+                        id
+                        title
+                        price
+                        compareAtPrice
+                        sku
+                        inventoryQuantity
+                        taxable
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const variables = {
+              id: shopifyId
+            };
+
+            try {
+              const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                  'X-Shopify-Access-Token': access_token,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query, variables })
+              });
+
+              if (!response.ok) {
+                throw new Error(`Shopify API request failed: ${response.statusText}`);
+              }
+
+              const data = await response.json() as any;
+
+              if (data.errors) {
+                throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+              }
+
+              const shopifyProduct = data.data.product;
+
+              if (!shopifyProduct) {
+                return res.status(404).json({
+                  success: false,
+                  message: 'Product not found in Shopify'
+                });
+              }
+
+              // Check if product is DRAFT or ARCHIVED
+              if (shopifyProduct.status === 'DRAFT' || shopifyProduct.status === 'ARCHIVED') {
+                // Delete the local product if it's no longer active
+                await Product.findByIdAndDelete(id);
+
+                return res.json({
+                  success: true,
+                  message: `Product removed locally as it is ${shopifyProduct.status.toLowerCase()} in Shopify`,
+                  data: null
+                });
+              }
+
+              // Update the product with new data from Shopify
+              syncedProduct = await saveShopifyProduct(
+                shopifyProduct,
+                req.user!._id.toString(),
+                req.workspace!._id.toString(),
+                connection._id.toString()
+              );
+            } catch (error) {
+              console.error('Shopify resync error:', error);
+              return res.status(500).json({
+                success: false,
+                message: 'Failed to resync from Shopify',
+                error: error instanceof Error ? error.message : 'Unknown error'
+              });
+            }
+            break;
+
+          default:
+            return res.status(400).json({
+              success: false,
+              message: `Resync not implemented for marketplace: ${marketplace}`
+            });
+        }
+
+        // Reload the product with all populated fields
+        const updatedProduct = await Product.findById(syncedProduct.productId || id)
+          .populate('storeConnectionId')
+          .populate('opportunityCount');
+
+        res.json({
+          success: true,
+          message: 'Product resynced successfully',
+          data: updatedProduct
+        });
+      });
+    });
+  } catch (error: any) {
+    console.error('Error resyncing product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to resync product',
+      error: error.message
+    });
+  }
+});
+
 // POST /products/:id/description/apply-to-marketplace - Apply description to marketplace
 router.post('/:id/description/apply-to-marketplace', async (
-  req: AuthenticatedRequest, 
+  req: AuthenticatedRequest,
   res: Response
 ) => {
   try {
