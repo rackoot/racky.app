@@ -1,5 +1,7 @@
 // Export all API modules
 export { authApi } from './auth'
+export { ordersApi } from './orders'
+export { customersApi } from './customers'
 export { workspacesApi } from './workspaces'
 export { marketplacesApi } from './marketplaces'
 export { productsApi, getMarketplaceProductUrl } from './products'

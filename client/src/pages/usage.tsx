@@ -79,23 +79,27 @@ export function Usage() {
 
       const usageData: UsageData = {
         currentPeriod: {
-          apiCalls: currentData.apiCalls || 0,
-          productsSync: currentData.productSyncs || 0,
-          storesConnected: currentData.storeConnections || 0,
-          storageUsed: currentData.storageUsed || 0,
+          apiCalls: currentData.currentPeriod?.apiCalls || 0,
+          productsSync: currentData.currentPeriod?.productSyncs || currentData.currentPeriod?.productsSync || 0,
+          storesConnected: currentData.currentPeriod?.storesConnected || 0,
+          storageUsed: currentData.currentPeriod?.storageUsed || 0,
           features: {
-            aiSuggestions: currentData.aiSuggestions || 0,
-            opportunityScans: currentData.opportunityScans || 0,
-            bulkOperations: currentData.bulkOperations || 0
+            aiSuggestions: currentData.currentPeriod?.features?.aiSuggestions || 0,
+            opportunityScans: currentData.currentPeriod?.features?.opportunityScans || 0,
+            bulkOperations: currentData.currentPeriod?.features?.bulkOperations || 0
           }
         },
-        limits: currentData.limit || {
+        limits: currentData.limits || {
           maxStores: 1,
           maxProducts: 100,
           maxMarketplaces: 2,
           apiCallsPerMonth: 1000
         },
-        trends: trendsData || [],
+        trends: trendsData || {
+          apiCallsGrowth: 0,
+          productsSyncGrowth: 0,
+          storageGrowth: 0
+        },
         history: historyData || []
       }
       

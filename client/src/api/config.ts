@@ -68,6 +68,16 @@ export const ENDPOINTS = {
     STATS: "/orders/stats/summary",
   },
 
+  // Customers
+  CUSTOMERS: {
+    BASE: "/customers",
+    LIST: "/customers",
+    GET: (id: string) => `/customers/${id}`,
+    SYNC_ALL: "/customers/sync",
+    SYNC: "/customers/sync",
+    STATS: "/customers/stats/summary",
+  },
+
   // Store Connections
   CONNECTIONS: {
     LIST: "/connections",

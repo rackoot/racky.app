@@ -11,6 +11,7 @@
       "@/jobs/*": ["jobs/*"],
       "@/auth/*": ["modules/auth/*"],
       "@/admin/*": ["modules/admin/*"],
+      "@/customers/*": ["modules/customers/*"],
       "@/dashboard/*": ["modules/dashboard/*"],
       "@/demo/*": ["modules/demo/*"],
       "@/marketplaces/*": ["modules/marketplaces/*"],

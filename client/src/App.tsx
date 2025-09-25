@@ -17,6 +17,7 @@ import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
 import { Account } from '@/pages/account'
 import { Orders } from '@/pages/orders'
+import { Customers } from '@/pages/customers'
 import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
@@ -251,10 +252,7 @@ function App() {
             <ProtectedRoute>
               <RequireSubscription>
                 <MainLayout>
-                  <div className="p-6">
-                    <h1 className="text-3xl font-bold mb-4">Customers</h1>
-                    <p>Customers page coming soon...</p>
-                  </div>
+                  <Customers />
                 </MainLayout>
               </RequireSubscription>
             </ProtectedRoute>
