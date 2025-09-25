@@ -58,6 +58,16 @@ export const ENDPOINTS = {
     SYNC: (connectionId: string) => `/products/sync/${connectionId}`,
   },
 
+  // Orders
+  ORDERS: {
+    BASE: "/orders",
+    LIST: "/orders",
+    GET: (id: string) => `/orders/${id}`,
+    SYNC_ALL: "/orders/sync",
+    SYNC_STORE: (storeConnectionId: string) => `/orders/sync/${storeConnectionId}`,
+    STATS: "/orders/stats/summary",
+  },
+
   // Store Connections
   CONNECTIONS: {
     LIST: "/connections",

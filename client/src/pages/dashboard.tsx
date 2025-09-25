@@ -120,14 +120,14 @@ export function Dashboard() {
         <MetricsCard
           title="Monthly Revenue"
           value={analytics?.metrics.monthlyRevenue ? formatCurrency(analytics.metrics.monthlyRevenue) : "$0"}
-          change="Estimated from products"
+          change="From synced orders"
           changeType="neutral"
           icon={DollarSign}
         />
         <MetricsCard
           title="Avg. Order Value"
           value={analytics?.metrics.avgOrderValue ? formatCurrency(analytics.metrics.avgOrderValue) : "$0"}
-          change="Industry average"
+          change="From synced orders"
           changeType="neutral"
           icon={TrendingUp}
         />

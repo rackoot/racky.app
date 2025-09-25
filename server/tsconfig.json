@@ -16,6 +16,7 @@
       "@/marketplaces/*": ["modules/marketplaces/*"],
       "@/notifications/*": ["modules/notifications/*"],
       "@/opportunities/*": ["modules/opportunities/*"],
+      "@/orders/*": ["modules/orders/*"],
       "@/products/*": ["modules/products/*"],
       "@/stores/*": ["modules/stores/*"],
       "@/subscriptions/*": ["modules/subscriptions/*"],

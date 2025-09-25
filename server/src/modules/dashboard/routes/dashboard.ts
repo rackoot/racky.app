@@ -6,6 +6,7 @@ import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
 import User from '@/auth/models/User';
 import GeneralSuggestion from '@/opportunities/models/GeneralSuggestion';
+import Order from '@/orders/models/Order';
 import { protect } from '@/common/middleware/auth';
 
 const router = express.Router();
@@ -147,9 +148,29 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
         count: item.count
       }));
 
-      // Calculate metrics with mock revenue data (you can replace with real revenue data if available)
-      const avgOrderValue = 89.50; // Mock data - replace with real calculation
-      const monthlyRevenue = totalProducts * avgOrderValue * 0.1; // Mock calculation
+      // Calculate real revenue metrics from orders
+      const currentDate = new Date();
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+
+      // Get this month's orders
+      const monthlyOrders = await Order.find({
+        workspaceId,
+        orderDate: { $gte: startOfMonth },
+        status: { $nin: ['cancelled', 'refunded'] } // Exclude cancelled and refunded orders
+      }).select('total');
+
+      // Calculate monthly revenue
+      const monthlyRevenue = monthlyOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+
+      // Calculate average order value from all orders
+      const allOrders = await Order.find({
+        workspaceId,
+        status: { $nin: ['cancelled', 'refunded'] }
+      }).select('total');
+
+      const avgOrderValue = allOrders.length > 0
+        ? allOrders.reduce((sum, order) => sum + (order.total || 0), 0) / allOrders.length
+        : 0;
 
       // Get recent activity (last month comparisons)
       const lastMonth = new Date();
@@ -166,7 +187,7 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
         totalProducts,
         connectedStores,
         monthlyRevenue: Math.round(monthlyRevenue),
-        avgOrderValue,
+        avgOrderValue: Math.round(avgOrderValue * 100) / 100, // Round to 2 decimal places
         productGrowth: `+${productGrowth}% from last month`
       };
 
