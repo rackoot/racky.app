@@ -4,11 +4,11 @@ import Plan from "../../modules/subscriptions/models/Plan";
 import Subscription from "../../modules/subscriptions/models/Subscription";
 import { IWorkspace } from "../../modules/workspaces/models/Workspace";
 import Workspace from "../../modules/workspaces/models/Workspace";
-import { SubscriptionStatus } from "../../modules/subscriptions/models/Subscription";
+import { SubscriptionStatus, ISubscription } from "../../modules/subscriptions/models/Subscription";
 
 const env = getEnv();
 
-function sleep(ms) {
+function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -105,7 +105,7 @@ export const createEmbeddedCheckoutSession = async (
   );
 
   // Create or get Stripe customer
-  let customerId = (workspace as any).stripeCustomerId;
+  let customerId = workspace.stripeCustomerId;
   if (!customerId) {
     const customer = await stripeInstance.customers.create({
       email: workspace.slug + "@workspace.racky.app", // Use workspace slug as identifier (URL-safe)
@@ -118,7 +118,7 @@ export const createEmbeddedCheckoutSession = async (
     customerId = customer.id;
 
     // Save customer ID to workspace
-    (workspace as any).stripeCustomerId = customerId;
+    workspace.stripeCustomerId = customerId;
     await workspace.save();
   }
 
@@ -190,7 +190,7 @@ export const createCheckoutSession = async (
   );
 
   // Create or get Stripe customer
-  let customerId = (workspace as any).stripeCustomerId;
+  let customerId = workspace.stripeCustomerId;
   if (!customerId) {
     const customer = await stripeInstance.customers.create({
       email: workspace.slug + "@workspace.racky.app", // Use workspace slug as identifier (URL-safe)
@@ -203,7 +203,7 @@ export const createCheckoutSession = async (
     customerId = customer.id;
 
     // Save customer ID to workspace
-    (workspace as any).stripeCustomerId = customerId;
+    workspace.stripeCustomerId = customerId;
     await workspace.save();
   }
 
@@ -360,10 +360,11 @@ export const handleSuccessfulPayment = async (
               );
             }
           }
-        } catch (scheduleError: any) {
+        } catch (scheduleError: unknown) {
+          const message = scheduleError instanceof Error ? scheduleError.message : 'Unknown error';
           console.error(
             "Error getting schedule data, falling back to metadata:",
-            scheduleError.message
+            message
           );
           // Continue with original metadata if schedule fetch fails
         }
@@ -443,7 +444,7 @@ export const handleSuccessfulPayment = async (
  * Check if subscription has a completed schedule and release it if so
  */
 const checkAndReleaseScheduleIfCompleted = async (
-  subscription: any
+  subscription: ISubscription
 ): Promise<void> => {
   if (!subscription.stripeScheduleId) {
     return; // No hay schedule asociado
@@ -474,7 +475,7 @@ const checkAndReleaseScheduleIfCompleted = async (
     } else {
       console.log("Schedule is not yet completed, keeping it active");
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error checking/releasing schedule:", error);
     // Si hay error, limpiar el scheduleId por precaución
     console.log("Clearing scheduleId due to error");
@@ -486,7 +487,7 @@ const checkAndReleaseScheduleIfCompleted = async (
 /**
  * Find plan by Stripe price ID (monthly or yearly)
  */
-const findPlanByPriceId = async (priceId: string): Promise<any> => {
+const findPlanByPriceId = async (priceId: string) => {
   const allPlans = await Plan.find({});
   return allPlans.find(
     (plan) => plan.stripeMonthlyPriceId === priceId
@@ -568,9 +569,10 @@ export const updateSubscriptionImmediate = async (
       items: updatedSubscription.items.data.length,
     });
     return updatedSubscription;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error updating subscription immediately:", error);
-    throw new Error(`Failed to update subscription: ${error.message}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to update subscription: ${message}`);
   }
 };
 
@@ -643,10 +645,11 @@ export const scheduleSubscriptionDowngrade = async (
     });
 
     return updatedSchedule;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error scheduling subscription downgrade:", error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(
-      `Failed to schedule subscription downgrade: ${error.message}`
+      `Failed to schedule subscription downgrade: ${message}`
     );
   }
 };
@@ -673,9 +676,9 @@ export const calculateProration = async (
     });
 
     // Get current subscription
-    const currentSubscription = (await stripeInstance.subscriptions.retrieve(
+    const currentSubscription = await stripeInstance.subscriptions.retrieve(
       subscriptionId
-    )) as any;
+    );
     const currentItem = currentSubscription.items.data[0];
 
     // Create an invoice preview to see the proration
@@ -716,9 +719,10 @@ export const calculateProration = async (
       currency: currentSubscription.currency,
       immediateCharge,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error calculating proration:", error);
-    throw new Error(`Failed to calculate proration: ${error.message}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to calculate proration: ${message}`);
   }
 };
 
@@ -737,18 +741,20 @@ export const cancelExistingSchedule = async (
     await stripeInstance.subscriptionSchedules.release(stripeScheduleId);
 
     console.log("Schedule released successfully:", stripeScheduleId);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error releasing subscription schedule:", error);
     // If schedule doesn't exist or is already released, we can continue
     if (
-      error.code === "resource_missing" ||
-      error.message.includes("already been")
+      error && typeof error === 'object' && 'code' in error &&
+      (error.code === "resource_missing" ||
+      (error instanceof Error && error.message.includes("already been")))
     ) {
       console.log("Schedule was already released or missing, continuing...");
       return;
     }
+    const message = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(
-      `Failed to release subscription schedule: ${error.message}`
+      `Failed to release subscription schedule: ${message}`
     );
   }
 };
@@ -770,14 +776,15 @@ export const checkSubscriptionScheduleIsCompleted = async (
     const scheduleCurrentPhaseEndDate = stripeSchedule.current_phase?.end_date;
 
     return scheduleLastPhaseEndDate === scheduleCurrentPhaseEndDate;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error checking subscription schedule completion:", error);
     // If schedule doesn't exist, consider it completed
-    if (error.code === "resource_missing") {
+    if (error && typeof error === 'object' && 'code' in error && error.code === "resource_missing") {
       return true;
     }
+    const message = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(
-      `Failed to check subscription schedule completion: ${error.message}`
+      `Failed to check subscription schedule completion: ${message}`
     );
   }
 };
@@ -846,21 +853,24 @@ export const cancelStripeSubscription = async (
     });
 
     return cancelledSubscription;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error cancelling Stripe subscription:", error);
 
     // Handle specific Stripe errors
-    if (error.code === "resource_missing") {
-      throw new Error(`Subscription not found in Stripe: ${subscriptionId}`);
+    if (error && typeof error === 'object' && 'code' in error) {
+      if (error.code === "resource_missing") {
+        throw new Error(`Subscription not found in Stripe: ${subscriptionId}`);
+      }
+
+      if (error.code === "subscription_canceled") {
+        console.log("Subscription was already cancelled, fetching current state");
+        return await stripeInstance.subscriptions.retrieve(subscriptionId);
+      }
     }
 
-    if (error.code === "subscription_canceled") {
-      console.log("Subscription was already cancelled, fetching current state");
-      return await stripeInstance.subscriptions.retrieve(subscriptionId);
-    }
-
+    const message = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(
-      `Failed to cancel subscription in Stripe: ${error.message}`
+      `Failed to cancel subscription in Stripe: ${message}`
     );
   }
 };
@@ -901,28 +911,30 @@ export const reactivateStripeSubscription = async (
     console.log("Subscription reactivated successfully:", {
       id: reactivatedSubscription.id,
       status: reactivatedSubscription.status,
-      cancel_at_period_end: (reactivatedSubscription as any)
-        .cancel_at_period_end,
+      cancel_at_period_end: (reactivatedSubscription as any).cancel_at_period_end,
       current_period_end: (reactivatedSubscription as any).current_period_end,
     });
 
     return reactivatedSubscription;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error reactivating Stripe subscription:", error);
 
     // Handle specific Stripe errors
-    if (error.code === "resource_missing") {
-      throw new Error(`Subscription not found in Stripe: ${subscriptionId}`);
+    if (error && typeof error === 'object' && 'code' in error) {
+      if (error.code === "resource_missing") {
+        throw new Error(`Subscription not found in Stripe: ${subscriptionId}`);
+      }
+
+      if (error.code === "subscription_canceled") {
+        throw new Error(
+          `Subscription is already fully cancelled and cannot be reactivated: ${subscriptionId}`
+        );
+      }
     }
 
-    if (error.code === "subscription_canceled") {
-      throw new Error(
-        `Subscription is already fully cancelled and cannot be reactivated: ${subscriptionId}`
-      );
-    }
-
+    const message = error instanceof Error ? error.message : 'Unknown error';
     throw new Error(
-      `Failed to reactivate subscription in Stripe: ${error.message}`
+      `Failed to reactivate subscription in Stripe: ${message}`
     );
   }
 };
