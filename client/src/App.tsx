@@ -10,6 +10,8 @@ import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
 import { ProductDetail } from '@/pages/product-detail'
+import { Videos } from '@/pages/videos'
+import { GenerateVideo } from '@/pages/videos/generate'
 import { MarketplacePage } from '@/pages/stores/[marketplace]'
 import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
@@ -119,6 +121,30 @@ function App() {
               <RequireSubscription>
                 <MainLayout>
                   <ProductDetail />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/videos"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <Videos />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/videos/generate"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <GenerateVideo />
                 </MainLayout>
               </RequireSubscription>
             </ProtectedRoute>
