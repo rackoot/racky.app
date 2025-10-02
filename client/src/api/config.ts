@@ -124,6 +124,11 @@ export const ENDPOINTS = {
     PORTAL: "/billing/portal",
   },
 
+  // Coupons
+  COUPONS: {
+    VALIDATE: "/coupons/validate",
+  },
+
   // Plans
   PLANS: {
     LIST: "/plans",

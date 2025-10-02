@@ -622,6 +622,8 @@ export const validateStripeCoupon = async (
     // Retrieve the coupon from Stripe
     const coupon = await stripeInstance.coupons.retrieve(couponCode);
 
+    console.log({coupon})
+
     // Check if coupon is valid
     if (!coupon.valid) {
       return {
