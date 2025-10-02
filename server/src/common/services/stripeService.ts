@@ -63,6 +63,7 @@ export interface CreateCheckoutSessionParams {
   userId: string;
   successUrl?: string;
   cancelUrl?: string;
+  couponCode?: string; // Optional coupon code
 }
 
 export interface CheckoutSessionResult {
@@ -86,7 +87,16 @@ export const createEmbeddedCheckoutSession = async (
     userId,
     successUrl = `${env.CLIENT_URL}/dashboard?checkout=success`,
     cancelUrl = `${env.CLIENT_URL}/pricing?checkout=cancelled`,
+    couponCode,
   } = params;
+
+  // Validate coupon if provided
+  if (couponCode) {
+    const couponValidation = await validateStripeCoupon(couponCode);
+    if (!couponValidation.valid) {
+      throw new Error(couponValidation.error || 'Invalid coupon code');
+    }
+  }
 
   // Get the plan details
   const plan = await Plan.findByContributorType(contributorType);
@@ -122,8 +132,8 @@ export const createEmbeddedCheckoutSession = async (
     await workspace.save();
   }
 
-  // Create checkout session for embedded checkout
-  const session = await stripeInstance.checkout.sessions.create({
+  // Build checkout session options
+  const sessionOptions: Stripe.Checkout.SessionCreateParams = {
     ui_mode: "embedded", // This enables embedded checkout
     customer: customerId,
     line_items: [
@@ -147,7 +157,18 @@ export const createEmbeddedCheckoutSession = async (
       contributorCount: validContributorCount.toString(),
       userId: userId,
     },
-  });
+  };
+
+  // Apply coupon if provided
+  if (couponCode) {
+    sessionOptions.discounts = [{
+      coupon: couponCode
+    }];
+    console.log('Applied coupon to checkout session:', couponCode);
+  }
+
+  // Create checkout session for embedded checkout
+  const session = await stripeInstance.checkout.sessions.create(sessionOptions);
 
   return {
     sessionId: session.id,
@@ -171,7 +192,16 @@ export const createCheckoutSession = async (
     userId,
     successUrl = `${env.CLIENT_URL}/dashboard?checkout=success`,
     cancelUrl = `${env.CLIENT_URL}/pricing?checkout=cancelled`,
+    couponCode,
   } = params;
+
+  // Validate coupon if provided
+  if (couponCode) {
+    const couponValidation = await validateStripeCoupon(couponCode);
+    if (!couponValidation.valid) {
+      throw new Error(couponValidation.error || 'Invalid coupon code');
+    }
+  }
 
   // Get the plan details
   const plan = await Plan.findByContributorType(contributorType);
@@ -207,8 +237,8 @@ export const createCheckoutSession = async (
     await workspace.save();
   }
 
-  // Create checkout session
-  const session = await stripeInstance.checkout.sessions.create({
+  // Build checkout session options
+  const sessionOptions: Stripe.Checkout.SessionCreateParams = {
     customer: customerId,
     payment_method_types: ["card"],
     line_items: [
@@ -233,7 +263,18 @@ export const createCheckoutSession = async (
       contributorCount: validContributorCount.toString(),
       userId: userId,
     },
-  });
+  };
+
+  // Apply coupon if provided
+  if (couponCode) {
+    sessionOptions.discounts = [{
+      coupon: couponCode
+    }];
+    console.log('Applied coupon to checkout session:', couponCode);
+  }
+
+  // Create checkout session
+  const session = await stripeInstance.checkout.sessions.create(sessionOptions);
 
   return {
     sessionId: session.id,
@@ -291,6 +332,37 @@ export const handleSuccessfulPayment = async (
     const existingSubscription = await Subscription.findByStripeId(
       stripeSubscription.id
     );
+
+    // Extract coupon data if applied
+    let couponData: any = null;
+    const discounts = stripeSubscription.discounts;
+    const discount = discounts && discounts.length > 0 && typeof discounts[0] !== 'string'
+      ? discounts[0]
+      : null;
+
+    if (discount && discount.coupon && typeof discount.coupon !== 'string') {
+      const stripeCoupon = discount.coupon;
+      const appliedAt = new Date();
+
+      // Calculate endsAt for repeating coupons
+      let endsAt: Date | undefined;
+      if (stripeCoupon.duration === 'repeating' && stripeCoupon.duration_in_months) {
+        endsAt = new Date(appliedAt);
+        endsAt.setMonth(endsAt.getMonth() + stripeCoupon.duration_in_months);
+      }
+
+      couponData = {
+        id: stripeCoupon.id,
+        type: stripeCoupon.percent_off ? 'percent' : 'amount',
+        value: stripeCoupon.percent_off || stripeCoupon.amount_off || 0,
+        duration: stripeCoupon.duration as 'once' | 'repeating' | 'forever',
+        durationInMonths: stripeCoupon.duration_in_months,
+        appliedAt,
+        endsAt
+      };
+
+      console.log('Extracted coupon data from Stripe subscription:', couponData);
+    }
 
     if (existingSubscription) {
       // Check if subscription has active schedule and update data accordingly
@@ -394,6 +466,15 @@ export const handleSuccessfulPayment = async (
         (stripeSubscription as any).current_period_end * 1000
       );
 
+      // Update coupon data
+      if (couponData) {
+        existingSubscription.hasCoupon = true;
+        existingSubscription.coupon = couponData;
+      } else {
+        existingSubscription.hasCoupon = false;
+        existingSubscription.coupon = undefined;
+      }
+
       await existingSubscription.save();
       console.log(
         "Successfully updated subscription:",
@@ -425,6 +506,8 @@ export const handleSuccessfulPayment = async (
           (stripeSubscription as any).current_period_start * 1000
         ),
         endsAt: new Date((stripeSubscription as any).current_period_end * 1000),
+        hasCoupon: !!couponData,
+        coupon: couponData || undefined,
       });
 
       await newSubscription.save();
@@ -519,6 +602,82 @@ export const verifyWebhookSignature = (
  */
 export const isStripeConfigured = (): boolean => {
   return !!(env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET);
+};
+
+/**
+ * Validate a Stripe coupon code
+ */
+export const validateStripeCoupon = async (
+  couponCode: string
+): Promise<{
+  valid: boolean;
+  coupon?: Stripe.Coupon;
+  error?: string;
+}> => {
+  const stripeInstance = getStripeInstance();
+
+  try {
+    console.log('Validating Stripe coupon:', couponCode);
+
+    // Retrieve the coupon from Stripe
+    const coupon = await stripeInstance.coupons.retrieve(couponCode);
+
+    // Check if coupon is valid
+    if (!coupon.valid) {
+      return {
+        valid: false,
+        error: 'This coupon is no longer valid'
+      };
+    }
+
+    // Check if coupon has expired (redeem_by date)
+    if (coupon.redeem_by && coupon.redeem_by < Math.floor(Date.now() / 1000)) {
+      return {
+        valid: false,
+        error: 'This coupon has expired'
+      };
+    }
+
+    // Check if coupon has reached max redemptions
+    if (coupon.max_redemptions && coupon.times_redeemed &&
+        coupon.times_redeemed >= coupon.max_redemptions) {
+      return {
+        valid: false,
+        error: 'This coupon has reached its maximum number of redemptions'
+      };
+    }
+
+    console.log('Coupon is valid:', {
+      id: coupon.id,
+      percent_off: coupon.percent_off,
+      amount_off: coupon.amount_off,
+      duration: coupon.duration,
+      duration_in_months: coupon.duration_in_months
+    });
+
+    return {
+      valid: true,
+      coupon
+    };
+  } catch (error: unknown) {
+    console.error('Error validating coupon:', error);
+
+    // Handle specific Stripe errors
+    if (error && typeof error === 'object' && 'code' in error) {
+      if (error.code === 'resource_missing') {
+        return {
+          valid: false,
+          error: 'Invalid coupon code'
+        };
+      }
+    }
+
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      valid: false,
+      error: `Failed to validate coupon: ${message}`
+    };
+  }
 };
 
 /**

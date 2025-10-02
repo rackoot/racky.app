@@ -13,6 +13,16 @@ export interface WorkspaceSubscription {
     cancelAtPeriodEnd: boolean;
     cancelledAt?: string;
     cancellationReason?: string;
+    hasCoupon?: boolean;
+    coupon?: {
+      id: string;
+      type: 'percent' | 'amount';
+      value: number;
+      duration: 'once' | 'repeating' | 'forever';
+      durationInMonths?: number;
+      appliedAt: string;
+      endsAt?: string;
+    };
   };
   currentPlan: any;
   hasActiveSubscription: boolean;

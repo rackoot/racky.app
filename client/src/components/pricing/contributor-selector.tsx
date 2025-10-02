@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { UserCheck, Crown, Zap, Mail, ArrowRight, Info } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { UserCheck, Crown, Zap, Mail, ArrowRight, Info, Tag } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/lib/auth";
 import { EmbeddedCheckoutWrapper } from "./embedded-checkout";
@@ -40,6 +42,8 @@ export function ContributorSelector({
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [contributorCount, setContributorCount] = useState([1]);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [showCouponInput, setShowCouponInput] = useState(false);
   const navigate = useNavigate();
   const user = getCurrentUser();
 
@@ -100,6 +104,7 @@ export function ContributorSelector({
       <EmbeddedCheckoutWrapper
         contributorType={selectedPlan.contributorType}
         contributorCount={contributorCount[0]}
+        couponCode={couponCode || undefined}
         onBack={handleCheckoutBack}
         onSuccess={handleCheckoutSuccess}
         isReactivation={isReactivation}
@@ -251,6 +256,46 @@ export function ContributorSelector({
               </Card>
             )}
           </div>
+
+          {/* Coupon Code Section */}
+          {selectedPlan && !selectedPlan.isContactSalesOnly && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Have a coupon code?</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCouponInput(!showCouponInput)}
+                  >
+                    {showCouponInput ? "Hide" : "Show"}
+                  </Button>
+                </div>
+              </CardHeader>
+              {showCouponInput && (
+                <CardContent className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="couponCode">Coupon Code</Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="couponCode"
+                          placeholder="Enter coupon code"
+                          value={couponCode}
+                          onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Coupon will be validated during checkout
+                    </p>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          )}
 
           {/* Purchase Summary */}
           {selectedPlan && !selectedPlan.isContactSalesOnly && (
