@@ -1,12 +1,12 @@
-import { apiGet, apiPut, apiDelete } from './client'
-import { ENDPOINTS } from './config'
-import { 
-  AdminUser, 
-  AdminAnalytics, 
-  UpdateUserStatusRequest, 
-  UpdateUserRoleRequest,
-  PaginationParams 
-} from './types'
+import { apiGet, apiPut, apiDelete } from '../client'
+import { ENDPOINTS } from '../config'
+import type {
+  AdminUser,
+  AdminAnalytics,
+  UpdateUserStatusRequest,
+  UpdateUserRoleRequest
+} from '../types/admin'
+import type { PaginationParams } from '../types/common'
 
 export interface AdminUsersQuery extends PaginationParams {
   search?: string

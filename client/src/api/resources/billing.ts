@@ -1,5 +1,5 @@
-import { apiPost } from './client'
-import { ENDPOINTS } from './config'
+import { apiPost } from '../client'
+import { ENDPOINTS } from '../config'
 
 export interface CheckoutSessionRequest {
   contributorType: string

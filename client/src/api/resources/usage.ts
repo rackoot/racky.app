@@ -1,6 +1,6 @@
-import { apiGet } from './client'
-import { ENDPOINTS } from './config'
-import { UsageData, UsageTrend } from './types'
+import { apiGet } from '../client'
+import { ENDPOINTS } from '../config'
+import { UsageData, UsageTrend } from '../types'
 
 export const usageApi = {
   /**

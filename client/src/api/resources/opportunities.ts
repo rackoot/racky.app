@@ -1,21 +1,6 @@
-import { apiGet, apiPost } from './client'
-import { ENDPOINTS } from './config'
-
-// Re-export existing opportunity types and interfaces from services
-export interface OpportunityFilters {
-  status?: 'pending' | 'in_progress' | 'completed'
-  category?: string
-  priority?: 'high' | 'medium' | 'low'
-  dateFrom?: string
-  dateTo?: string
-}
-
-export interface OptimizationRequest {
-  productId: string
-  optimizationType: string
-  targetPlatform?: string
-  customPrompt?: string
-}
+import { apiGet, apiPost } from '../client'
+import { ENDPOINTS } from '../config'
+import type { OpportunityFilters, OptimizationRequest } from '../types/opportunities'
 
 export const opportunitiesApi = {
   /**

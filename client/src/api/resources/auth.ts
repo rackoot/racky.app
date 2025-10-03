@@ -1,6 +1,6 @@
-import { apiPost } from './client'
-import { ENDPOINTS } from './config'
-import { LoginRequest, RegisterRequest, AuthResponse } from './types'
+import { apiPost } from '../client'
+import { ENDPOINTS } from '../config'
+import type { LoginRequest, RegisterRequest, AuthResponse } from '../types/auth'
 
 export const authApi = {
   /**

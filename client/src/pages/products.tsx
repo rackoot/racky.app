@@ -22,7 +22,7 @@ import {
   Loader2,
   ExternalLink
 } from "lucide-react"
-import { productsService, type Product, type ProductsResponse, type ProductsQuery } from "@/services/products"
+import { productsApi, type Product, type ProductsResponse, type ProductsQuery } from "@/api"
 
 const marketplaceColors: Record<string, string> = {
   shopify: 'bg-green-100 text-green-800',
@@ -71,7 +71,7 @@ export function Products() {
     setError("")
     
     try {
-      const data = await productsService.getAllProducts(query)
+      const data = await productsApi.getAllProducts(query)
       setProducts(data.products)
       setPagination(data.pagination)
       setFilters(data.filters)

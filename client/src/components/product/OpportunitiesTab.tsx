@@ -21,7 +21,7 @@ import {
   X,
   PlayCircle
 } from "lucide-react";
-import { opportunitiesService, type Opportunity, type OpportunityResponse } from "@/services/opportunities";
+import { opportunitiesApi, type Opportunity, type OpportunityResponse } from "@/api";
 import type { ProductDetail } from "@/types/product";
 
 interface OpportunitiesTabProps {
@@ -64,7 +64,7 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
     setError("");
 
     try {
-      const data = await opportunitiesService.getProductOpportunities(product._id);
+      const data = await opportunitiesApi.getProductOpportunities(product._id);
       setOpportunities(data);
       
       // If no opportunities exist, generate them automatically
@@ -83,7 +83,7 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
     setError("");
 
     try {
-      const data = await opportunitiesService.generateOpportunities(product._id, forceRefresh);
+      const data = await opportunitiesApi.generateOpportunities(product._id, forceRefresh);
       
       // Calculate available marketplace tabs from the opportunities
       const availableMarketplaceTabs = new Set<string>();
@@ -123,7 +123,7 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
 
   const updateOpportunityStatus = async (opportunityId: string, newStatus: Opportunity['status']) => {
     try {
-      await opportunitiesService.updateOpportunityStatus(opportunityId, newStatus);
+      await opportunitiesApi.updateOpportunityStatus(opportunityId, newStatus);
       
       // Reload opportunities to reflect status change
       await loadOpportunities();
@@ -176,7 +176,7 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
       Object.entries(opportunities.categoryCounts).forEach(([categoryId, count]) => {
         categories.push({
           id: categoryId,
-          name: opportunitiesService.formatCategoryName(categoryId),
+          name: opportunitiesApi.formatCategoryName(categoryId),
           count
         });
       });
@@ -190,8 +190,8 @@ export function OpportunitiesTab({ product }: OpportunitiesTabProps) {
 
   const renderOpportunityCard = (opportunity: Opportunity) => {
     const IconComponent = categoryIcons[opportunity.category] || Lightbulb;
-    const priorityColor = opportunitiesService.getPriorityColor(opportunity.priority);
-    const statusColor = opportunitiesService.getStatusColor(opportunity.status);
+    const priorityColor = opportunitiesApi.getPriorityColor(opportunity.priority);
+    const statusColor = opportunitiesApi.getStatusColor(opportunity.status);
 
     return (
       <Card key={opportunity._id} className="relative">

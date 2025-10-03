@@ -1,5 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from './client'
-import { ENDPOINTS } from './config'
+import { apiGet, apiPost, apiPut, apiDelete } from '../client'
 
 export type VideoTemplate = 'product_showcase' | 'human_usage' | 'store_display' | 'lifestyle' | 'technical_demo' | 'unboxing'
 

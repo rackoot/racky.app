@@ -1,5 +1,5 @@
-import { apiGet, apiPost } from './client'
-import { ENDPOINTS } from './config'
+import { apiGet, apiPost } from '../client'
+import { ENDPOINTS } from '../config'
 
 export interface CustomerAddress {
   firstName?: string;

@@ -21,7 +21,7 @@ import {
   FileText,
   Image
 } from "lucide-react"
-import { optimizationsService, type OptimizationSuggestion } from "@/services/optimizations"
+import { optimizationsApi, type OptimizationSuggestion } from "@/api"
 import type { ProductDetail } from "@/types/product"
 
 interface PlatformOptimizationStatus {
@@ -117,7 +117,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
   useEffect(() => {
     const loadOptimizationStatus = async () => {
       try {
-        const statusData = await optimizationsService.getProductOptimizationStatus(product._id)
+        const statusData = await optimizationsApi.getProductOptimizationStatus(product._id)
         setPlatformStatuses(statusData.platforms || {})
         setInitialLoadComplete(true)
       } catch (error) {
@@ -143,7 +143,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
   // Refresh optimization status after changes
   const refreshOptimizationStatus = async () => {
     try {
-      const statusData = await optimizationsService.getProductOptimizationStatus(product._id)
+      const statusData = await optimizationsApi.getProductOptimizationStatus(product._id)
       setPlatformStatuses(statusData.platforms)
     } catch (error) {
       // Silently fail - the status will remain as it was
@@ -165,8 +165,8 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
     try {
       console.log('Calling optimization service...')
       const result = forceRegenerate 
-        ? await optimizationsService.regenerateDescriptionOptimization(product._id, platform)
-        : await optimizationsService.getDescriptionOptimization(product._id, platform)
+        ? await optimizationsApi.regenerateDescriptionOptimization(product._id, platform)
+        : await optimizationsApi.getDescriptionOptimization(product._id, platform)
       
       console.log('Optimization service result:', result)
       
@@ -238,12 +238,12 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
       setLoadingStates(prev => ({ ...prev, [`${platform}_individual`]: true }))
       setErrors(prev => ({ ...prev, [platform]: '' }))
 
-      const result = await optimizationsService.startIndividualOptimization(product._id, platform)
+      const result = await optimizationsApi.startIndividualOptimization(product._id, platform)
       
       // Start polling for results
       const pollInterval = setInterval(async () => {
         try {
-          const status = await optimizationsService.getOptimizationJobStatus(result.jobId)
+          const status = await optimizationsApi.getOptimizationJobStatus(result.jobId)
           
           if (status.status === 'completed') {
             clearInterval(pollInterval)
@@ -279,13 +279,13 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
     try {
       if (status === 'accepted') {
         // First update the status
-        await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
+        await optimizationsApi.updateSuggestionStatus(product._id, platform, suggestionId, status)
         
         // Then apply the description to the connected store
         setLoadingStates(prev => ({ ...prev, [`${platform}_apply`]: true }))
         
         try {
-          const result = await optimizationsService.applyDescriptionToStore(product._id, platform, suggestionId)
+          const result = await optimizationsApi.applyDescriptionToStore(product._id, platform, suggestionId)
           
           // Refresh status after applying
           await refreshOptimizationStatus()
@@ -303,7 +303,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
         }
       } else {
         // For rejected status, just update the status
-        await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
+        await optimizationsApi.updateSuggestionStatus(product._id, platform, suggestionId, status)
         
         // Refresh status after rejecting
         await refreshOptimizationStatus()

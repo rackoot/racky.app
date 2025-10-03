@@ -1,13 +1,13 @@
-import { apiGet, apiPost, apiPut, apiDelete } from './client'
-import apiClient from './client'
-import { ENDPOINTS } from './config'
+import { apiGet, apiPost, apiPut, apiDelete } from '../client'
+import apiClient from '../client'
+import { ENDPOINTS } from '../config'
 import axios from 'axios'
-import type { 
-  Marketplace, 
-  TestConnectionResponse, 
-  ConnectMarketplaceRequest, 
-  MarketplaceCredentials 
-} from '@/types/marketplace'
+import type {
+  Marketplace,
+  TestConnectionResponse,
+  ConnectMarketplaceRequest,
+  MarketplaceCredentials
+} from '../types/marketplace'
 
 export const marketplacesApi = {
   /**

@@ -3,7 +3,7 @@ import { useWorkspace } from "@/components/workspace/workspace-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { videosApi, type VideoUsageStats } from "@/api/videos"
+import { videosApi, type VideoUsageStats } from "@/api"
 import { Video, AlertTriangle } from "lucide-react"
 
 interface VideoUsageProgressProps {

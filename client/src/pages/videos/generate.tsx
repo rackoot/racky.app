@@ -18,7 +18,7 @@ import {
 import { getAuthHeaders } from "@/lib/utils"
 import { Loader2, ArrowLeft, Sparkles, Package } from "lucide-react"
 import { API_CONFIG, ENDPOINTS } from "@/api/config"
-import { videosApi, type VideoTemplate, type VideoUsageStats } from "@/api/videos"
+import { videosApi, type VideoTemplate, type VideoUsageStats } from "@/api"
 import { VideoUsageProgress } from "@/components/videos/VideoUsageProgress"
 
 interface ProductImage {

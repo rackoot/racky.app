@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { videosApi, type AIVideo, type VideosQuery } from "@/api/videos"
+import { videosApi, type AIVideo, type VideosQuery } from "@/api"
 import { VideoUsageProgress } from "@/components/videos/VideoUsageProgress"
 import { Loader2, Search, Plus, Brain, Video, Calendar, Clock, AlertCircle, CheckCircle, X } from "lucide-react"
 

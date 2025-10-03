@@ -1,5 +1,5 @@
-import apiClient from './client'
-import { ENDPOINTS } from './config'
+import apiClient from '../client'
+import { ENDPOINTS } from '../config'
 import axios from 'axios'
 
 export interface ValidateCouponRequest {

@@ -5,8 +5,7 @@ import { ConnectionForm } from "@/components/marketplace/connection-form"
 import { ConnectedMarketplaceDetail } from "@/components/marketplace/connected-marketplace-detail"
 import { ConnectedShopifyDetail } from "@/components/marketplace/connected-shopify-detail"
 import { SyncConfirmationDialog } from "@/components/marketplace/sync-confirmation-dialog"
-import { marketplaceService } from "@/services/marketplace"
-import { productsService } from "@/services/products"
+import { marketplacesApi, productsApi } from "@/api"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -46,7 +45,7 @@ export function MarketplacePage() {
     setError("")
     
     try {
-      const data = await marketplaceService.getMarketplaceStatus()
+      const data = await marketplacesApi.getMarketplaceStatus()
       const foundMarketplace = data.find(m => m.id === marketplaceId)
       
       if (!foundMarketplace) {
@@ -77,7 +76,7 @@ export function MarketplacePage() {
     
     // Check if products exist
     try {
-      const productInfo = await productsService.hasProducts(marketplace.connectionInfo.connectionId)
+      const productInfo = await productsApi.hasProducts(marketplace.connectionInfo.connectionId)
       setProductCount(productInfo.count)
       
       if (productInfo.hasProducts) {
@@ -105,7 +104,7 @@ export function MarketplacePage() {
     
     setSyncing(true)
     try {
-      await productsService.syncProducts(
+      await productsApi.syncProducts(
         marketplace.connectionInfo.connectionId,
         force
       )
@@ -122,7 +121,7 @@ export function MarketplacePage() {
     
     // Check if products exist and get count
     try {
-      const productInfo = await productsService.hasProducts(marketplace.connectionInfo.connectionId)
+      const productInfo = await productsApi.hasProducts(marketplace.connectionInfo.connectionId)
       setProductCount(productInfo.count)
     } catch (error) {
       console.error('Error checking products:', error)
@@ -137,7 +136,7 @@ export function MarketplacePage() {
     
     setDisconnecting(true)
     try {
-      await marketplaceService.disconnectMarketplace(
+      await marketplacesApi.disconnectMarketplace(
         marketplace.connectionInfo.connectionId,
         deleteProducts
       )

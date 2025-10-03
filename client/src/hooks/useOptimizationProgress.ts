@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { optimizationsService } from '@/services/optimizations'
+import { optimizationsApi } from '@/api'
 
 interface OptimizationProgress {
   status: 'idle' | 'processing' | 'completed' | 'failed'
@@ -19,7 +19,7 @@ export function useOptimizationProgress(productId: string, platform: string) {
     try {
       setProgress({ status: 'processing', progress: 0, eta: 'Starting...' })
       
-      const result = await optimizationsService.startIndividualOptimization(productId, platform)
+      const result = await optimizationsApi.startIndividualOptimization(productId, platform)
       
       setProgress({
         status: 'processing',

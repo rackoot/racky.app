@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { MarketplaceCard } from "@/components/marketplace/marketplace-card"
-import { marketplaceService } from "@/services/marketplace"
+import { marketplacesApi } from "@/api"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 import { useWorkspace } from "@/components/workspace/workspace-context"
@@ -17,7 +17,7 @@ export function Stores() {
     setError("")
     
     try {
-      const data = await marketplaceService.getMarketplaceStatus()
+      const data = await marketplacesApi.getMarketplaceStatus()
       setMarketplaces(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load marketplaces")

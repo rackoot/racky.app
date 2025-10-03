@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Package, Store, DollarSign, TrendingUp, PieChart, LineChart, Brain, RefreshCw, AlertCircle, Loader2, Activity, CheckCircle2, Clock } from "lucide-react"
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { dashboardService, type DashboardAnalytics, type AIScanStatistics } from "@/services/dashboard"
+import { dashboardApi, type DashboardAnalytics, type AIScanStatistics } from "@/api"
 
 // Racky brand colors
 const BRAND_COLORS = {
@@ -29,7 +29,7 @@ export function Dashboard() {
     setError("")
     
     try {
-      const data = await dashboardService.getAnalytics()
+      const data = await dashboardApi.getAnalytics()
       setAnalytics(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data")
@@ -44,7 +44,7 @@ export function Dashboard() {
     setAiStatsLoading(true)
     
     try {
-      const data = await dashboardService.getAIScanStatistics(currentWorkspace._id)
+      const data = await dashboardApi.getAIScanStatistics(currentWorkspace._id)
       setAiStatistics(data)
     } catch (err) {
       console.error('Failed to load AI statistics:', err)

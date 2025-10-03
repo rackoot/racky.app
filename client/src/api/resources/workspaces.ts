@@ -1,6 +1,6 @@
-import { apiGet, apiPost, apiPut, apiDelete } from './client'
-import { ENDPOINTS } from './config'
-import { Workspace, CreateWorkspaceRequest } from './types'
+import { apiGet, apiPost, apiPut, apiDelete } from '../client'
+import { ENDPOINTS } from '../config'
+import type { Workspace, CreateWorkspaceRequest } from '../types/workspace'
 
 export const workspacesApi = {
   /**

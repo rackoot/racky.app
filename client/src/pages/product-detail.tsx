@@ -29,7 +29,7 @@ import {
   TrendingUp,
   RefreshCw
 } from "lucide-react"
-import { productsService, getMarketplaceProductUrl } from "@/services/products"
+import { productsApi, getMarketplaceProductUrl } from "@/api"
 import { ProductImageGallery } from "@/components/product/ProductImageGallery"
 import { OptimizationTabs } from "@/components/product/OptimizationTabs"
 import { ProductHistory } from "@/components/product/ProductHistory"
@@ -101,7 +101,7 @@ export function ProductDetail() {
     setError("")
 
     try {
-      const data = await productsService.getProductById(id)
+      const data = await productsApi.getProductById(id)
       setProduct(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load product")
@@ -119,7 +119,7 @@ export function ProductDetail() {
 
     try {
       // Call the resync endpoint
-      const updatedProduct = await productsService.resyncProduct(id)
+      const updatedProduct = await productsApi.resyncProduct(id)
       setProduct(updatedProduct)
       // Show success message (you might want to add a toast notification here)
     } catch (err) {

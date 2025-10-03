@@ -1,5 +1,5 @@
-import { apiGet } from './client'
-import { ENDPOINTS } from './config'
+import { apiGet } from '../client'
+import { ENDPOINTS } from '../config'
 import { Plan } from '@/types/plan'
 
 export interface UserPlan {

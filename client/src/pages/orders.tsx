@@ -10,7 +10,7 @@ import {
   CheckCircle,
   AlertCircle
 } from "lucide-react"
-import { ordersApi, type Order } from "@/api/orders"
+import { ordersApi, type Order } from "@/api"
 
 export function Orders() {
   const { currentWorkspace } = useWorkspace()

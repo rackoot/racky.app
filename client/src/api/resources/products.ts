@@ -1,64 +1,6 @@
-import { apiGet, apiPost } from './client'
-import { ENDPOINTS } from './config'
-import { PaginationResponse } from './types'
-
-// Import existing product types
-export interface Product {
-  id?: string
-  _id?: string
-  title: string
-  description: string
-  price: number
-  compareAtPrice?: number
-  inventory: number
-  vendor: string
-  productType: string
-  tags: string[]
-  images: Array<{
-    url: string
-    altText?: string
-  }>
-  status: string
-  shopifyId: string
-  handle: string
-  createdAt: string
-  updatedAt: string
-  marketplace?: string
-  isMarketplaceConnected?: boolean
-  marketplaceUrl?: string
-  variants?: Array<{
-    id: string;
-    title: string;
-    price: number;
-    compareAtPrice?: number;
-    sku?: string;
-    inventory: number;
-    weight?: number;
-    weightUnit?: string;
-  }>;
-}
-
-export interface ProductsResponse {
-  products: Product[];
-  pagination: PaginationResponse;
-  filters: {
-    marketplaces: Array<{
-      marketplace: string;
-      count: number;
-    }>;
-  };
-}
-
-export interface ProductsQuery {
-  page?: number;
-  limit?: number;
-  search?: string;
-  marketplace?: string;
-  store?: string; // Store connection ID
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  status?: string;
-}
+import { apiGet, apiPost } from '../client'
+import { ENDPOINTS } from '../config'
+import type { Product, ProductsResponse, ProductsQuery } from '../types/product'
 
 /**
  * Get marketplace-specific product URL

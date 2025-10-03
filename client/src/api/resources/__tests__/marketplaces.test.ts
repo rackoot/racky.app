@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mockApiResponse, mockApiError } from '@/test/utils'
-import { marketplaceService } from '../marketplace'
+import { marketplacesApi } from '../marketplaces'
 
 // Mock localStorage for auth tokens
 beforeEach(() => {
@@ -43,7 +43,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockData))
 
-      const result = await marketplaceService.getMarketplaceStatus()
+      const result = await marketplacesApi.getMarketplaceStatus()
 
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/marketplaces/status',
@@ -61,13 +61,13 @@ describe('Marketplace Service', () => {
     it('handles API errors gracefully', async () => {
       global.fetch = vi.fn().mockResolvedValue(mockApiError('Unauthorized', 401))
 
-      await expect(marketplaceService.getMarketplaceStatus()).rejects.toThrow('Unauthorized')
+      await expect(marketplacesApi.getMarketplaceStatus()).rejects.toThrow('Unauthorized')
     })
 
     it('handles network errors', async () => {
       global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
 
-      await expect(marketplaceService.getMarketplaceStatus()).rejects.toThrow('Network error')
+      await expect(marketplacesApi.getMarketplaceStatus()).rejects.toThrow('Network error')
     })
   })
 
@@ -93,7 +93,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.testConnection(
+      const result = await marketplacesApi.testConnection(
         'shopify',
         mockCredentials
       )
@@ -136,7 +136,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockErrorResponse))
 
-      const result = await marketplaceService.testConnection(
+      const result = await marketplacesApi.testConnection(
         'shopify',
         mockCredentials
       )
@@ -166,7 +166,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.createStoreWithMarketplace(connectionData)
+      const result = await marketplacesApi.createStoreWithMarketplace(connectionData)
 
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/marketplaces/create-store',
@@ -191,7 +191,7 @@ describe('Marketplace Service', () => {
       )
 
       await expect(
-        marketplaceService.createStoreWithMarketplace(invalidData)
+        marketplacesApi.createStoreWithMarketplace(invalidData)
       ).rejects.toThrow('Validation error: storeName is required')
     })
   })
@@ -217,7 +217,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockConnections))
 
-      const result = await marketplaceService.getMarketplaces()
+      const result = await marketplacesApi.getMarketplaces()
 
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/marketplaces',
@@ -234,7 +234,7 @@ describe('Marketplace Service', () => {
     it('handles empty connections list', async () => {
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse([]))
 
-      const result = await marketplaceService.getMarketplaces()
+      const result = await marketplacesApi.getMarketplaces()
 
       expect(result).toEqual([])
     })
@@ -257,7 +257,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.testExistingConnection(
+      const result = await marketplacesApi.testExistingConnection(
         connectionId
       )
 
@@ -280,7 +280,7 @@ describe('Marketplace Service', () => {
       )
 
       await expect(
-        marketplaceService.testExistingConnection(connectionId)
+        marketplacesApi.testExistingConnection(connectionId)
       ).rejects.toThrow('Connection not found')
     })
   })
@@ -297,7 +297,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.disconnectMarketplace(
+      const result = await marketplacesApi.disconnectMarketplace(
         connectionId,
         true // deleteProducts
       )
@@ -323,7 +323,7 @@ describe('Marketplace Service', () => {
 
       global.fetch = vi.fn().mockResolvedValue(mockApiResponse(mockResponse))
 
-      const result = await marketplaceService.disconnectMarketplace(
+      const result = await marketplacesApi.disconnectMarketplace(
         connectionId,
         false // deleteProducts
       )

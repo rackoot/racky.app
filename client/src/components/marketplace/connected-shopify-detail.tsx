@@ -7,8 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, RotateCcw, Package, TrendingUp, Trash2, AlertTriangle } from "lucide-react"
-import { productsService, type Product } from "@/services/products"
-import { marketplaceService } from "@/services/marketplace"
+import { productsApi, marketplacesApi, type Product } from "@/api"
 import { SyncConfirmationDialog } from "./sync-confirmation-dialog"
 import type { Marketplace } from "@/types/marketplace"
 
@@ -41,7 +40,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     setLoading(true)
     try {
       console.log('Loading products for connection:', marketplace.connectionInfo.connectionId)
-      const products = await productsService.getStoreProducts(marketplace.connectionInfo.connectionId)
+      const products = await productsApi.getStoreProducts(marketplace.connectionInfo.connectionId)
       console.log('Loaded products:', products.length, 'products')
       setProducts(products)
       
@@ -64,7 +63,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     
     // Check if products exist
     try {
-      const productInfo = await productsService.hasProducts(marketplace.connectionInfo.connectionId)
+      const productInfo = await productsApi.hasProducts(marketplace.connectionInfo.connectionId)
       
       if (productInfo.hasProducts) {
         // Show warning modal if products exist
@@ -91,7 +90,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     setSyncing(true)
     try {
       console.log('Starting sync for connection:', marketplace.connectionInfo.connectionId, 'force:', force)
-      const result = await productsService.syncProducts(
+      const result = await productsApi.syncProducts(
         marketplace.connectionInfo.connectionId,
         force
       )
@@ -112,7 +111,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     
     setDisconnecting(true)
     try {
-      await marketplaceService.disconnectMarketplace(
+      await marketplacesApi.disconnectMarketplace(
         marketplace.connectionInfo.connectionId,
         deleteProducts
       )

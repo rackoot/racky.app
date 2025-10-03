@@ -34,12 +34,12 @@ import {
   updateWorkspaceSubscription,
   cancelWorkspaceSubscription,
   cancelSubscriptionCancellation,
+  subscriptionApi,
   type WorkspaceSubscription,
   type WorkspaceUsage,
   type SubscriptionPreview
-} from "@/services/workspace"
+} from "@/api"
 import { contributorPlans, getContributorPlanByType, formatPrice } from "@/common/data/contributor-data"
-import { subscriptionApi } from "@/api/subscription"
 import { SubscriptionChangeModal } from "@/components/workspace/subscription-change-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { useNavigate } from "react-router-dom"

@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/lib/auth";
 import { EmbeddedCheckoutWrapper } from "./embedded-checkout";
 import { Plan, ContributorType } from "@/types/plan";
-import { couponsApi, CouponData } from "@/api/coupons";
+import { couponsApi, CouponData } from "@/api";
 import {
   contributorPlans,
   formatPrice,

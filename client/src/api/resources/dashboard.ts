@@ -1,17 +1,6 @@
-import { apiGet } from './client'
-import { ENDPOINTS } from './config'
-import { AnalyticsData } from './types'
-
-export interface DashboardSuggestion {
-  id: string
-  title: string
-  description: string
-  category: string
-  priority: 'high' | 'medium' | 'low'
-  estimatedImpact: string
-  actionRequired: boolean
-  createdAt: string
-}
+import { apiGet } from '../client'
+import { ENDPOINTS } from '../config'
+import type { AnalyticsData, DashboardSuggestion } from '../types/dashboard'
 
 export const dashboardApi = {
   /**

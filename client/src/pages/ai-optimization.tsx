@@ -13,7 +13,7 @@ import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Filter, Search,
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { SimpleOpportunitiesList } from '@/components/ai-optimization/simple-opportunities-list';
-import { marketplaceService } from '@/services/marketplace';
+import { marketplacesApi } from '@/api';
 import type { Marketplace } from '@/types/marketplace';
 
 interface AIJob {
@@ -145,7 +145,7 @@ const AIOptimizationPage = () => {
     setMarketplacesLoading(true);
     
     try {
-      const marketplaces = await marketplaceService.getMarketplaceStatus();
+      const marketplaces = await marketplacesApi.getMarketplaceStatus();
       // Filter to only connected marketplaces with products
       const connected = marketplaces.filter(m => 
         m.connectionInfo && m.connectionInfo.productsCount > 0

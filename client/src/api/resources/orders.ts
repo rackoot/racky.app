@@ -1,6 +1,6 @@
-import { apiGet, apiPost } from './client'
-import { ENDPOINTS } from './config'
-import { PaginationResponse } from './types'
+import { apiGet, apiPost } from '../client'
+import { ENDPOINTS } from '../config'
+import { PaginationResponse } from '../types'
 
 // Order Types based on the backend model
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded'

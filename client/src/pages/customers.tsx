@@ -17,7 +17,7 @@ import {
   DollarSign,
   ShoppingBag
 } from "lucide-react"
-import { customersApi, type Customer } from "@/api/customers"
+import { customersApi, type Customer } from "@/api"
 
 export function Customers() {
   const { currentWorkspace } = useWorkspace()
