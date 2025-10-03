@@ -228,15 +228,13 @@ const subscriptionSchema = new Schema<ISubscription>({
     default: false
   },
   coupon: {
-    type: {
-      id: { type: String, required: true },
-      type: { type: String, enum: ['percent', 'amount'], required: true },
-      value: { type: Number, required: true },
-      duration: { type: String, enum: ['once', 'repeating', 'forever'], required: true },
-      durationInMonths: { type: Number },
-      appliedAt: { type: Date, required: true },
-      endsAt: { type: Date }
-    }
+    id: { type: String, required: false },
+    type: { type: String, enum: ['percent', 'amount'], required: false },
+    value: { type: Number, required: false },
+    duration: { type: String, enum: ['once', 'repeating', 'forever'], required: false },
+    durationInMonths: { type: Number, required: false },
+    appliedAt: { type: Date, required: false },
+    endsAt: { type: Date, required: false }
   }
 }, {
   timestamps: true

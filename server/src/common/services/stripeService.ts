@@ -373,10 +373,18 @@ export const handleSuccessfulPayment = async (
 
     // Extract coupon data if applied
     let couponData: any = null;
-    const discounts = stripeSubscription.discounts;
-    const discount = discounts && discounts.length > 0 && typeof discounts[0] !== 'string'
-      ? discounts[0]
-      : null;
+    // Try to get discount from singular 'discount' field first (expanded object)
+    let discount = (stripeSubscription as any).discount;
+
+    // Fallback to discounts array if discount is null
+    if (!discount) {
+      const discounts = stripeSubscription.discounts;
+      discount = discounts && discounts.length > 0 && typeof discounts[0] !== 'string'
+        ? discounts[0]
+        : null;
+    }
+
+    console.log('Discount object found:', discount ? 'Yes' : 'No', discount ? { id: discount.id, hasCoupon: !!discount.coupon } : {});
 
     if (discount && discount.coupon && typeof discount.coupon !== 'string') {
       const stripeCoupon = discount.coupon;
