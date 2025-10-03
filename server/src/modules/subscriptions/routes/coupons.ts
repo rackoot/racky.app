@@ -17,13 +17,13 @@ router.post('/validate', protect, async (req: AuthenticatedRequest, res: Respons
       });
     }
 
-    // Validate coupon with Stripe
+    // Validate coupon/promotion code with Stripe
     const validation = await validateStripeCoupon(couponCode.trim().toUpperCase());
 
     if (!validation.valid) {
       return res.status(400).json({
         success: false,
-        message: validation.error || 'Invalid coupon code',
+        message: validation.error || 'Invalid promotion code or coupon',
         valid: false
       });
     }
@@ -33,9 +33,15 @@ router.post('/validate', protect, async (req: AuthenticatedRequest, res: Respons
 
     return res.json({
       success: true,
-      message: 'Coupon is valid',
+      message: validation.promotionCode
+        ? `Promotion code "${validation.promotionCode}" is valid`
+        : 'Coupon is valid',
       valid: true,
       data: {
+        // Promotion code info (if applicable)
+        promotionCodeId: validation.promotionCodeId,
+        promotionCode: validation.promotionCode,
+        // Coupon details
         id: coupon.id,
         type: coupon.percent_off ? 'percent' : 'amount',
         value: coupon.percent_off || coupon.amount_off || 0,

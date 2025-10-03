@@ -161,7 +161,7 @@ export function ContributorSelector({
       <EmbeddedCheckoutWrapper
         contributorType={selectedPlan.contributorType}
         contributorCount={contributorCount[0]}
-        couponCode={appliedCoupon ? appliedCoupon.id : undefined}
+        couponCode={appliedCoupon ? (appliedCoupon.promotionCodeId || appliedCoupon.id) : undefined}
         onBack={handleCheckoutBack}
         onSuccess={handleCheckoutSuccess}
         isReactivation={isReactivation}
@@ -380,7 +380,7 @@ export function ContributorSelector({
                         <AlertDescription className="text-green-800">
                           <div className="flex items-center justify-between">
                             <div>
-                              <strong>{appliedCoupon.id}</strong> applied successfully!
+                              <strong>{appliedCoupon.promotionCode || appliedCoupon.id}</strong> applied successfully!
                               <div className="text-sm mt-1">
                                 {appliedCoupon.type === 'percent' ? (
                                   <span>{appliedCoupon.value}% discount</span>

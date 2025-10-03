@@ -1,11 +1,16 @@
-import { apiPost } from './client'
+import apiClient from './client'
 import { ENDPOINTS } from './config'
+import axios from 'axios'
 
 export interface ValidateCouponRequest {
   couponCode: string
 }
 
 export interface CouponData {
+  // Promotion code info (if user entered a promotion code)
+  promotionCodeId?: string
+  promotionCode?: string
+  // Coupon details
   id: string
   type: 'percent' | 'amount'
   value: number
@@ -31,6 +36,19 @@ export const couponsApi = {
    * Validate a coupon code with Stripe
    */
   async validateCoupon(couponCode: string): Promise<ValidateCouponResponse> {
-    return apiPost<ValidateCouponResponse>(ENDPOINTS.COUPONS.VALIDATE, { couponCode })
+    try {
+      const response = await apiClient.post<ValidateCouponResponse>(
+        ENDPOINTS.COUPONS.VALIDATE,
+        { couponCode }
+      )
+      return response.data
+    } catch (error) {
+      // Handle axios errors
+      if (axios.isAxiosError(error) && error.response) {
+        return error.response.data as ValidateCouponResponse
+      }
+      // Handle unexpected errors
+      throw error
+    }
   },
 }
