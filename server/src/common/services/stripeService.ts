@@ -93,12 +93,20 @@ export const createEmbeddedCheckoutSession = async (
   // Validate coupon/promotion code if provided
   let validatedPromotionCodeId: string | undefined;
   if (couponCode) {
-    const validation = await validateStripeCoupon(couponCode);
-    if (!validation.valid) {
-      throw new Error(validation.error || 'Invalid promotion code');
+    // Check if couponCode is already a validated Stripe ID (promo_ or looks like a Stripe coupon ID)
+    // If it starts with 'promo_', it's already a validated promotion code ID from the frontend
+    if (couponCode.startsWith('promo_')) {
+      validatedPromotionCodeId = couponCode;
+      console.log('Using pre-validated promotion code ID:', validatedPromotionCodeId);
+    } else {
+      // Otherwise, validate it (could be a user-entered code or direct coupon ID)
+      const validation = await validateStripeCoupon(couponCode);
+      if (!validation.valid) {
+        throw new Error(validation.error || 'Invalid promotion code');
+      }
+      // Store the promotion code ID if it's a promotion code, otherwise use the coupon code
+      validatedPromotionCodeId = validation.promotionCodeId || couponCode;
     }
-    // Store the promotion code ID if it's a promotion code, otherwise use the coupon code
-    validatedPromotionCodeId = validation.promotionCodeId || couponCode;
   }
 
   // Get the plan details
@@ -209,12 +217,20 @@ export const createCheckoutSession = async (
   // Validate coupon/promotion code if provided
   let validatedPromotionCodeId: string | undefined;
   if (couponCode) {
-    const validation = await validateStripeCoupon(couponCode);
-    if (!validation.valid) {
-      throw new Error(validation.error || 'Invalid promotion code');
+    // Check if couponCode is already a validated Stripe ID (promo_ or looks like a Stripe coupon ID)
+    // If it starts with 'promo_', it's already a validated promotion code ID from the frontend
+    if (couponCode.startsWith('promo_')) {
+      validatedPromotionCodeId = couponCode;
+      console.log('Using pre-validated promotion code ID:', validatedPromotionCodeId);
+    } else {
+      // Otherwise, validate it (could be a user-entered code or direct coupon ID)
+      const validation = await validateStripeCoupon(couponCode);
+      if (!validation.valid) {
+        throw new Error(validation.error || 'Invalid promotion code');
+      }
+      // Store the promotion code ID if it's a promotion code, otherwise use the coupon code
+      validatedPromotionCodeId = validation.promotionCodeId || couponCode;
     }
-    // Store the promotion code ID if it's a promotion code, otherwise use the coupon code
-    validatedPromotionCodeId = validation.promotionCodeId || couponCode;
   }
 
   // Get the plan details
