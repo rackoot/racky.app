@@ -4,6 +4,7 @@ import { ENDPOINTS } from './config'
 export interface CheckoutSessionRequest {
   contributorType: string
   contributorCount?: number
+  couponCode?: string
   successUrl?: string
   cancelUrl?: string
 }

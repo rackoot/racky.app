@@ -26,6 +26,7 @@ import planRoutes from "@/subscriptions/routes/plans";
 import usageRoutes from "@/subscriptions/routes/usage";
 import subscriptionRoutes from "@/subscriptions/routes/subscription";
 import billingRoutes from "@/subscriptions/routes/billing";
+import couponRoutes from "@/subscriptions/routes/coupons";
 import demoRoutes from "@/demo/routes/demo";
 import ordersRoutes from "@/orders/routes/orders";
 import customersRoutes from "@/customers/routes/customers";
@@ -119,6 +120,7 @@ app.use(
 );
 
 app.use("/api/billing", protect, requireWorkspace, billingRoutes);
+app.use("/api/coupons", protect, couponRoutes);
 
 app.use("/api/demo", protect, requireWorkspace, demoRoutes);
 

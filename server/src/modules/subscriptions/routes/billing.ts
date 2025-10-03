@@ -168,7 +168,7 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
 // POST /api/billing/create-checkout-session - Create checkout session for contributor-based plans
 router.post('/create-checkout-session', protect, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { contributorType, contributorCount = 1, billingCycle = 'monthly', embedded = true } = req.body;
+    const { contributorType, contributorCount = 1, billingCycle = 'monthly', embedded = true, couponCode } = req.body;
 
     if (!contributorType) {
       return res.status(400).json({
@@ -245,7 +245,8 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
       contributorCount,
       billingCycle,
       workspace: req.workspace,
-      userId: req.user._id.toString()
+      userId: req.user._id.toString(),
+      couponCode: couponCode || undefined // Pass coupon code if provided
     };
 
     const checkoutResult = embedded 

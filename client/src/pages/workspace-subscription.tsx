@@ -11,18 +11,20 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog"
-import { 
-  CreditCard, 
-  Calendar, 
-  TrendingUp, 
-  Database, 
-  Store, 
-  Package, 
+import {
+  CreditCard,
+  Calendar,
+  TrendingUp,
+  Database,
+  Store,
+  Package,
   Activity,
   CheckCircle,
   AlertTriangle,
   Crown,
-  Building
+  Building,
+  Tag,
+  Percent
 } from "lucide-react"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import {
@@ -546,6 +548,11 @@ export default function WorkspaceSubscriptionPage() {
             <p className="text-xs text-muted-foreground">
               Current monthly cost
             </p>
+            {subscription?.subscription.hasCoupon && subscription.subscription.coupon && (
+              <Badge variant="secondary" className="mt-2 bg-green-100 text-green-800">
+                Coupon Applied
+              </Badge>
+            )}
             {subscription && subscription.totalMonthlyActions > 0 && (
               <p className="text-xs text-muted-foreground mt-1">
                 {subscription.totalMonthlyActions.toLocaleString()} tasks/month
@@ -616,6 +623,110 @@ export default function WorkspaceSubscriptionPage() {
                   className="h-2"
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Coupon Information Card */}
+      {subscription?.subscription.hasCoupon && subscription.subscription.coupon && (
+        <Card className="mb-8 border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-green-600" />
+              Active Coupon
+            </CardTitle>
+            <CardDescription>
+              You have a discount coupon applied to your subscription
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left Column - Coupon Details */}
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Coupon Code</div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-base font-mono bg-white">
+                      {subscription.subscription.coupon.id}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Discount</div>
+                  <div className="flex items-center gap-2">
+                    {subscription.subscription.coupon.type === 'percent' ? (
+                      <div className="flex items-center gap-1">
+                        <Percent className="h-4 w-4 text-green-600" />
+                        <span className="text-xl font-bold text-green-600">
+                          {subscription.subscription.coupon.value}% Off
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xl font-bold text-green-600">
+                        ${(subscription.subscription.coupon.value / 100).toFixed(2)} Off
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Duration Details */}
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Duration</div>
+                  <div className="text-base">
+                    {subscription.subscription.coupon.duration === 'forever' && (
+                      <Badge className="bg-green-600">Forever</Badge>
+                    )}
+                    {subscription.subscription.coupon.duration === 'once' && (
+                      <Badge variant="secondary">One-time discount</Badge>
+                    )}
+                    {subscription.subscription.coupon.duration === 'repeating' && subscription.subscription.coupon.durationInMonths && (
+                      <Badge variant="secondary">
+                        {subscription.subscription.coupon.durationInMonths} months
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {subscription.subscription.coupon.duration === 'repeating' && subscription.subscription.coupon.endsAt && (
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground mb-1">Discount Ends</div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-base">
+                        {new Date(subscription.subscription.coupon.endsAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Applied On</div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-base">
+                      {new Date(subscription.subscription.coupon.appliedAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-green-100 rounded-lg">
+              <p className="text-sm text-green-900">
+                <strong>Note:</strong> Coupons cannot be changed or removed after subscription creation. The discount will automatically apply according to the duration specified above.
+              </p>
             </div>
           </CardContent>
         </Card>
