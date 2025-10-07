@@ -91,6 +91,10 @@ app.post(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// Internal routes (NOT PROTECTED - for external service webhooks)
+const internalVideoRoutes = require('./modules/videos/routes/internal').default;
+app.use("/internal", internalVideoRoutes);
+
 // Routes that don't require workspace context
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);

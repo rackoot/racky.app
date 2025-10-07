@@ -261,10 +261,10 @@ export function ProductDetail() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="optimizations">SEO and Engagement</TabsTrigger>
-          <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
+          {/* <TabsTrigger value="opportunities">Opportunities</TabsTrigger> */}
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
@@ -476,9 +476,9 @@ export function ProductDetail() {
           <OptimizationTabs product={product} />
         </TabsContent>
 
-        <TabsContent value="opportunities" className="space-y-6">
+        {/* <TabsContent value="opportunities" className="space-y-6">
           <OpportunitiesTab product={product} />
-        </TabsContent>
+        </TabsContent> */}
 
         <TabsContent value="history" className="space-y-6">
           <ProductHistory productId={product._id} />

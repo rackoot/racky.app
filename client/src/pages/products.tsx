@@ -26,7 +26,7 @@ import {
   FileText,
   X
 } from "lucide-react"
-import { productsApi, videosApi, optimizationsApi, type Product, type ProductsResponse, type ProductsQuery } from "@/api"
+import { productsApi, videosApi, optimizationsApi, type Product, type ProductVideo, type ProductsResponse, type ProductsQuery } from "@/api"
 import { VideoTemplateModal } from "@/components/videos/video-template-modal"
 
 const marketplaceColors: Record<string, string> = {
@@ -406,6 +406,7 @@ export function Products() {
                     </TableHead>
                     <TableHead>Variants</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Video</TableHead>
                     <TableHead className="w-20">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -413,6 +414,12 @@ export function Products() {
                   {products.map((product) => {
                     const isDisconnected = !product.isMarketplaceConnected;
                     const productId = product._id || product.id;
+
+                    // Get latest video status
+                    const latestVideo = product.videos && product.videos.length > 0
+                      ? product.videos[product.videos.length - 1]
+                      : null;
+
                     return (
                       <TableRow
                         key={productId}
@@ -476,6 +483,33 @@ export function Products() {
                         <Badge variant={product.status.toLowerCase() === 'active' ? 'default' : 'secondary'}>
                           {product.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {latestVideo ? (
+                          latestVideo.status === 'completed' && latestVideo.videoUrl ? (
+                            <a
+                              href={latestVideo.videoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <Video className="w-4 h-4" />
+                              View Video
+                            </a>
+                          ) : latestVideo.status === 'pending' ? (
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Generating...
+                            </Badge>
+                          ) : latestVideo.status === 'failed' ? (
+                            <Badge variant="destructive">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Failed
+                            </Badge>
+                          ) : null
+                        ) : (
+                          <span className="text-sm text-muted-foreground">No video</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>

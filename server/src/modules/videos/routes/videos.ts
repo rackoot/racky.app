@@ -293,6 +293,15 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
     // Send video generation request to RCK Description Server
     const result = await rckDescriptionService.generateVideo(videoRequest)
 
+    // Add new video entry with pending status
+    product.videos.push({
+      templateId,
+      templateName,
+      status: 'pending',
+      createdAt: new Date()
+    } as any)
+    await product.save()
+
     res.json({
       success: true,
       message: 'Video generation started',
@@ -374,6 +383,23 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
 
     // Send bulk video generation request to RCK Description Server
     const result = await rckDescriptionService.bulkGenerateVideos(videoRequests)
+
+    // Add new video entry to each product with pending status
+    for (const productId of productIds) {
+      await Product.updateOne(
+        { _id: productId, userId, workspaceId },
+        {
+          $push: {
+            videos: {
+              templateId,
+              templateName,
+              status: 'pending',
+              createdAt: new Date()
+            }
+          }
+        }
+      )
+    }
 
     res.json({
       success: true,

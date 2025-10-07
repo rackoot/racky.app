@@ -1,5 +1,19 @@
 import { PaginationResponse } from './common'
 
+// Product Video types
+export type VideoStatus = 'pending' | 'completed' | 'failed'
+
+export interface ProductVideo {
+  _id?: string
+  templateId: string
+  templateName: string
+  status: VideoStatus
+  videoUrl?: string
+  error?: string
+  createdAt: string
+  completedAt?: string
+}
+
 // Product types
 export interface Product {
   id?: string
@@ -34,6 +48,7 @@ export interface Product {
     weight?: number
     weightUnit?: string
   }>
+  videos?: ProductVideo[]
 }
 
 export interface ProductsResponse {

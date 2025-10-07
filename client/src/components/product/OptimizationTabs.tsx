@@ -738,9 +738,11 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
 function VideoContentTab({ product }: { product: ProductDetail }) {
   const hasImages = product.images && product.images.length > 0
   const [showTemplateModal, setShowTemplateModal] = useState(false)
-  const [showVideoModal, setShowVideoModal] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [showVideo, setShowVideo] = useState(false)
+
+  // Get latest video
+  const latestVideo = product.videos && product.videos.length > 0
+    ? product.videos[product.videos.length - 1]
+    : null
 
   const handleGenerateVideo = async () => {
     setShowTemplateModal(true)
@@ -804,6 +806,81 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Show latest video if available */}
+              {latestVideo && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-900">
+                      <Video className="w-5 h-5" />
+                      Generated Video
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {latestVideo.status === 'completed' && latestVideo.videoUrl ? (
+                      <div className="space-y-4">
+                        <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                          <video
+                            controls
+                            className="w-full h-full"
+                            src={latestVideo.videoUrl}
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-blue-900">Template: {latestVideo.templateName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Generated {new Date(latestVideo.completedAt || latestVideo.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(latestVideo.videoUrl, '_blank')}
+                            >
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Open in New Tab
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleGenerateVideo}
+                            >
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Generate New
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : latestVideo.status === 'pending' ? (
+                      <div className="text-center py-8">
+                        <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
+                        <h3 className="text-lg font-semibold mb-2 text-blue-900">Generating Video...</h3>
+                        <p className="text-muted-foreground">
+                          Template: {latestVideo.templateName}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Started {new Date(latestVideo.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    ) : latestVideo.status === 'failed' ? (
+                      <div className="text-center py-8">
+                        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-600" />
+                        <h3 className="text-lg font-semibold mb-2 text-red-900">Video Generation Failed</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {latestVideo.error || 'An error occurred during video generation'}
+                        </p>
+                        <Button onClick={handleGenerateVideo}>
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Try Again
+                        </Button>
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium mb-3">Product Images ({product.images.length})</h4>
@@ -819,7 +896,7 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
                     ))}
                   </div>
                 </div>
-                
+
                 <div>
                   <h4 className="font-medium mb-3">Video Generation</h4>
                   <div className="space-y-4">
@@ -838,30 +915,30 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3 h-3 text-green-500" />
-                          <span>Multiple aspect ratios</span>
+                          <span>Multiple video templates</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3 h-3 text-green-500" />
-                          <span>Background music options</span>
+                          <span>Professional animations</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3 h-3 text-green-500" />
-                          <span>Text overlay customization</span>
+                          <span>Ready to share on social media</span>
                         </div>
                       </div>
                     </div>
-                    
+
                     <Button
                       size="lg"
                       onClick={handleGenerateVideo}
                       className="w-full relative overflow-hidden"
                     >
                       <Video className="w-4 h-4 mr-2" />
-                      Generate Product Video
+                      {latestVideo ? 'Generate New Video' : 'Generate Product Video'}
                     </Button>
-                    
+
                     <p className="text-xs text-center text-muted-foreground">
-                      Video generation will be processed using our AI service queue for optimal performance.
+                      Video generation typically completes within 2-5 minutes.
                     </p>
                   </div>
                 </div>
@@ -870,61 +947,6 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
           )}
         </CardContent>
       </Card>
-
-      {/* Video Generation Modal */}
-      <Dialog open={showVideoModal} onOpenChange={setShowVideoModal}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Video className="w-5 h-5" />
-              Generate Product Video
-            </DialogTitle>
-          </DialogHeader>
-          <div className="p-6">
-            {isGenerating ? (
-              <div className="text-center py-12">
-                <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-                <h3 className="text-lg font-semibold mb-2">Generating Video...</h3>
-                <p className="text-muted-foreground">
-                  Our AI is creating your product video. This may take a few moments.
-                </p>
-              </div>
-            ) : showVideo ? (
-              <div className="space-y-4">
-                <div className="text-center mb-4">
-                  <h3 className="text-lg font-semibold mb-2">Your Product Video is Ready!</h3>
-                  <p className="text-muted-foreground">
-                    Here's your AI-generated product video:
-                  </p>
-                </div>
-                <div className="aspect-video rounded-lg overflow-hidden">
-                  <video
-                    controls
-                    className="w-full h-full rounded-lg"
-                    src={
-                      product.externalId === "gid://shopify/Product/8845938098350"
-                        ? "https://www.racky.ai/videos/fifter.mp4"
-                        : product.externalId === "gid://shopify/Product/8807895924910"
-                        ? "https://www.racky.ai/videos/snowboard.mp4"
-                        : "https://www.racky.ai/videos/snowboard.mp4" // Default video
-                    }
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button variant="outline" onClick={() => setShowVideoModal(false)}>
-                    Close
-                  </Button>
-                  <Button>
-                    Download Video
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
