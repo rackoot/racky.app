@@ -27,6 +27,7 @@ import {
   X
 } from "lucide-react"
 import { productsApi, videosApi, optimizationsApi, type Product, type ProductsResponse, type ProductsQuery } from "@/api"
+import { VideoTemplateModal } from "@/components/videos/video-template-modal"
 
 const marketplaceColors: Record<string, string> = {
   shopify: 'bg-green-100 text-green-800',
@@ -61,6 +62,9 @@ export function Products() {
   // Bulk selection state
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
   const [bulkActionInProgress, setBulkActionInProgress] = useState(false)
+
+  // Video template modal state
+  const [showVideoTemplateModal, setShowVideoTemplateModal] = useState(false)
   
   // Initialize query state from URL parameters
   const [query, setQuery] = useState<ProductsQuery>(() => ({
@@ -151,15 +155,27 @@ export function Products() {
     setSelectedProducts(new Set())
   }
 
-  // Bulk action handlers (placeholder for now)
+  // Bulk action handlers
   const handleBulkCreateVideo = () => {
-    console.log('Creating videos for products:', Array.from(selectedProducts))
-    alert(`Creating videos for ${selectedProducts.size} product(s)`)
+    console.log('Opening video template modal for products:', Array.from(selectedProducts))
+    setShowVideoTemplateModal(true)
+  }
+
+  const handleVideoTemplateSelected = (templateId: string) => {
+    console.log('Creating videos for products with template:', {
+      templateId,
+      products: Array.from(selectedProducts),
+      productCount: selectedProducts.size
+    })
+    alert(`OK - Creating videos for ${selectedProducts.size} product(s) with template ${templateId}`)
+    // TODO: Implement actual video creation logic
+    setShowVideoTemplateModal(false)
   }
 
   const handleBulkGenerateDescription = () => {
     console.log('Generating descriptions for products:', Array.from(selectedProducts))
     alert(`Generating descriptions for ${selectedProducts.size} product(s)`)
+    // TODO: Implement description generation dialog
   }
 
   const formatCurrency = (price: number) => {
@@ -179,6 +195,14 @@ export function Products() {
 
   return (
     <div className="space-y-6">
+      {/* Video Template Modal */}
+      <VideoTemplateModal
+        open={showVideoTemplateModal}
+        onOpenChange={setShowVideoTemplateModal}
+        productCount={selectedProducts.size}
+        onCreateVideo={handleVideoTemplateSelected}
+      />
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">Products</h1>

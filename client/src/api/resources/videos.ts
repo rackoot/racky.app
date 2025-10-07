@@ -80,6 +80,21 @@ export interface VideoUsageStats {
   percentage: number
 }
 
+export interface VideoTemplateResponse {
+  id: string
+  title: string
+  name_file_video: string
+  name_file_background_image: string
+  description: string
+}
+
+export interface VideoTemplatesResponse {
+  success: boolean
+  message: string
+  templates: VideoTemplateResponse[]
+  error: string | null
+}
+
 // Videos API endpoints configuration
 const VIDEOS_ENDPOINTS = {
   LIST: '/videos',
@@ -88,7 +103,8 @@ const VIDEOS_ENDPOINTS = {
   UPDATE: (id: string) => `/videos/${id}`,
   DELETE: (id: string) => `/videos/${id}`,
   GENERATE: (id: string) => `/videos/${id}/generate`,
-  USAGE_STATS: '/videos/usage/stats'
+  USAGE_STATS: '/videos/usage/stats',
+  TEMPLATES: '/videos/templates'
 }
 
 export const videosApi = {
@@ -148,5 +164,12 @@ export const videosApi = {
    */
   async getUsageStats(): Promise<VideoUsageStats> {
     return apiGet<VideoUsageStats>(VIDEOS_ENDPOINTS.USAGE_STATS)
+  },
+
+  /**
+   * Get available video templates from RCK Description Server
+   */
+  async getVideoTemplates(): Promise<VideoTemplatesResponse> {
+    return apiGet<VideoTemplatesResponse>(VIDEOS_ENDPOINTS.TEMPLATES)
   }
 }

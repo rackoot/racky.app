@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import { optimizationsApi, type OptimizationSuggestion } from "@/api"
 import type { ProductDetail } from "@/types/product"
+import { VideoTemplateModal } from "@/components/videos/video-template-modal"
 
 interface PlatformOptimizationStatus {
   inQueue: boolean;
@@ -736,24 +737,35 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
 // Video Content Tab Component
 function VideoContentTab({ product }: { product: ProductDetail }) {
   const hasImages = product.images && product.images.length > 0
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
   const [showVideoModal, setShowVideoModal] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showVideo, setShowVideo] = useState(false)
 
   const handleGenerateVideo = async () => {
-    setShowVideoModal(true)
-    setIsGenerating(true)
-    setShowVideo(false)
+    setShowTemplateModal(true)
+  }
 
-    // Show loading for 10 seconds
-    setTimeout(() => {
-      setIsGenerating(false)
-      setShowVideo(true)
-    }, 5000)
+  const handleTemplateSelected = (templateId: string) => {
+    console.log('Generating video for product with template:', {
+      productId: product._id,
+      templateId
+    })
+    alert(`OK - Generating video for product ${product.title} with template ${templateId}`)
+    setShowTemplateModal(false)
+    // TODO: Implement actual video generation logic
   }
 
   return (
     <div className="space-y-6">
+      {/* Video Template Modal */}
+      <VideoTemplateModal
+        open={showTemplateModal}
+        onOpenChange={setShowTemplateModal}
+        productCount={1}
+        onCreateVideo={handleTemplateSelected}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

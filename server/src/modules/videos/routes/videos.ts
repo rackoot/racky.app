@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../../../common/types/express'
 import { VideoService } from '../services/videoService'
 import { CreateVideoDTO, UpdateVideoDTO, VideoQuery } from '../interfaces/video.interface'
 import Usage from '../../subscriptions/models/Usage'
+import { rckDescriptionService } from '../../../common/services/rckDescriptionService'
 
 const router = Router()
 
@@ -195,6 +196,37 @@ router.get('/usage/stats', async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch video usage stats'
+    })
+  }
+})
+
+/**
+ * GET /api/videos/templates
+ * Get available video templates from RCK Description Server
+ */
+router.get('/templates', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Check if RCK Description Server is configured
+    if (!rckDescriptionService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'RCK Description Server is not configured',
+        templates: [],
+        error: 'Service unavailable'
+      })
+    }
+
+    // Fetch templates from external service
+    const result = await rckDescriptionService.getVideoTemplates()
+
+    res.json(result)
+  } catch (error: any) {
+    console.error('Error fetching video templates:', error)
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch video templates',
+      templates: [],
+      error: error.message
     })
   }
 })
