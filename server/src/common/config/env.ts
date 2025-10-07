@@ -39,7 +39,8 @@ const envSchema = z.object({
   
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  
+  STRIPE_SKIP_WEBHOOK_VERIFICATION: z.string().default('false').transform(val => val === 'true'),
+
   // Client - can be a single URL or comma-separated URLs
   CLIENT_URL: z.string().default('http://localhost:5173'),
 });
@@ -64,6 +65,7 @@ const parseEnv = () => {
       OPENAI_MODEL: process.env.OPENAI_MODEL,
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
       STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+      STRIPE_SKIP_WEBHOOK_VERIFICATION: process.env.STRIPE_SKIP_WEBHOOK_VERIFICATION,
       CLIENT_URL: process.env.CLIENT_URL,
     });
   } catch (error) {

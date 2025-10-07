@@ -24,14 +24,23 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
     }
 
     const signature = req.headers['stripe-signature'] as string;
-    
-    if (!signature) {
-      console.error('No Stripe signature found');
-      return res.status(400).send('No signature found');
-    }
+    const skipVerification = getEnv().STRIPE_SKIP_WEBHOOK_VERIFICATION;
 
-    // Verify webhook signature
-    const event = verifyWebhookSignature(req.body, signature);
+    let event: Stripe.Event;
+
+    if (skipVerification) {
+      // Parse event directly without signature verification (for development/testing)
+      console.log('⚠️  Webhook signature verification SKIPPED (STRIPE_SKIP_WEBHOOK_VERIFICATION=true)');
+      event = JSON.parse(req.body) as Stripe.Event;
+    } else {
+      // Verify webhook signature (production mode)
+      if (!signature) {
+        console.error('No Stripe signature found');
+        return res.status(400).send('No signature found');
+      }
+
+      event = verifyWebhookSignature(req.body, signature);
+    }
     
     console.log('Received Stripe webhook:', event.type);
 
