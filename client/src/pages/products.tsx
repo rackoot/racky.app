@@ -9,20 +9,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { 
-  Search, 
-  MoreHorizontal, 
-  Edit, 
-  RefreshCw, 
-  Trash2, 
-  ChevronLeft, 
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Search,
+  MoreHorizontal,
+  Edit,
+  RefreshCw,
+  Trash2,
+  ChevronLeft,
   ChevronRight,
   Package,
   AlertCircle,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Video,
+  FileText,
+  X
 } from "lucide-react"
-import { productsApi, type Product, type ProductsResponse, type ProductsQuery } from "@/api"
+import { productsApi, videosApi, optimizationsApi, type Product, type ProductsResponse, type ProductsQuery } from "@/api"
 
 const marketplaceColors: Record<string, string> = {
   shopify: 'bg-green-100 text-green-800',
@@ -53,6 +57,10 @@ export function Products() {
   const [filters, setFilters] = useState<ProductsResponse['filters'] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+
+  // Bulk selection state
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
+  const [bulkActionInProgress, setBulkActionInProgress] = useState(false)
   
   // Initialize query state from URL parameters
   const [query, setQuery] = useState<ProductsQuery>(() => ({
@@ -89,6 +97,11 @@ export function Products() {
     }
   }, [query, currentWorkspace])
 
+  // Clear selection when products change (page change, filter, etc.)
+  useEffect(() => {
+    setSelectedProducts(new Set())
+  }, [query.page, query.search, query.marketplace, query.status, query.sortBy])
+
   const handleSearch = (search: string) => {
     setQuery(prev => ({ ...prev, search, page: 1 }))
   }
@@ -113,6 +126,40 @@ export function Products() {
   const handleProductAction = async (action: string, product: Product) => {
     console.log(`${action} product:`, product.title)
     // TODO: Implement actions
+  }
+
+  // Bulk selection handlers
+  const handleSelectAll = () => {
+    if (selectedProducts.size === products.length) {
+      setSelectedProducts(new Set())
+    } else {
+      setSelectedProducts(new Set(products.map(p => p._id || p.id)))
+    }
+  }
+
+  const handleSelectProduct = (productId: string) => {
+    const newSelected = new Set(selectedProducts)
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId)
+    } else {
+      newSelected.add(productId)
+    }
+    setSelectedProducts(newSelected)
+  }
+
+  const handleClearSelection = () => {
+    setSelectedProducts(new Set())
+  }
+
+  // Bulk action handlers (placeholder for now)
+  const handleBulkCreateVideo = () => {
+    console.log('Creating videos for products:', Array.from(selectedProducts))
+    alert(`Creating videos for ${selectedProducts.size} product(s)`)
+  }
+
+  const handleBulkGenerateDescription = () => {
+    console.log('Generating descriptions for products:', Array.from(selectedProducts))
+    alert(`Generating descriptions for ${selectedProducts.size} product(s)`)
   }
 
   const formatCurrency = (price: number) => {
@@ -213,6 +260,49 @@ export function Products() {
         </CardContent>
       </Card>
 
+      {/* Bulk Actions Toolbar */}
+      {selectedProducts.size > 0 && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="font-medium text-blue-900">
+                  {selectedProducts.size} product{selectedProducts.size !== 1 ? 's' : ''} selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearSelection}
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Clear Selection
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkCreateVideo}
+                  disabled={bulkActionInProgress}
+                >
+                  <Video className="w-4 h-4 mr-2" />
+                  Create Video
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkGenerateDescription}
+                  disabled={bulkActionInProgress}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Generate Description
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Products Table */}
       <Card>
         <CardHeader>
@@ -243,20 +333,27 @@ export function Products() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedProducts.size === products.length && products.length > 0}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all products"
+                      />
+                    </TableHead>
                     <TableHead>Product</TableHead>
-                    <TableHead 
+                    <TableHead
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleSort('price')}
                     >
                       Price {query.sortBy === 'price' && (query.sortOrder === 'desc' ? '↓' : '↑')}
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleSort('marketplace')}
                     >
                       Marketplace {query.sortBy === 'marketplace' && (query.sortOrder === 'desc' ? '↓' : '↑')}
                     </TableHead>
-                    <TableHead 
+                    <TableHead
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => handleSort('inventory')}
                     >
@@ -270,11 +367,19 @@ export function Products() {
                 <TableBody>
                   {products.map((product) => {
                     const isDisconnected = !product.isMarketplaceConnected;
+                    const productId = product._id || product.id;
                     return (
-                      <TableRow 
-                        key={product._id || product.id} 
+                      <TableRow
+                        key={productId}
                         className={isDisconnected ? "opacity-50" : ""}
                       >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedProducts.has(productId)}
+                            onCheckedChange={() => handleSelectProduct(productId)}
+                            aria-label={`Select ${product.title}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             {product.images[0] && (
