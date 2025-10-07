@@ -148,18 +148,16 @@ class RCKDescriptionService {
    * @returns Generated video data
    */
   async generateVideo(params: {
-    productId: string;
-    productTitle: string;
-    productDescription?: string;
-    productImages?: string[];
-    template: string;
-    customInstructions?: string;
-    [key: string]: any;
+    id_product: number | string;
+    title: string;
+    img_url: string;
+    user_id: string;
+    sku: string;
+    template_name: string;
   }): Promise<any> {
-    console.log('[RCK Description Service] Generating video for product:', params.productId);
+    console.log('[RCK Description Service] Generating video for product:', params.id_product);
 
-    // TODO: Replace with actual endpoint when provided
-    const response = await this.client.post('/api/videos/generate', params);
+    const response = await this.client.post('/api/v1/videos/generate', params);
 
     return response.data;
   }
@@ -210,18 +208,16 @@ class RCKDescriptionService {
    * @returns Bulk generation job data
    */
   async bulkGenerateVideos(products: Array<{
-    productId: string;
-    productTitle: string;
-    productDescription?: string;
-    productImages?: string[];
-    template: string;
-    customInstructions?: string;
-    [key: string]: any;
+    id_product: number | string;
+    title: string;
+    img_url: string;
+    user_id: string;
+    sku: string;
+    template_name: string;
   }>): Promise<any> {
     console.log('[RCK Description Service] Bulk generating videos for products:', products.length);
 
-    // TODO: Replace with actual endpoint when provided
-    const response = await this.client.post('/api/videos/bulk', { products });
+    const response = await this.client.post('/api/v1/videos/bulk', { products });
 
     return response.data;
   }

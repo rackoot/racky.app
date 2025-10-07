@@ -19,7 +19,7 @@ interface VideoTemplateModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   productCount: number
-  onCreateVideo: (templateId: string) => void
+  onCreateVideo: (templateId: string, templateName: string) => void | Promise<void>
 }
 
 export function VideoTemplateModal({
@@ -68,12 +68,15 @@ export function VideoTemplateModal({
     }
   }
 
-  const handleCreateVideo = () => {
+  const handleCreateVideo = async () => {
     if (selectedTemplateId) {
-      onCreateVideo(selectedTemplateId)
-      // Reset state
-      setSelectedTemplateId(null)
-      onOpenChange(false)
+      const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
+      if (selectedTemplate) {
+        await onCreateVideo(selectedTemplateId, selectedTemplate.title)
+        // Reset state
+        setSelectedTemplateId(null)
+        onOpenChange(false)
+      }
     }
   }
 

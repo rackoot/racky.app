@@ -104,7 +104,9 @@ const VIDEOS_ENDPOINTS = {
   DELETE: (id: string) => `/videos/${id}`,
   GENERATE: (id: string) => `/videos/${id}/generate`,
   USAGE_STATS: '/videos/usage/stats',
-  TEMPLATES: '/videos/templates'
+  TEMPLATES: '/videos/templates',
+  GENERATE_FOR_PRODUCT: '/videos/generate-for-product',
+  BULK_GENERATE: '/videos/bulk-generate'
 }
 
 export const videosApi = {
@@ -171,5 +173,46 @@ export const videosApi = {
    */
   async getVideoTemplates(): Promise<VideoTemplatesResponse> {
     return apiGet<VideoTemplatesResponse>(VIDEOS_ENDPOINTS.TEMPLATES)
+  },
+
+  /**
+   * Generate video for a single product
+   */
+  async generateVideoForProduct(productId: string, templateId: string, templateName: string): Promise<{
+    success: boolean
+    message: string
+    data: {
+      productId: string
+      productTitle: string
+      templateId: string
+      templateName: string
+      rckResponse: any
+    }
+  }> {
+    return apiPost(VIDEOS_ENDPOINTS.GENERATE_FOR_PRODUCT, {
+      productId,
+      templateId,
+      templateName
+    })
+  },
+
+  /**
+   * Generate videos for multiple products (bulk)
+   */
+  async bulkGenerateVideos(productIds: string[], templateId: string, templateName: string): Promise<{
+    success: boolean
+    message: string
+    data: {
+      productCount: number
+      templateId: string
+      templateName: string
+      rckResponse: any
+    }
+  }> {
+    return apiPost(VIDEOS_ENDPOINTS.BULK_GENERATE, {
+      productIds,
+      templateId,
+      templateName
+    })
   }
 }

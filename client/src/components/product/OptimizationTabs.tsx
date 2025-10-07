@@ -746,14 +746,31 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
     setShowTemplateModal(true)
   }
 
-  const handleTemplateSelected = (templateId: string) => {
-    console.log('Generating video for product with template:', {
-      productId: product._id,
-      templateId
-    })
-    alert(`OK - Generating video for product ${product.title} with template ${templateId}`)
-    setShowTemplateModal(false)
-    // TODO: Implement actual video generation logic
+  const handleTemplateSelected = async (templateId: string, templateName: string) => {
+    try {
+      console.log('Generating video for product with template:', {
+        productId: product._id,
+        productTitle: product.title,
+        templateId,
+        templateName
+      })
+
+      const { videosApi } = await import('@/api')
+      const result = await videosApi.generateVideoForProduct(product._id, templateId, templateName)
+
+      console.log('Video generation result:', result)
+
+      if (result.success) {
+        alert(`✅ Video generation started for ${product.title}!\n\n${result.message}`)
+      } else {
+        alert(`❌ Failed to generate video: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error generating video:', error)
+      alert(`❌ Error: ${error instanceof Error ? error.message : 'Failed to generate video'}`)
+    } finally {
+      setShowTemplateModal(false)
+    }
   }
 
   return (

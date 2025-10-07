@@ -161,15 +161,36 @@ export function Products() {
     setShowVideoTemplateModal(true)
   }
 
-  const handleVideoTemplateSelected = (templateId: string) => {
-    console.log('Creating videos for products with template:', {
-      templateId,
-      products: Array.from(selectedProducts),
-      productCount: selectedProducts.size
-    })
-    alert(`OK - Creating videos for ${selectedProducts.size} product(s) with template ${templateId}`)
-    // TODO: Implement actual video creation logic
-    setShowVideoTemplateModal(false)
+  const handleVideoTemplateSelected = async (templateId: string, templateName: string) => {
+    try {
+      setBulkActionInProgress(true)
+
+      const productIds = Array.from(selectedProducts)
+      console.log('Creating videos for products with template:', {
+        templateId,
+        templateName,
+        productIds,
+        productCount: productIds.length
+      })
+
+      const result = await videosApi.bulkGenerateVideos(productIds, templateId, templateName)
+
+      console.log('Bulk video generation result:', result)
+
+      if (result.success) {
+        alert(`✅ Video generation started for ${productIds.length} product(s)!\n\n${result.message}`)
+        // Clear selection after successful generation
+        setSelectedProducts(new Set())
+      } else {
+        alert(`❌ Failed to generate videos: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error generating videos:', error)
+      alert(`❌ Error: ${error instanceof Error ? error.message : 'Failed to generate videos'}`)
+    } finally {
+      setBulkActionInProgress(false)
+      setShowVideoTemplateModal(false)
+    }
   }
 
   const handleBulkGenerateDescription = () => {

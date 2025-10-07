@@ -231,4 +231,167 @@ router.get('/templates', async (req: AuthenticatedRequest, res: Response) => {
   }
 })
 
+/**
+ * POST /api/videos/generate-for-product
+ * Generate video for a single product using RCK Description Server
+ */
+router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = String(req.user!._id)
+    const workspaceId = String(req.workspace!._id)
+    const { productId, templateId, templateName } = req.body
+
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product ID is required'
+      })
+    }
+
+    if (!templateId || !templateName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template ID and name are required'
+      })
+    }
+
+    // Check if RCK Description Server is configured
+    if (!rckDescriptionService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'RCK Description Server is not configured'
+      })
+    }
+
+    // Import Product model to fetch product details
+    const Product = require('../../products/models/Product').default
+
+    // Fetch product
+    const product = await Product.findOne({
+      _id: productId,
+      userId,
+      workspaceId
+    })
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      })
+    }
+
+    // Prepare video generation request for RCK Description Server
+    const videoRequest = {
+      id_product: product._id.toString(),
+      title: product.title,
+      img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+      user_id: userId,
+      sku: product.handle || product.sku || product.externalId || '',
+      template_name: templateName
+    }
+
+    // Send video generation request to RCK Description Server
+    const result = await rckDescriptionService.generateVideo(videoRequest)
+
+    res.json({
+      success: true,
+      message: 'Video generation started',
+      data: {
+        productId: product._id,
+        productTitle: product.title,
+        templateId,
+        templateName,
+        rckResponse: result
+      }
+    })
+  } catch (error: any) {
+    console.error('Error generating product video:', error)
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to generate video'
+    })
+  }
+})
+
+/**
+ * POST /api/videos/bulk-generate
+ * Generate videos for multiple products using RCK Description Server
+ */
+router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = String(req.user!._id)
+    const workspaceId = String(req.workspace!._id)
+    const { productIds, templateId, templateName } = req.body
+
+    if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product IDs array is required'
+      })
+    }
+
+    if (!templateId || !templateName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template ID and name are required'
+      })
+    }
+
+    // Check if RCK Description Server is configured
+    if (!rckDescriptionService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'RCK Description Server is not configured'
+      })
+    }
+
+    // Import Product model to fetch product details
+    const Product = require('../../products/models/Product').default
+
+    // Fetch all products
+    const products = await Product.find({
+      _id: { $in: productIds },
+      userId,
+      workspaceId
+    })
+
+    if (products.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No products found'
+      })
+    }
+
+    // Prepare video generation requests for RCK Description Server
+    const videoRequests = products.map((product: any) => ({
+      id_product: product._id.toString(),
+      title: product.title,
+      img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+      user_id: userId,
+      sku: product.handle || product.sku || product.externalId || '',
+      template_name: templateName
+    }))
+
+    // Send bulk video generation request to RCK Description Server
+    const result = await rckDescriptionService.bulkGenerateVideos(videoRequests)
+
+    res.json({
+      success: true,
+      message: `Video generation started for ${products.length} product(s)`,
+      data: {
+        productCount: products.length,
+        templateId,
+        templateName,
+        rckResponse: result
+      }
+    })
+  } catch (error: any) {
+    console.error('Error generating bulk videos:', error)
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to generate videos'
+    })
+  }
+})
+
 export default router
