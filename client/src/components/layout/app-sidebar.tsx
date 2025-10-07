@@ -31,6 +31,7 @@ interface NavigationItem {
   requiresNoSubscription?: boolean
   showForSuperAdmin?: boolean
   subitems?: NavigationSubItem[]
+  hidden?: boolean // Hide item from sidebar (without deleting code)
 }
 
 const items: NavigationItem[] = [
@@ -62,6 +63,7 @@ const items: NavigationItem[] = [
     title: "AI Optimization",
     icon: Brain,
     requiresSubscription: true, // Requires active subscription
+    hidden: true, // Temporarily hidden
     subitems: [
       { title: "Start AI Scan", url: "/ai-optimization/start-scan" },
       { title: "Scan History", url: "/ai-optimization/scan-history" },
@@ -72,6 +74,7 @@ const items: NavigationItem[] = [
     url: "/orders",
     icon: ShoppingCart,
     requiresSubscription: true, // Requires active subscription
+    hidden: true, // Temporarily hidden
   },
   {
     title: "Usage Dashboard",
@@ -84,6 +87,7 @@ const items: NavigationItem[] = [
     url: "/customers",
     icon: Users,
     requiresSubscription: true, // Requires active subscription
+    hidden: true, // Temporarily hidden
   },
   {
     title: "Pricing",
@@ -131,8 +135,13 @@ export function AppSidebar({ collapsed = false }: AppSidebarProps) {
     return false
   }
 
-  // Filter items based on subscription status
+  // Filter items based on subscription status and hidden flag
   const visibleItems = items.filter((item) => {
+    // Hide items marked as hidden
+    if (item.hidden) {
+      return false
+    }
+
     // If item requires no subscription (only show when no subscription), check inverse
     if (item.requiresNoSubscription) {
       return !hasActiveSubscription()
