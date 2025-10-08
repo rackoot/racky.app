@@ -58,6 +58,7 @@ const items: NavigationItem[] = [
     url: "/videos",
     icon: Video,
     requiresSubscription: true, // Requires active subscription
+    hidden: true, // Temporarily hidden
   },
   {
     title: "AI Optimization",

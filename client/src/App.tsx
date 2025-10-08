@@ -10,8 +10,9 @@ import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
 import { ProductDetail } from '@/pages/product-detail'
-import { Videos } from '@/pages/videos'
-import { GenerateVideo } from '@/pages/videos/generate'
+// import { Videos } from '@/pages/videos'
+// import { GenerateVideo } from '@/pages/videos/generate'
+import { NotFound } from '@/pages/not-found'
 import { MarketplacePage } from '@/pages/stores/[marketplace]'
 import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
@@ -128,6 +129,16 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Videos routes temporarily disabled - return 404 */}
+        <Route
+          path="/videos"
+          element={<NotFound />}
+        />
+        <Route
+          path="/videos/generate"
+          element={<NotFound />}
+        />
+        {/* Original videos routes - kept for future use
         <Route
           path="/videos"
           element={
@@ -152,6 +163,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        */}
         <Route
           path="/ai-optimization"
           element={<Navigate to="/ai-optimization/opportunities" replace />}
