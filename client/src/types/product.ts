@@ -23,6 +23,28 @@ export interface ProductImage {
   altText?: string;
 }
 
+export interface CachedDescription {
+  platform: string;
+  content: string;
+  confidence?: number;
+  keywords: string[];
+  tokens?: number;
+  createdAt: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  _id?: string;
+}
+
+export interface ProductVideo {
+  templateId: string;
+  templateName: string;
+  status: 'pending' | 'completed' | 'failed';
+  videoUrl?: string;
+  error?: string;
+  createdAt: string;
+  completedAt?: string;
+  _id?: string;
+}
+
 export interface ProductDetail {
   _id: string;
   title: string;
@@ -44,6 +66,8 @@ export interface ProductDetail {
   handle?: string;
   createdAt: string;
   updatedAt: string;
+  cachedDescriptions?: CachedDescription[];
+  videos?: ProductVideo[];
   storeConnectionId?: {
     _id: string;
     storeName: string;

@@ -25,10 +25,12 @@ import {
   Video,
   FileText,
   X,
-  Sparkles
+  Sparkles,
+  Clock
 } from "lucide-react"
 import { productsApi, videosApi, optimizationsApi, type Product, type ProductVideo, type ProductsResponse, type ProductsQuery } from "@/api"
 import { VideoTemplateModal } from "@/components/videos/video-template-modal"
+import { DescriptionApprovalModal } from "@/components/product/DescriptionApprovalModal"
 
 const marketplaceColors: Record<string, string> = {
   shopify: 'bg-green-100 text-green-800',
@@ -66,7 +68,11 @@ export function Products() {
 
   // Video template modal state
   const [showVideoTemplateModal, setShowVideoTemplateModal] = useState(false)
-  
+
+  // Description approval modal state
+  const [showDescriptionModal, setShowDescriptionModal] = useState(false)
+  const [selectedProductForDescription, setSelectedProductForDescription] = useState<Product | null>(null)
+
   // Initialize query state from URL parameters
   const [query, setQuery] = useState<ProductsQuery>(() => ({
     page: parseInt(searchParams.get('page') || '1'),
@@ -200,6 +206,54 @@ export function Products() {
     // TODO: Implement description generation dialog
   }
 
+  // Description approval modal handler
+  const handleOpenDescriptionModal = (product: Product) => {
+    setSelectedProductForDescription(product)
+    setShowDescriptionModal(true)
+  }
+
+  const handleCloseDescriptionModal = () => {
+    setShowDescriptionModal(false)
+    setSelectedProductForDescription(null)
+  }
+
+  const handleDescriptionAction = async (action: 'accept' | 'reject' | 'regenerate') => {
+    if (!selectedProductForDescription) return
+
+    try {
+      if (action === 'accept') {
+        // Accept and apply the description
+        await optimizationsApi.updateSuggestionStatus(
+          selectedProductForDescription._id || selectedProductForDescription.id,
+          selectedProductForDescription.marketplace || '',
+          '', // suggestionId - will be handled by backend
+          'accepted'
+        )
+      } else if (action === 'reject') {
+        // Reject the description
+        await optimizationsApi.updateSuggestionStatus(
+          selectedProductForDescription._id || selectedProductForDescription.id,
+          selectedProductForDescription.marketplace || '',
+          '', // suggestionId - will be handled by backend
+          'rejected'
+        )
+      } else if (action === 'regenerate') {
+        // Regenerate description
+        await optimizationsApi.regenerateDescriptionOptimization(
+          selectedProductForDescription._id || selectedProductForDescription.id,
+          selectedProductForDescription.marketplace || ''
+        )
+      }
+
+      // Reload products to get updated status
+      await loadProducts()
+      handleCloseDescriptionModal()
+    } catch (error) {
+      console.error('Error handling description action:', error)
+      alert(`Failed to ${action} description`)
+    }
+  }
+
   const formatCurrency = (price: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -223,6 +277,14 @@ export function Products() {
         onOpenChange={setShowVideoTemplateModal}
         productCount={selectedProducts.size}
         onCreateVideo={handleVideoTemplateSelected}
+      />
+
+      {/* Description Approval Modal */}
+      <DescriptionApprovalModal
+        open={showDescriptionModal}
+        onOpenChange={setShowDescriptionModal}
+        product={selectedProductForDescription}
+        onAction={handleDescriptionAction}
       />
 
       {/* Header */}
@@ -514,10 +576,24 @@ export function Products() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {product.hasAIDescription ? (
+                        {product.aiDescriptionStatus === 'accepted' ? (
                           <Badge variant="default" className="bg-blue-100 text-blue-800">
                             <Sparkles className="w-3 h-3 mr-1" />
                             Optimized
+                          </Badge>
+                        ) : product.aiDescriptionStatus === 'pending' ? (
+                          <Badge
+                            variant="outline"
+                            className="bg-yellow-50 text-yellow-700 border-yellow-300 cursor-pointer hover:bg-yellow-100"
+                            onClick={() => handleOpenDescriptionModal(product)}
+                          >
+                            <Clock className="w-3 h-3 mr-1" />
+                            Pending approval
+                          </Badge>
+                        ) : product.aiDescriptionStatus === 'rejected' ? (
+                          <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                            <X className="w-3 h-3 mr-1" />
+                            Rejected
                           </Badge>
                         ) : (
                           <span className="text-sm text-muted-foreground">Not optimized</span>

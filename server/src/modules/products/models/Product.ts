@@ -263,6 +263,17 @@ productSchema.virtual('hasAIDescription').get(function() {
   return this.cachedDescriptions.some(desc => desc.status === 'accepted');
 });
 
+// Virtual field to get the latest AI description status
+productSchema.virtual('aiDescriptionStatus').get(function() {
+  if (this.cachedDescriptions.length === 0) {
+    return null;
+  }
+
+  // Get the most recent description
+  const latest = this.cachedDescriptions[this.cachedDescriptions.length - 1];
+  return latest.status;
+});
+
 // Ensure virtuals are included in JSON responses
 productSchema.set('toJSON', { virtuals: true });
 productSchema.set('toObject', { virtuals: true });

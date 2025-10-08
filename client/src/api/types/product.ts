@@ -50,6 +50,7 @@ export interface Product {
   }>
   videos?: ProductVideo[]
   hasAIDescription?: boolean
+  aiDescriptionStatus?: 'pending' | 'accepted' | 'rejected' | null
 }
 
 export interface ProductsResponse {

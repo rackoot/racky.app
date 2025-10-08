@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,9 +29,35 @@ interface OptimizationSuggestion {
 
 export function DescriptionOptimization({ product }: DescriptionOptimizationProps) {
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string>("")
   const [suggestion, setSuggestion] = useState<OptimizationSuggestion | null>(null)
+
+  // Load existing suggestion from product's cachedDescriptions
+  useEffect(() => {
+    if (!product.cachedDescriptions || product.cachedDescriptions.length === 0) {
+      setInitialLoading(false)
+      return
+    }
+
+    // Get the latest cached description for this marketplace
+    const latestDescription = product.cachedDescriptions
+      .filter(desc => desc.platform === product.marketplace)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+
+    if (latestDescription) {
+      setSuggestion({
+        id: latestDescription._id || '',
+        suggestedContent: latestDescription.content,
+        status: latestDescription.status,
+        confidence: latestDescription.confidence || 0,
+        createdAt: latestDescription.createdAt
+      })
+    }
+
+    setInitialLoading(false)
+  }, [product.cachedDescriptions, product.marketplace])
 
   const handleGenerateDescription = async () => {
     if (!product._id || !product.marketplace) {
@@ -131,8 +157,16 @@ export function DescriptionOptimization({ product }: DescriptionOptimizationProp
             </Alert>
           )}
 
+          {/* Initial Loading State */}
+          {initialLoading && (
+            <div className="text-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p className="text-muted-foreground">Loading optimization status...</p>
+            </div>
+          )}
+
           {/* Loading State */}
-          {loading && (
+          {!initialLoading && loading && (
             <div className="text-center py-12">
               <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
               <h3 className="text-lg font-semibold mb-2">Generating AI Description...</h3>
@@ -141,7 +175,7 @@ export function DescriptionOptimization({ product }: DescriptionOptimizationProp
           )}
 
           {/* No Suggestion State */}
-          {!loading && !suggestion && (
+          {!initialLoading && !loading && !suggestion && (
             <div className="text-center py-12 border-2 border-dashed border-muted-foreground/20 rounded-lg">
               <Sparkles className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <h3 className="text-lg font-semibold mb-2">No AI Optimization Generated</h3>
@@ -166,11 +200,16 @@ export function DescriptionOptimization({ product }: DescriptionOptimizationProp
                     suggestion.status === 'rejected' ? 'destructive' :
                     'secondary'
                   }
+                  className={
+                    suggestion.status === 'pending'
+                      ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                      : ''
+                  }
                 >
                   {suggestion.status === 'accepted' && <Check className="w-3 h-3 mr-1" />}
                   {suggestion.status === 'rejected' && <X className="w-3 h-3 mr-1" />}
                   {suggestion.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                  Status: {suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}
+                  Status: {suggestion.status === 'pending' ? 'Pending approval' : suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}
                 </Badge>
                 <div className="text-sm text-muted-foreground">
                   Confidence: {Math.round(suggestion.confidence * 100)}%
