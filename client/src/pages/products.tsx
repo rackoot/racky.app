@@ -467,7 +467,7 @@ export function Products() {
                     >
                       Stock {query.sortBy === 'inventory' && (query.sortOrder === 'desc' ? '↓' : '↑')}
                     </TableHead>
-                    <TableHead>Variants</TableHead>
+                    {/* <TableHead>Variants</TableHead> */}
                     <TableHead>Status</TableHead>
                     <TableHead>Video</TableHead>
                     <TableHead>AI Description</TableHead>
@@ -538,11 +538,11 @@ export function Products() {
                           {product.inventory}
                         </span>
                       </TableCell>
-                      <TableCell>
+                      {/* <TableCell>
                         <span className="text-sm text-muted-foreground">
                           {product.variants?.length || 1} variant{(product.variants?.length || 1) !== 1 ? 's' : ''}
                         </span>
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell>
                         <Badge variant={product.status.toLowerCase() === 'active' ? 'default' : 'secondary'}>
                           {product.status}
