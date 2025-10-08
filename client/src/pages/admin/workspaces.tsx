@@ -21,7 +21,8 @@ import {
   Package,
   Store,
   Video,
-  FileText
+  FileText,
+  CreditCard
 } from "lucide-react"
 import { getAuthHeaders } from "@/lib/utils"
 
@@ -32,6 +33,19 @@ interface WorkspaceOwner {
   fullName: string
 }
 
+interface WorkspaceSubscription {
+  _id: string
+  status: string
+  planName: string
+  contributorsHired: number
+  amount: number
+  currency: string
+  startsAt: string
+  endsAt: string
+  nextBillingDate: string
+  stripeSubscriptionId?: string
+}
+
 interface AdminWorkspace {
   _id: string
   name: string
@@ -40,6 +54,7 @@ interface AdminWorkspace {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  subscription: WorkspaceSubscription | null
   stats: {
     storeCount: number
     productCount: number
@@ -193,6 +208,8 @@ export function AdminWorkspaces() {
                   <TableRow>
                     <TableHead>Workspace</TableHead>
                     <TableHead>Owner</TableHead>
+                    <TableHead>Subscription</TableHead>
+                    <TableHead className="text-center">Contributors</TableHead>
                     <TableHead className="text-center">Stores</TableHead>
                     <TableHead className="text-center">Products</TableHead>
                     <TableHead className="text-center">Videos</TableHead>
@@ -228,6 +245,48 @@ export function AdminWorkspaces() {
                           </div>
                         ) : (
                           <span className="text-muted-foreground text-sm">No owner</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {workspace.subscription ? (
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <CreditCard className="w-3 h-3 text-muted-foreground" />
+                              <Badge
+                                variant={
+                                  workspace.subscription.status === 'ACTIVE'
+                                    ? 'default'
+                                    : workspace.subscription.status === 'TRIAL'
+                                    ? 'secondary'
+                                    : 'destructive'
+                                }
+                                className="text-xs"
+                              >
+                                {workspace.subscription.status}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <div className="font-medium">{workspace.subscription.planName}</div>
+                              <div>
+                                {workspace.subscription.currency === 'USD' ? '$' : workspace.subscription.currency}
+                                {workspace.subscription.amount.toFixed(2)}/mo
+                              </div>
+                              {workspace.subscription.nextBillingDate && (
+                                <div>
+                                  Renews: {new Date(workspace.subscription.nextBillingDate).toLocaleDateString()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">No subscription</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {workspace.subscription ? (
+                          <span className="font-medium">{workspace.subscription.contributorsHired}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-center">

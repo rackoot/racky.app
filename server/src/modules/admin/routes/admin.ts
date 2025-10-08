@@ -221,6 +221,11 @@ router.get('/workspaces', async (req: AuthenticatedRequest, res: Response) => {
         // Get owner information
         const owner = await User.findById(workspace.ownerId).select('email firstName lastName');
 
+        // Get subscription information
+        const subscription = await Subscription.findOne({ workspaceId: workspace._id })
+          .populate('planId')
+          .sort({ createdAt: -1 });
+
         // Count resources for this workspace
         const [storeCount, productCount] = await Promise.all([
           StoreConnection.countDocuments({ workspaceId: workspace._id }),
@@ -298,6 +303,18 @@ router.get('/workspaces', async (req: AuthenticatedRequest, res: Response) => {
           isActive: workspace.isActive,
           createdAt: workspace.createdAt,
           updatedAt: workspace.updatedAt,
+          subscription: subscription ? {
+            _id: subscription._id,
+            status: subscription.status,
+            planName: (subscription.planId as any)?.name || 'Unknown',
+            contributorsHired: subscription.contributorCount || 1,
+            amount: subscription.amount,
+            currency: subscription.currency || 'USD',
+            startsAt: subscription.startsAt,
+            endsAt: subscription.endsAt,
+            nextBillingDate: subscription.endsAt,
+            stripeSubscriptionId: subscription.stripeSubscriptionId
+          } : null,
           stats: {
             storeCount,
             productCount,
