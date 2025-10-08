@@ -268,8 +268,7 @@ export function AdminWorkspaces() {
                             <div className="text-xs text-muted-foreground space-y-0.5">
                               <div className="font-medium">{workspace.subscription.planName}</div>
                               <div>
-                                {workspace.subscription.currency === 'USD' ? '$' : workspace.subscription.currency}
-                                {workspace.subscription.amount.toFixed(2)}/mo
+                                ${workspace.subscription.amount.toFixed(2)}/mo
                               </div>
                               {workspace.subscription.nextBillingDate && (
                                 <div>

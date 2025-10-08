@@ -221,10 +221,17 @@ router.get('/workspaces', async (req: AuthenticatedRequest, res: Response) => {
         // Get owner information
         const owner = await User.findById(workspace.ownerId).select('email firstName lastName');
 
-        // Get subscription information
+        // Get subscription information with plan details
         const subscription = await Subscription.findOne({ workspaceId: workspace._id })
-          .populate('planId')
-          .sort({ createdAt: -1 });
+          .sort({ createdAt: -1 })
+          .lean();
+
+        // Get plan details separately if subscription exists
+        let planDetails = null;
+        if (subscription && subscription.planId) {
+          const Plan = (await import('@/subscriptions/models/Plan')).default;
+          planDetails = await Plan.findById(subscription.planId).lean();
+        }
 
         // Count resources for this workspace
         const [storeCount, productCount] = await Promise.all([
@@ -306,9 +313,9 @@ router.get('/workspaces', async (req: AuthenticatedRequest, res: Response) => {
           subscription: subscription ? {
             _id: subscription._id,
             status: subscription.status,
-            planName: (subscription.planId as any)?.name || 'Unknown',
+            planName: planDetails?.name || 'No Plan',
             contributorsHired: subscription.contributorCount || 1,
-            amount: subscription.amount,
+            amount: subscription.amount / 100, // Convert cents to dollars
             currency: subscription.currency || 'USD',
             startsAt: subscription.startsAt,
             endsAt: subscription.endsAt,
