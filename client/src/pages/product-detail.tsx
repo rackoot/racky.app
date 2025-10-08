@@ -31,7 +31,8 @@ import {
 } from "lucide-react"
 import { productsApi, getMarketplaceProductUrl } from "@/api"
 import { ProductImageGallery } from "@/components/product/ProductImageGallery"
-import { OptimizationTabs } from "@/components/product/OptimizationTabs"
+import { DescriptionOptimization } from "@/components/product/DescriptionOptimization"
+import { VideoContentTab } from "@/components/product/VideoContentTab"
 import { ProductHistory } from "@/components/product/ProductHistory"
 import { EditableDescription } from "@/components/product/EditableDescription"
 import { OpportunitiesTab } from "@/components/product/OpportunitiesTab"
@@ -261,10 +262,10 @@ export function ProductDetail() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="optimizations">SEO and Engagement</TabsTrigger>
-          {/* <TabsTrigger value="opportunities">Opportunities</TabsTrigger> */}
+          <TabsTrigger value="optimization">Optimization</TabsTrigger>
+          <TabsTrigger value="video">Video</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
@@ -472,8 +473,12 @@ export function ProductDetail() {
           </div>
         </TabsContent>
 
-        <TabsContent value="optimizations" className="space-y-6">
-          <OptimizationTabs product={product} />
+        <TabsContent value="optimization" className="space-y-6">
+          <DescriptionOptimization product={product} />
+        </TabsContent>
+
+        <TabsContent value="video" className="space-y-6">
+          <VideoContentTab product={product} />
         </TabsContent>
 
         {/* <TabsContent value="opportunities" className="space-y-6">
