@@ -103,9 +103,10 @@ export function DescriptionApprovalModal({
               {latestDescription.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
               Status: {latestDescription.status === 'pending' ? 'Pending approval' : latestDescription.status.charAt(0).toUpperCase() + latestDescription.status.slice(1)}
             </Badge>
-            <div className="text-sm text-muted-foreground">
+            {/* Confidence score - hidden but kept for future use */}
+            {/* <div className="text-sm text-muted-foreground">
               Confidence: {Math.round((latestDescription.confidence || 0) * 100)}%
-            </div>
+            </div> */}
           </div>
 
           {/* Comparison View */}

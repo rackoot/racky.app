@@ -211,9 +211,10 @@ export function DescriptionOptimization({ product }: DescriptionOptimizationProp
                   {suggestion.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
                   Status: {suggestion.status === 'pending' ? 'Pending approval' : suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}
                 </Badge>
-                <div className="text-sm text-muted-foreground">
+                {/* Confidence score - hidden but kept for future use */}
+                {/* <div className="text-sm text-muted-foreground">
                   Confidence: {Math.round(suggestion.confidence * 100)}%
-                </div>
+                </div> */}
               </div>
 
               {/* Comparison View */}
