@@ -577,7 +577,11 @@ export function Products() {
                       </TableCell>
                       <TableCell>
                         {product.aiDescriptionStatus === 'accepted' ? (
-                          <Badge variant="default" className="bg-blue-100 text-blue-800">
+                          <Badge
+                            variant="default"
+                            className="bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200"
+                            onClick={() => handleOpenDescriptionModal(product)}
+                          >
                             <Sparkles className="w-3 h-3 mr-1" />
                             Optimized
                           </Badge>
@@ -591,7 +595,11 @@ export function Products() {
                             Pending approval
                           </Badge>
                         ) : product.aiDescriptionStatus === 'rejected' ? (
-                          <Badge variant="outline" className="bg-gray-100 text-gray-700">
+                          <Badge
+                            variant="outline"
+                            className="bg-gray-100 text-gray-700 cursor-pointer hover:bg-gray-200"
+                            onClick={() => handleOpenDescriptionModal(product)}
+                          >
                             <X className="w-3 h-3 mr-1" />
                             Rejected
                           </Badge>

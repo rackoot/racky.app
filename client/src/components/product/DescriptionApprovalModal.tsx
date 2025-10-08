@@ -95,6 +95,8 @@ export function DescriptionApprovalModal({
               className={
                 latestDescription.status === 'pending'
                   ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                  : latestDescription.status === 'accepted'
+                  ? 'bg-blue-100 text-blue-800'
                   : ''
               }
             >
@@ -109,23 +111,12 @@ export function DescriptionApprovalModal({
             </div> */}
           </div>
 
-          {/* Comparison View */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Current Description */}
-            <div>
-              <h4 className="font-medium mb-3 text-slate-700">Current Description:</h4>
-              <div className="bg-slate-50 rounded-lg p-4 min-h-[200px] border border-slate-200">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {product.description || 'No description available'}
-                </p>
-              </div>
-            </div>
-
-            {/* AI Suggested Description */}
+          {/* Accepted Status - Simple View */}
+          {latestDescription.status === 'accepted' ? (
             <div>
               <h4 className="font-medium mb-3 text-blue-700 flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
-                AI Suggested Description:
+                Accepted AI Description:
               </h4>
               <div className="bg-blue-50 rounded-lg min-h-[200px] border border-blue-200 overflow-hidden">
                 <div className="p-4 space-y-3">
@@ -139,11 +130,43 @@ export function DescriptionApprovalModal({
                 </div>
               </div>
             </div>
-          </div>
+          ) : (
+            /* Comparison View for Pending/Rejected */
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Current Description */}
+              <div>
+                <h4 className="font-medium mb-3 text-slate-700">Current Description:</h4>
+                <div className="bg-slate-50 rounded-lg p-4 min-h-[200px] border border-slate-200">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {product.description || 'No description available'}
+                  </p>
+                </div>
+              </div>
+
+              {/* AI Suggested Description */}
+              <div>
+                <h4 className="font-medium mb-3 text-blue-700 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  AI Suggested Description:
+                </h4>
+                <div className="bg-blue-50 rounded-lg min-h-[200px] border border-blue-200 overflow-hidden">
+                  <div className="p-4 space-y-3">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {latestDescription.content}
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-blue-200">
+                      <Clock className="w-3 h-3" />
+                      <span>Generated {new Date(latestDescription.createdAt).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t">
-            {latestDescription.status === 'pending' && (
+            {latestDescription.status === 'pending' ? (
               <>
                 <Button
                   onClick={() => handleAction('accept')}
@@ -166,20 +189,36 @@ export function DescriptionApprovalModal({
                   <X className="w-4 h-4 mr-2" />
                   Reject
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleAction('regenerate')}
+                  disabled={actionInProgress !== null}
+                >
+                  {actionInProgress === 'regenerate' ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  {actionInProgress === 'regenerate' ? 'Regenerating...' : 'Regenerate'}
+                </Button>
               </>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => handleAction('regenerate')}
-              disabled={actionInProgress !== null}
-            >
-              {actionInProgress === 'regenerate' ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4 mr-2" />
-              )}
-              {actionInProgress === 'regenerate' ? 'Regenerating...' : 'Regenerate'}
-            </Button>
+            ) : latestDescription.status === 'rejected' ? (
+              <>
+                {/* For rejected descriptions, show Regenerate button */}
+                <Button
+                  variant="outline"
+                  onClick={() => handleAction('regenerate')}
+                  disabled={actionInProgress !== null}
+                >
+                  {actionInProgress === 'regenerate' ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  {actionInProgress === 'regenerate' ? 'Regenerating...' : 'Regenerate'}
+                </Button>
+              </>
+            ) : null}
             <Button
               variant="ghost"
               onClick={() => onOpenChange(false)}
