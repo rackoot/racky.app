@@ -258,6 +258,15 @@ const productSchema = new Schema<IProduct>({
   timestamps: true
 });
 
+// Virtual field to check if product has an accepted AI description
+productSchema.virtual('hasAIDescription').get(function() {
+  return this.cachedDescriptions.some(desc => desc.status === 'accepted');
+});
+
+// Ensure virtuals are included in JSON responses
+productSchema.set('toJSON', { virtuals: true });
+productSchema.set('toObject', { virtuals: true });
+
 // Update indexes for workspace-based access
 productSchema.index({ workspaceId: 1, marketplace: 1, externalId: 1 }, { unique: true });
 // Keep old index for backward compatibility during migration

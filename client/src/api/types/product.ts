@@ -49,6 +49,7 @@ export interface Product {
     weightUnit?: string
   }>
   videos?: ProductVideo[]
+  hasAIDescription?: boolean
 }
 
 export interface ProductsResponse {

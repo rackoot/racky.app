@@ -24,7 +24,8 @@ import {
   ExternalLink,
   Video,
   FileText,
-  X
+  X,
+  Sparkles
 } from "lucide-react"
 import { productsApi, videosApi, optimizationsApi, type Product, type ProductVideo, type ProductsResponse, type ProductsQuery } from "@/api"
 import { VideoTemplateModal } from "@/components/videos/video-template-modal"
@@ -407,6 +408,7 @@ export function Products() {
                     <TableHead>Variants</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Video</TableHead>
+                    <TableHead>AI Description</TableHead>
                     <TableHead className="w-20">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -509,6 +511,16 @@ export function Products() {
                           ) : null
                         ) : (
                           <span className="text-sm text-muted-foreground">No video</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {product.hasAIDescription ? (
+                          <Badge variant="default" className="bg-blue-100 text-blue-800">
+                            <Sparkles className="w-3 h-3 mr-1" />
+                            Optimized
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Not optimized</span>
                         )}
                       </TableCell>
                       <TableCell>
