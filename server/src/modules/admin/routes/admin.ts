@@ -128,9 +128,10 @@ router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
     // Enhance user data with additional info
     const enhancedUsers = await Promise.all(
       users.map(async (user: any) => {
-        const [storeCount, productCount, usage] = await Promise.all([
+        const [storeCount, productCount, workspaceCount, usage] = await Promise.all([
           StoreConnection.countDocuments({ userId: user._id, isActive: true }),
           Product.countDocuments({ userId: user._id }),
+          Workspace.countDocuments({ ownerId: user._id }),
           Usage.getCurrentMonthUsage(user._id)
         ]);
 
@@ -139,6 +140,7 @@ router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
           stats: {
             storeCount,
             productCount,
+            workspaceCount,
             currentUsage: usage || {}
           }
           // subscriptionInfo moved to workspace level
@@ -172,6 +174,159 @@ router.get('/users', async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch users',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/admin/workspaces - List all workspaces with stats
+router.get('/workspaces', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const page = asString(req.query.page, '1');
+    const limit = asString(req.query.limit, '20');
+    const search = asString(req.query.search, '');
+    const sortBy = asString(req.query.sortBy, 'createdAt');
+    const sortOrder = asString(req.query.sortOrder, 'desc');
+
+    // Build query filter
+    const filter: any = {};
+
+    if (search) {
+      // We'll need to join with users to search by user name/email
+      // For now, just search by workspace name
+      filter.name = { $regex: search, $options: 'i' };
+    }
+
+    // Build sort object
+    const sort: any = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Calculate pagination
+    const skip = (asNumber(req.query.page, 1) - 1) * asNumber(req.query.limit, 20);
+
+    // Get workspaces with pagination
+    const [workspaces, totalCount] = await Promise.all([
+      Workspace.find(filter)
+        .sort(sort)
+        .skip(skip)
+        .limit(asNumber(req.query.limit, 20)),
+      Workspace.countDocuments(filter)
+    ]);
+
+    const totalPages = Math.ceil(totalCount / asNumber(req.query.limit, 20));
+
+    // Enhance workspace data with additional info
+    const enhancedWorkspaces = await Promise.all(
+      workspaces.map(async (workspace: any) => {
+        // Get owner information
+        const owner = await User.findById(workspace.ownerId).select('email firstName lastName');
+
+        // Count resources for this workspace
+        const [storeCount, productCount] = await Promise.all([
+          StoreConnection.countDocuments({ workspaceId: workspace._id }),
+          Product.countDocuments({ workspaceId: workspace._id })
+        ]);
+
+        // Count videos generated (products with completed videos)
+        const videosGenerated = await Product.aggregate([
+          {
+            $match: {
+              workspaceId: workspace._id,
+              'videos.status': 'completed'
+            }
+          },
+          {
+            $project: {
+              completedVideos: {
+                $size: {
+                  $filter: {
+                    input: { $ifNull: ['$videos', []] },
+                    as: 'video',
+                    cond: { $eq: ['$$video.status', 'completed'] }
+                  }
+                }
+              }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: '$completedVideos' }
+            }
+          }
+        ]);
+
+        // Count descriptions generated (products with accepted descriptions)
+        const descriptionsGenerated = await Product.aggregate([
+          {
+            $match: {
+              workspaceId: workspace._id,
+              'cachedDescriptions.status': 'accepted'
+            }
+          },
+          {
+            $project: {
+              acceptedDescriptions: {
+                $size: {
+                  $filter: {
+                    input: { $ifNull: ['$cachedDescriptions', []] },
+                    as: 'desc',
+                    cond: { $eq: ['$$desc.status', 'accepted'] }
+                  }
+                }
+              }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: '$acceptedDescriptions' }
+            }
+          }
+        ]);
+
+        return {
+          _id: workspace._id,
+          name: workspace.name,
+          ownerId: workspace.ownerId,
+          owner: owner ? {
+            email: owner.email,
+            firstName: owner.firstName,
+            lastName: owner.lastName,
+            fullName: `${owner.firstName} ${owner.lastName}`
+          } : null,
+          isActive: workspace.isActive,
+          createdAt: workspace.createdAt,
+          updatedAt: workspace.updatedAt,
+          stats: {
+            storeCount,
+            productCount,
+            videosGenerated: videosGenerated[0]?.total || 0,
+            descriptionsGenerated: descriptionsGenerated[0]?.total || 0
+          }
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: {
+        workspaces: enhancedWorkspaces,
+        pagination: {
+          currentPage: asNumber(req.query.page, 1),
+          totalPages,
+          totalCount,
+          limit: asNumber(req.query.limit, 20),
+          hasNext: asNumber(req.query.page, 1) < totalPages,
+          hasPrev: asNumber(req.query.page, 1) > 1
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching workspaces:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch workspaces',
       error: error.message
     });
   }

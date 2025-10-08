@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { Users, BarChart3, Settings, Shield, CreditCard, Activity, Home } from "lucide-react"
+import { Users, BarChart3, Settings, Shield, CreditCard, Activity, Home, Briefcase } from "lucide-react"
 import { UserProfile } from "./user-profile"
 import { getCurrentUser } from "@/lib/auth"
 
@@ -22,7 +22,13 @@ const adminNavItems = [
     description: "Manage user accounts and subscriptions"
   },
   {
-    title: "Analytics", 
+    title: "Workspaces",
+    href: "/admin/workspaces",
+    icon: Briefcase,
+    description: "View all workspaces and their resources"
+  },
+  {
+    title: "Analytics",
     href: "/admin/analytics",
     icon: BarChart3,
     description: "Platform usage and revenue analytics"

@@ -26,6 +26,7 @@ import { PurchaseSuccess } from '@/pages/purchase-success'
 import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
+import { AdminWorkspaces } from '@/pages/admin/workspaces'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import { AdminAnalytics } from '@/pages/admin/analytics'
 import Workspaces from '@/pages/workspaces'
@@ -350,6 +351,18 @@ function App() {
               <RequireSuperAdmin>
                 <AdminLayout>
                   <AdminUsers />
+                </AdminLayout>
+              </RequireSuperAdmin>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/workspaces"
+          element={
+            <ProtectedRoute>
+              <RequireSuperAdmin>
+                <AdminLayout>
+                  <AdminWorkspaces />
                 </AdminLayout>
               </RequireSuperAdmin>
             </ProtectedRoute>
