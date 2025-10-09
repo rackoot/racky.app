@@ -31,12 +31,10 @@ echo "========================================="
 echo "Starting Vite server..."
 echo "========================================="
 
-# Try to run Vite and capture any errors
+# Keep stdin open to prevent Vite from exiting
+# Use tail -f /dev/null to keep stdin alive
 echo "Executing: node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173"
 
-# Run without exec first to see errors, redirect all output
-node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173 2>&1
-
-# If we get here, Vite exited
-echo "Vite process ended with exit code: $?"
+# Start Vite with stdin from /dev/null to keep it alive
+tail -f /dev/null | exec node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173
 
