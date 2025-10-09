@@ -11,9 +11,20 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // Disable dependency pre-bundling to reduce memory usage in containers
-    noDiscovery: true,
-    include: [],
+    // Enable optimization with memory-conscious settings
+    include: [
+      'cookie',
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'axios',
+    ],
+    esbuildOptions: {
+      target: 'es2020',
+      logLevel: 'info',
+    },
+    // Don't wait for all deps to be discovered before starting server
+    holdUntilCrawlEnd: false,
   },
   server: {
     host: '0.0.0.0',
