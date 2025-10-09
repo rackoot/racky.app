@@ -79,11 +79,11 @@ spec:
             name: racky-app-env
         resources:
           limits:
-            cpu: 200m
-            memory: 512Mi
+            cpu: 1000m
+            memory: 2Gi
           requests:
-            cpu: 100m
-            memory: 256Mi
+            cpu: 500m
+            memory: 1Gi
       nodeSelector:
         eks.amazonaws.com/nodegroup: {{ .Values.node_selector }}
       dnsPolicy: ClusterFirst
