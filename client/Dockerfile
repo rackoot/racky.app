@@ -22,8 +22,12 @@ RUN npm ci && npm cache clean --force
 # Copy source code
 COPY --chown=nodejs:nodejs . .
 
+# Copy and set permissions for startup script
+COPY --chown=nodejs:nodejs start.sh .
+RUN chmod +x start.sh
+
 # Expose port
 EXPOSE 5173
 
 # Start development server
-CMD ["npm", "run", "dev"]
+CMD ["./start.sh"]
