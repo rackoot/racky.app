@@ -10,6 +10,11 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
+  optimizeDeps: {
+    // CRITICAL: Disable dependency optimization in container to avoid OOM
+    // The optimization process uses esbuild which can consume >2GB of memory
+    disabled: true,
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
