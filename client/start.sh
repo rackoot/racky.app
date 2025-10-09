@@ -31,6 +31,12 @@ echo "========================================="
 echo "Starting Vite server..."
 echo "========================================="
 
-# Execute Vite directly - this becomes PID 1
-exec node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173
+# Try to run Vite and capture any errors
+echo "Executing: node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173"
+
+# Run without exec first to see errors, redirect all output
+node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173 2>&1
+
+# If we get here, Vite exited
+echo "Vite process ended with exit code: $?"
 
