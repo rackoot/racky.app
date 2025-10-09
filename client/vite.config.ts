@@ -18,7 +18,12 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      allowedHosts: ['dev-suite.racky.ai', 'localhost', '127.0.0.1'],
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: true,
+      watch: {
+        usePolling: true,
+      },
       proxy: {
         '/api': {
           target: backendUrl,

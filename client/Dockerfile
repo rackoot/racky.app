@@ -25,5 +25,5 @@ COPY --chown=nodejs:nodejs . .
 # Expose port
 EXPOSE 5173
 
-# Start development server with verbose output
-CMD ["sh", "-c", "echo '=== Starting Vite ===' && echo 'Node version:' && node --version && echo 'NPM version:' && npm --version && echo 'Files in /app:' && ls -la /app && echo '=== Running dev server ===' && npm run dev -- --host 0.0.0.0 --port 5173 --debug"]
+# Start development server
+CMD ["npm", "run", "dev"]
