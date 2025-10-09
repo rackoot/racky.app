@@ -1,14 +1,36 @@
 #!/bin/sh
-set -e
 
 echo "========================================="
 echo "Starting Racky Frontend"
 echo "Node: $(node --version) | NPM: $(npm --version)"
 echo "Environment: ${NODE_ENV:-production}"
 echo "Backend: ${VITE_API_URL:-not set}"
+echo "PWD: $(pwd)"
 echo "========================================="
 
-# Start Vite development server directly with node (no npm wrapper)
-# This ensures Vite is PID 1 and signals are handled correctly
-exec node ./node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173
+# Check if vite exists
+echo "Checking for Vite..."
+if [ -f "node_modules/vite/bin/vite.js" ]; then
+    echo "✓ Vite binary found"
+else
+    echo "✗ ERROR: Vite binary NOT found"
+    echo "Looking for vite installation..."
+    find node_modules -name "vite.js" -type f 2>/dev/null | head -5
+    exit 1
+fi
+
+# Check if package.json exists
+if [ -f "package.json" ]; then
+    echo "✓ package.json found"
+else
+    echo "✗ ERROR: package.json NOT found"
+    exit 1
+fi
+
+echo "========================================="
+echo "Starting Vite server..."
+echo "========================================="
+
+# Execute Vite directly - this becomes PID 1
+exec node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173
 
