@@ -38,9 +38,26 @@ else
 fi
 
 echo "========================================="
+echo "Environment variables:"
+env | grep -E '(NODE|VITE|NPM)' || echo "No relevant env vars"
+echo "========================================="
+echo "Checking node_modules/.bin/vite..."
+if [ -f "node_modules/.bin/vite" ]; then
+    echo "✓ vite binary found"
+    ls -la node_modules/.bin/vite
+else
+    echo "✗ vite binary NOT found!"
+    exit 1
+fi
+
+echo "========================================="
 echo "Starting Vite development server..."
 echo "========================================="
 
-# Run vite with explicit output
-exec npm run dev 2>&1
+# Try to run vite directly first to see any errors
+echo "Attempting to run vite directly..."
+node node_modules/vite/bin/vite.js --host 0.0.0.0 --port 5173 --debug 2>&1 || {
+    echo "Direct vite execution failed, trying npm run dev..."
+    exec npm run dev 2>&1
+}
 
