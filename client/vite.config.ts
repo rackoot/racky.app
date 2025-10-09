@@ -19,6 +19,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    allowedHosts: [
+      'dev-suite.racky.ai',
+      'localhost',
+      '.racky.ai', // Allow all racky.ai subdomains
+    ],
     watch: {
       usePolling: true,
     },
