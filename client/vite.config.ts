@@ -11,9 +11,9 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    // CRITICAL: Disable dependency optimization in container to avoid OOM
-    // The optimization process uses esbuild which can consume >2GB of memory
-    disabled: true,
+    // Disable dependency pre-bundling to reduce memory usage in containers
+    noDiscovery: true,
+    include: [],
   },
   server: {
     host: '0.0.0.0',
