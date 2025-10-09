@@ -24,14 +24,23 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
     }
 
     const signature = req.headers['stripe-signature'] as string;
-    
-    if (!signature) {
-      console.error('No Stripe signature found');
-      return res.status(400).send('No signature found');
-    }
+    const skipVerification = getEnv().STRIPE_SKIP_WEBHOOK_VERIFICATION;
 
-    // Verify webhook signature
-    const event = verifyWebhookSignature(req.body, signature);
+    let event: Stripe.Event;
+
+    if (skipVerification) {
+      // Parse event directly without signature verification (for development/testing)
+      console.log('⚠️  Webhook signature verification SKIPPED (STRIPE_SKIP_WEBHOOK_VERIFICATION=true)');
+      event = JSON.parse(req.body) as Stripe.Event;
+    } else {
+      // Verify webhook signature (production mode)
+      if (!signature) {
+        console.error('No Stripe signature found');
+        return res.status(400).send('No signature found');
+      }
+
+      event = verifyWebhookSignature(req.body, signature);
+    }
     
     console.log('Received Stripe webhook:', event.type);
 
@@ -168,7 +177,7 @@ export const stripeWebhookHandler = async (req: express.Request, res: Response) 
 // POST /api/billing/create-checkout-session - Create checkout session for contributor-based plans
 router.post('/create-checkout-session', protect, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { contributorType, contributorCount = 1, billingCycle = 'monthly', embedded = true } = req.body;
+    const { contributorType, contributorCount = 1, billingCycle = 'monthly', embedded = true, couponCode } = req.body;
 
     if (!contributorType) {
       return res.status(400).json({
@@ -245,7 +254,8 @@ router.post('/create-checkout-session', protect, async (req: AuthenticatedReques
       contributorCount,
       billingCycle,
       workspace: req.workspace,
-      userId: req.user._id.toString()
+      userId: req.user._id.toString(),
+      couponCode: couponCode || undefined // Pass coupon code if provided
     };
 
     const checkoutResult = embedded 

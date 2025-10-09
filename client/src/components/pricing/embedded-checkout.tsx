@@ -9,6 +9,7 @@ import { billingApi } from "@/api"
 interface EmbeddedCheckoutProps {
   contributorType: string
   contributorCount: number
+  couponCode?: string
   onBack: () => void
   onSuccess?: () => void
   isReactivation?: boolean
@@ -17,10 +18,11 @@ interface EmbeddedCheckoutProps {
 // Initialize Stripe (you'll need to add your publishable key)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_...')
 
-export function EmbeddedCheckoutWrapper({ 
-  contributorType, 
-  contributorCount, 
-  onBack, 
+export function EmbeddedCheckoutWrapper({
+  contributorType,
+  contributorCount,
+  couponCode,
+  onBack,
   onSuccess,
   isReactivation = false
 }: EmbeddedCheckoutProps) {
@@ -30,7 +32,7 @@ export function EmbeddedCheckoutWrapper({
 
   useEffect(() => {
     createCheckoutSession()
-  }, [contributorType, contributorCount])
+  }, [contributorType, contributorCount, couponCode])
 
   const createCheckoutSession = async () => {
     setLoading(true)
@@ -40,6 +42,7 @@ export function EmbeddedCheckoutWrapper({
       const data = await billingApi.createCheckoutSession({
         contributorType,
         contributorCount: contributorCount,
+        couponCode: couponCode || undefined,
         successUrl: window.location.origin + '/purchase-success?session_id={CHECKOUT_SESSION_ID}',
         cancelUrl: window.location.origin + '/pricing'
       })

@@ -24,28 +24,21 @@ interface UsageHistoryQuery {
 // GET /api/usage/current - Get current usage statistics
 router.get('/current', async (req: AuthenticatedRequest, res: Response) => {
   try {
-        await trackUsage('api_call')(req, res, async () => {
-                  
-      const userId = req.user!._id;
+    await trackUsage('api_call')(req, res, async () => {
+      const workspaceId = req.workspace!._id;
       const currentDate = new Date();
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
 
-      // Get current month's usage
-      const currentUsage = await Usage.findOne({
-        userId,
-        date: {
-          $gte: startOfMonth,
-          $lt: new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 1)
-        }
-      });
+      // Get current month's usage using workspace-based approach
+      const currentUsage = await Usage.getCurrentMonthUsage(workspaceId.toString());
 
-      // Get actual counts from database
+      // Get actual counts from database using workspace
       const [storeCount, productCount] = await Promise.all([
-        StoreConnection.countDocuments({ userId, isActive: true }),
-        Product.countDocuments({ userId })
+        StoreConnection.countDocuments({ workspaceId, isActive: true }),
+        Product.countDocuments({ workspaceId })
       ]);
 
-      // Calculate storage usage (mock calculation)
+      // Calculate storage usage based on actual data
       const storageUsed = Math.floor(productCount * 0.5); // Estimate 0.5MB per product
 
       // Get workspace plan limits
@@ -54,7 +47,7 @@ router.get('/current', async (req: AuthenticatedRequest, res: Response) => {
       const usageData = {
         currentPeriod: {
           apiCalls: currentUsage?.apiCalls || 0,
-          productSyncs: productCount,
+          productSyncs: currentUsage?.productSyncs || 0,
           storesConnected: storeCount,
           storageUsed,
           features: {
@@ -93,15 +86,16 @@ router.get('/current', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/usage/history - Get usage history
 router.get('/history', async (req: AuthenticatedRequest, res: Response) => {
   try {
-        await trackUsage('api_call')(req, res, async () => {
-            const userId = req.user!._id;
-      const days = parseInt(asString(req.query.days, '30'));
+    await trackUsage('api_call')(req, res, async () => {
+      const workspaceId = req.workspace!._id;
+      const days = parseInt(asString(req.query.days, '7')); // Default to 7 days for better performance
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
+      // Get usage history using workspace-based approach
       const usageHistory = await Usage.find({
-        userId,
+        workspaceId,
         date: {
           $gte: startDate,
           $lte: endDate
@@ -111,10 +105,10 @@ router.get('/history', async (req: AuthenticatedRequest, res: Response) => {
       // Fill in missing days with zero values
       const filledHistory: any[] = [];
       const currentDate = new Date(startDate);
-      
+
       while (currentDate <= endDate) {
         const dateStr = currentDate.toISOString().split('T')[0];
-        const existingUsage = usageHistory.find((u: any) => 
+        const existingUsage = usageHistory.find((u: any) =>
           u.date.toISOString().split('T')[0] === dateStr
         );
 
@@ -122,12 +116,7 @@ router.get('/history', async (req: AuthenticatedRequest, res: Response) => {
           date: dateStr,
           apiCalls: existingUsage?.apiCalls || 0,
           productSyncs: existingUsage?.productSyncs || 0,
-          storageUsed: existingUsage?.storageUsed || 0,
-          features: {
-            aiSuggestions: existingUsage?.aiSuggestions || 0,
-            opportunityScans: existingUsage?.opportunityScans || 0,
-            bulkOperations: existingUsage?.bulkOperations || 0
-          }
+          storageUsed: existingUsage?.storageUsed || 0
         });
 
         currentDate.setDate(currentDate.getDate() + 1);
@@ -150,14 +139,14 @@ router.get('/history', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/usage/trends - Get usage trends and growth
 router.get('/trends', async (req: AuthenticatedRequest, res: Response) => {
   try {
-        await trackUsage('api_call')(req, res, async () => {
-            const userId = req.user!._id;
+    await trackUsage('api_call')(req, res, async () => {
+      const workspaceId = req.workspace!._id;
       const currentDate = new Date();
-      
+
       // Current month
       const currentMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const currentMonthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
-      
+
       // Previous month
       const previousMonthStart = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
       const previousMonthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -166,7 +155,7 @@ router.get('/trends', async (req: AuthenticatedRequest, res: Response) => {
         Usage.aggregate([
           {
             $match: {
-              userId,
+              workspaceId,
               date: { $gte: currentMonthStart, $lt: currentMonthEnd }
             }
           },
@@ -185,7 +174,7 @@ router.get('/trends', async (req: AuthenticatedRequest, res: Response) => {
         Usage.aggregate([
           {
             $match: {
-              userId,
+              workspaceId,
               date: { $gte: previousMonthStart, $lt: previousMonthEnd }
             }
           },
@@ -213,22 +202,13 @@ router.get('/trends', async (req: AuthenticatedRequest, res: Response) => {
 
       const trends = {
         apiCallsGrowth: calculateGrowth(current.apiCalls || 0, previous.apiCalls || 0),
-        productSyncsGrowth: calculateGrowth(current.productSyncs || 0, previous.productSyncs || 0),
-        storageGrowth: calculateGrowth(current.storageUsed || 0, previous.storageUsed || 0),
-        featuresGrowth: {
-          aiSuggestions: calculateGrowth(current.aiSuggestions || 0, previous.aiSuggestions || 0),
-          opportunityScans: calculateGrowth(current.opportunityScans || 0, previous.opportunityScans || 0),
-          bulkOperations: calculateGrowth(current.bulkOperations || 0, previous.bulkOperations || 0)
-        }
+        productsSyncGrowth: calculateGrowth(current.productSyncs || 0, previous.productSyncs || 0),
+        storageGrowth: calculateGrowth(current.storageUsed || 0, previous.storageUsed || 0)
       };
 
       res.json({
         success: true,
-        data: {
-          trends,
-          currentMonth: current,
-          previousMonth: previous
-        }
+        data: trends
       });
     });
   } catch (error: any) {
@@ -243,25 +223,17 @@ router.get('/trends', async (req: AuthenticatedRequest, res: Response) => {
 // GET /api/usage/limits - Get current usage vs limits
 router.get('/limits', async (req: AuthenticatedRequest, res: Response) => {
   try {
-        await trackUsage('api_call')(req, res, async () => {
-                        const userId = req.user!._id;
-      
-      // Get current counts
+    await trackUsage('api_call')(req, res, async () => {
+      const workspaceId = req.workspace!._id;
+
+      // Get current counts using workspace
       const [storeCount, productCount] = await Promise.all([
-        StoreConnection.countDocuments({ userId, isActive: true }),
-        Product.countDocuments({ userId })
+        StoreConnection.countDocuments({ workspaceId, isActive: true }),
+        Product.countDocuments({ workspaceId })
       ]);
 
-      // Get current month API usage
-      const currentDate = new Date();
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const currentUsage = await Usage.findOne({
-        userId,
-        date: {
-          $gte: startOfMonth,
-          $lt: new Date(startOfMonth.getFullYear(), startOfMonth.getMonth() + 1, 1)
-        }
-      });
+      // Get current month API usage using workspace
+      const currentUsage = await Usage.getCurrentMonthUsage(workspaceId.toString());
 
       // Get workspace plan
       const workspacePlan = await req.workspace!.getCurrentPlan();
@@ -310,9 +282,9 @@ router.get('/limits', async (req: AuthenticatedRequest, res: Response) => {
 // POST /api/usage/track - Manual usage tracking (for testing)
 router.post('/track', async (req: AuthenticatedRequest, res: Response) => {
   try {
-        await trackUsage('api_call')(req, res, async () => {
-            const { metric, value = 1 } = req.body;
-      
+    await trackUsage('api_call')(req, res, async () => {
+      const { metric, value = 1 } = req.body;
+
       if (!metric) {
         return res.status(400).json({
           success: false,
@@ -320,7 +292,8 @@ router.post('/track', async (req: AuthenticatedRequest, res: Response) => {
         });
       }
 
-      await Usage.incrementUserUsage(req.user!._id.toString(), metric, value);
+      const workspaceId = req.workspace!._id;
+      await Usage.incrementWorkspaceUsage(workspaceId.toString(), metric, value);
 
       res.json({
         success: true,

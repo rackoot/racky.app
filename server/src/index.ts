@@ -26,7 +26,10 @@ import planRoutes from "@/subscriptions/routes/plans";
 import usageRoutes from "@/subscriptions/routes/usage";
 import subscriptionRoutes from "@/subscriptions/routes/subscription";
 import billingRoutes from "@/subscriptions/routes/billing";
+import couponRoutes from "@/subscriptions/routes/coupons";
 import demoRoutes from "@/demo/routes/demo";
+import ordersRoutes from "@/orders/routes/orders";
+import customersRoutes from "@/customers/routes/customers";
 import workspaceRoutes from "./modules/workspaces/routes/workspaces";
 import { initializeNotificationScheduler } from "@/notifications/services/notificationScheduler";
 import { protect, requireWorkspace } from "@/common/middleware/auth";
@@ -88,6 +91,10 @@ app.post(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// Internal routes (NOT PROTECTED - for external service webhooks)
+const internalVideoRoutes = require('./modules/videos/routes/internal').default;
+app.use("/internal", internalVideoRoutes);
+
 // Routes that don't require workspace context
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
@@ -100,9 +107,12 @@ app.use("/api/plans", protect, requireWorkspace, planRoutes);
 app.use("/api/connections", protect, requireWorkspace, connectionRoutes);
 app.use("/api/marketplaces", protect, requireWorkspace, marketplaceRoutes);
 app.use("/api/products", protect, requireWorkspace, productRoutes);
+app.use("/api/orders", protect, requireWorkspace, ordersRoutes);
+app.use("/api/customers", protect, requireWorkspace, customersRoutes);
 app.use("/api/dashboard", protect, requireWorkspace, dashboardRoutes);
 app.use("/api/optimizations", protect, requireWorkspace, optimizationRoutes);
 app.use("/api/opportunities", protect, requireWorkspace, opportunityRoutes);
+app.use("/api/videos", protect, requireWorkspace, require('./modules/videos/routes/videos').default);
 
 app.use("/api/subscription", protect, subscriptionRoutes);
 app.use("/api/usage", protect, usageRoutes);
@@ -114,6 +124,7 @@ app.use(
 );
 
 app.use("/api/billing", protect, requireWorkspace, billingRoutes);
+app.use("/api/coupons", protect, couponRoutes);
 
 app.use("/api/demo", protect, requireWorkspace, demoRoutes);
 
@@ -132,9 +143,15 @@ const startServer = async () => {
     // Initialize RabbitMQ service conditionally
     const env = getEnv();
     if (env.USE_RABBITMQ) {
-      await rabbitMQService.initialize();
-      // Set up RabbitMQ job processors
-      setupRabbitMQJobProcessors();
+      try {
+        await rabbitMQService.initialize();
+        // Set up RabbitMQ job processors
+        setupRabbitMQJobProcessors();
+        console.log("✅ RabbitMQ initialized successfully");
+      } catch (error) {
+        console.error("❌ Failed to initialize RabbitMQ:", error.message);
+        console.log("⚠️  Server will continue without queue system");
+      }
     } else {
       console.log("🔴 RabbitMQ disabled - running without queue system");
     }

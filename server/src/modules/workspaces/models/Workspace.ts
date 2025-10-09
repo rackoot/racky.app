@@ -32,6 +32,16 @@ export interface IWorkspace extends Document {
     cancelAtPeriodEnd: boolean;
     cancelledAt?: Date;
     cancellationReason?: string;
+    hasCoupon?: boolean;
+    coupon?: {
+      id: string;
+      type: 'percent' | 'amount';
+      value: number;
+      duration: 'once' | 'repeating' | 'forever';
+      durationInMonths?: number;
+      appliedAt: Date;
+      endsAt?: Date;
+    };
   }>;
 }
 
@@ -257,7 +267,7 @@ workspaceSchema.methods.hasReachedProductLimit = async function(): Promise<boole
 // Get workspace's subscription info
 workspaceSchema.methods.getSubscriptionInfo = async function() {
   const subscription = await this.getActiveSubscription();
-  
+
   if (!subscription) {
     return {
       status: 'NONE',
@@ -280,7 +290,9 @@ workspaceSchema.methods.getSubscriptionInfo = async function() {
     planLimits: subscription.planId ? subscription.planId.limits : null,
     cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
     cancelledAt: subscription.cancelledAt,
-    cancellationReason: subscription.cancellationReason
+    cancellationReason: subscription.cancellationReason,
+    hasCoupon: subscription.hasCoupon || false,
+    coupon: subscription.coupon || undefined
   };
 };
 

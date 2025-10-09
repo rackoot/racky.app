@@ -12,10 +12,10 @@ Racky is a **multi-tenant SaaS marketplace management platform** that allows use
 **SaaS Features:**
 - Multi-tenant architecture with complete user data isolation
 - Role-based access control (USER, SUPERADMIN)
-- **Contributor-based subscription model** with three contributor types:
-  - **Junior Contributors** ($29/month each): 1K actions/contributor, up to 5 contributors
-  - **Senior Contributors** ($79/month each): 5K actions/contributor, up to 5 contributors, AI assistance
-  - **Executive Contributors** (Contact Sales): Unlimited actions, up to 50 contributors, premium features
+- **Contributor-based subscription model** with three contributor types (see `client/src/common/data/contributor-data.ts` for current pricing and limits):
+  - **Junior Contributors**: Basic automation features for small teams
+  - **Senior Contributors**: Advanced features with AI assistance for growing businesses
+  - **Executive Contributors**: Premium unlimited capabilities with dedicated support
 - Action-based usage tracking and limits enforcement per contributor
 - Scalable contributor hiring with quantity selector (1-5 contributors for most plans)
 - 14-day free trial for new users
@@ -159,15 +159,15 @@ npm run e2e:report         # View E2E test report
 - Middleware: `requireSuperAdmin`, `checkSubscriptionStatus`, `checkUsageLimits`
 
 **Subscription Management:**
-- Three subscription tiers: Junior ($29/month), Senior ($79/month), Executive ($199/month)
-- 14-day free trial for all new users (30 days for Enterprise)
-- Usage tracking: API calls, product syncs, store connections
+- Three contributor-based subscription tiers (see `client/src/common/data/contributor-data.ts` for current pricing and limits)
+- 14-day free trial for new users
+- Usage tracking: Tasks, API calls, product syncs, store connections
 - Automatic limit enforcement based on subscription tier
 
-**Plan Limits by Tier:**
-- **Junior**: 1 store, 100 products, 2 marketplaces, 1K API calls/month
-- **Senior**: 5 stores, 1K products, 5 marketplaces, 10K API calls/month  
-- **Executive**: 50 stores, 10K products, 10 marketplaces, 100K API calls/month
+**Plan Details:**
+- All plan limits, pricing, and features are defined in `client/src/common/data/contributor-data.ts`
+- Plans scale based on number of contributors hired per workspace
+- Each contributor type has different task allowances and capabilities
 
 **Admin Management:**
 - Complete user management via `/api/admin/*` endpoints
@@ -669,3 +669,4 @@ Before committing code with new endpoints or components:
 7. **Cleanup** - Clean up resources after tests complete
 
 **FAILURE TO TEST**: Any new endpoints or components without proper tests will be rejected. Testing is not optional - it's a fundamental requirement for code quality and system reliability.
+- this project uses docker, don't run npm run dev or similar commands to test. ALWAYS go to the docker container

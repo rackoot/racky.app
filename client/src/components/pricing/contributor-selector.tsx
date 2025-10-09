@@ -9,11 +9,15 @@ import {
 } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { UserCheck, Crown, Zap, Mail, ArrowRight, Info } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { UserCheck, Crown, Zap, Mail, ArrowRight, Info, Tag, CheckCircle, Loader2, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser } from "@/lib/auth";
 import { EmbeddedCheckoutWrapper } from "./embedded-checkout";
 import { Plan, ContributorType } from "@/types/plan";
+import { couponsApi, CouponData } from "@/api";
 import {
   contributorPlans,
   formatPrice,
@@ -40,6 +44,11 @@ export function ContributorSelector({
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [contributorCount, setContributorCount] = useState([1]);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [couponCode, setCouponCode] = useState("");
+  const [showCouponInput, setShowCouponInput] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponData | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const navigate = useNavigate();
   const user = getCurrentUser();
 
@@ -94,12 +103,65 @@ export function ContributorSelector({
     setShowCheckout(false);
   };
 
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      setCouponError("Please enter a coupon code");
+      return;
+    }
+
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+
+    try {
+      const response = await couponsApi.validateCoupon(couponCode.trim());
+
+      if (response.valid && response.data) {
+        setAppliedCoupon(response.data);
+        setCouponError(null);
+      } else {
+        setAppliedCoupon(null);
+        setCouponError(response.message || "Invalid coupon code");
+      }
+    } catch (error: any) {
+      setAppliedCoupon(null);
+      setCouponError(error.message || "Failed to validate coupon");
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCode("");
+    setCouponError(null);
+  };
+
+  const calculateDiscountedPrice = (originalPrice: number): { discountedPrice: number; discountAmount: number } => {
+    if (!appliedCoupon) {
+      return { discountedPrice: originalPrice, discountAmount: 0 };
+    }
+
+    let discountAmount = 0;
+    if (appliedCoupon.type === 'percent') {
+      discountAmount = (originalPrice * appliedCoupon.value) / 100;
+    } else {
+      // Amount discount is in cents
+      discountAmount = appliedCoupon.value / 100;
+    }
+
+    return {
+      discountedPrice: Math.max(0, originalPrice - discountAmount),
+      discountAmount
+    };
+  };
+
   // Show checkout if user has selected plan and clicked hire
   if (showCheckout && selectedPlan && user) {
     return (
       <EmbeddedCheckoutWrapper
         contributorType={selectedPlan.contributorType}
         contributorCount={contributorCount[0]}
+        couponCode={appliedCoupon ? (appliedCoupon.promotionCodeId || appliedCoupon.id) : undefined}
         onBack={handleCheckoutBack}
         onSuccess={handleCheckoutSuccess}
         isReactivation={isReactivation}
@@ -252,6 +314,102 @@ export function ContributorSelector({
             )}
           </div>
 
+          {/* Coupon Code Section */}
+          {selectedPlan && !selectedPlan.isContactSalesOnly && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Have a coupon code?</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCouponInput(!showCouponInput)}
+                  >
+                    {showCouponInput ? "Hide" : "Show"}
+                  </Button>
+                </div>
+              </CardHeader>
+              {showCouponInput && (
+                <CardContent className="space-y-3">
+                  {!appliedCoupon ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="couponCode">Coupon Code</Label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <Input
+                              id="couponCode"
+                              placeholder="Enter coupon code"
+                              value={couponCode}
+                              onChange={(e) => {
+                                setCouponCode(e.target.value.toUpperCase());
+                                setCouponError(null);
+                              }}
+                              className="pl-9"
+                              disabled={isValidatingCoupon}
+                            />
+                          </div>
+                          <Button
+                            onClick={handleApplyCoupon}
+                            disabled={!couponCode.trim() || isValidatingCoupon}
+                            size="default"
+                          >
+                            {isValidatingCoupon ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Validating...
+                              </>
+                            ) : (
+                              "Apply"
+                            )}
+                          </Button>
+                        </div>
+                        {couponError && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{couponError}</AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      <Alert className="bg-green-50 border-green-200">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <AlertDescription className="text-green-800">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <strong>{appliedCoupon.promotionCode || appliedCoupon.id}</strong> applied successfully!
+                              <div className="text-sm mt-1">
+                                {appliedCoupon.type === 'percent' ? (
+                                  <span>{appliedCoupon.value}% discount</span>
+                                ) : (
+                                  <span>${(appliedCoupon.value / 100).toFixed(2)} discount</span>
+                                )}
+                                {' • '}
+                                {appliedCoupon.duration === 'forever' && 'Forever'}
+                                {appliedCoupon.duration === 'once' && 'One-time'}
+                                {appliedCoupon.duration === 'repeating' && `${appliedCoupon.durationInMonths} months`}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleRemoveCoupon}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
+          )}
+
           {/* Purchase Summary */}
           {selectedPlan && !selectedPlan.isContactSalesOnly && (
             <Card>
@@ -285,9 +443,9 @@ export function ContributorSelector({
                   </div>
                   <div className="border-t pt-3 flex justify-between items-center">
                     <span className="text-lg font-semibold">
-                      Total Monthly Cost:
+                      Subtotal:
                     </span>
-                    <span className="text-2xl font-bold text-primary">
+                    <span className={`text-lg font-semibold ${appliedCoupon ? 'line-through text-muted-foreground' : 'text-primary'}`}>
                       $
                       {
                         calculateTotalPrice(selectedPlan, contributorCount[0])
@@ -295,6 +453,44 @@ export function ContributorSelector({
                       }
                     </span>
                   </div>
+                  {appliedCoupon && (() => {
+                    const originalPrice = calculateTotalPrice(selectedPlan, contributorCount[0]).total;
+                    const { discountedPrice, discountAmount } = calculateDiscountedPrice(originalPrice);
+                    return (
+                      <>
+                        <div className="flex justify-between items-center text-green-600">
+                          <span className="text-sm font-medium">
+                            Discount ({appliedCoupon.type === 'percent' ? `${appliedCoupon.value}%` : `$${(appliedCoupon.value / 100).toFixed(2)}`}):
+                          </span>
+                          <span className="font-semibold">
+                            -${discountAmount.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="border-t pt-3 flex justify-between items-center">
+                          <span className="text-lg font-semibold">
+                            Total Monthly Cost:
+                          </span>
+                          <span className="text-2xl font-bold text-primary">
+                            ${discountedPrice.toFixed(2)}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                  {!appliedCoupon && (
+                    <div className="border-t pt-3 flex justify-between items-center">
+                      <span className="text-lg font-semibold">
+                        Total Monthly Cost:
+                      </span>
+                      <span className="text-2xl font-bold text-primary">
+                        $
+                        {
+                          calculateTotalPrice(selectedPlan, contributorCount[0])
+                            .total
+                        }
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Proceed to Purchase Button */}

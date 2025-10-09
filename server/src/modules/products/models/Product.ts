@@ -15,6 +15,21 @@ export type CachedDescriptionPlatform = 'shopify' | 'amazon' | 'mercadolibre' | 
 // Type for cached description status
 export type CachedDescriptionStatus = 'pending' | 'accepted' | 'rejected';
 
+// Type for video status
+export type VideoStatus = 'pending' | 'completed' | 'failed';
+
+// Interface for Product Video
+export interface IProductVideo {
+  templateId: string;
+  templateName: string;
+  status: VideoStatus;
+  videoUrl?: string;
+  error?: string;
+  createdAt: Date;
+  completedAt?: Date;
+  _id?: Types.ObjectId;
+}
+
 // Interface for Product Image
 export interface IProductImage {
   shopifyId?: string;
@@ -99,6 +114,8 @@ export interface IProduct extends Document {
   updateStatus?: 'pending' | 'updating' | 'completed' | 'failed';
   updateError?: string;
   lastUpdateAttempt?: Date;
+  // Video generation tracking (multiple videos, latest one is active)
+  videos: IProductVideo[];
   // Timestamps
   createdAt: Date;
   updatedAt: Date;
@@ -124,6 +141,22 @@ const ProductVariantSchema = new Schema<IProductVariant>({
   weight: { type: Number },
   weightUnit: { type: String },
   taxable: { type: Boolean, default: true },
+  _id: { type: Schema.Types.ObjectId }
+});
+
+const ProductVideoSchema = new Schema<IProductVideo>({
+  templateId: { type: String, required: true },
+  templateName: { type: String, required: true },
+  status: {
+    type: String,
+    enum: ['pending', 'completed', 'failed'],
+    default: 'pending',
+    required: true
+  },
+  videoUrl: { type: String },
+  error: { type: String },
+  createdAt: { type: Date, default: Date.now },
+  completedAt: { type: Date },
   _id: { type: Schema.Types.ObjectId }
 });
 
@@ -203,25 +236,47 @@ const productSchema = new Schema<IProduct>({
   updateError: { type: String },
   lastUpdateAttempt: { type: Date },
   cachedDescriptions: [{
-    platform: { 
-      type: String, 
+    platform: {
+      type: String,
       enum: ['shopify', 'amazon', 'mercadolibre', 'woocommerce', 'vtex', 'facebook_shop', 'google_shopping'],
-      required: true 
+      required: true
     },
     content: { type: String, required: true },
     confidence: { type: Number, min: 0, max: 1 },
     keywords: [{ type: String }],
     tokens: { type: Number },
     createdAt: { type: Date, default: Date.now },
-    status: { 
-      type: String, 
+    status: {
+      type: String,
       enum: ['pending', 'accepted', 'rejected'],
       default: 'pending'
     }
-  }]
+  }],
+  // Video generation tracking (array of videos, latest one is shown)
+  videos: [ProductVideoSchema]
 }, {
   timestamps: true
 });
+
+// Virtual field to check if product has an accepted AI description
+productSchema.virtual('hasAIDescription').get(function() {
+  return this.cachedDescriptions.some(desc => desc.status === 'accepted');
+});
+
+// Virtual field to get the latest AI description status
+productSchema.virtual('aiDescriptionStatus').get(function() {
+  if (this.cachedDescriptions.length === 0) {
+    return null;
+  }
+
+  // Get the most recent description
+  const latest = this.cachedDescriptions[this.cachedDescriptions.length - 1];
+  return latest.status;
+});
+
+// Ensure virtuals are included in JSON responses
+productSchema.set('toJSON', { virtuals: true });
+productSchema.set('toObject', { virtuals: true });
 
 // Update indexes for workspace-based access
 productSchema.index({ workspaceId: 1, marketplace: 1, externalId: 1 }, { unique: true });

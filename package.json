@@ -1,5 +1,23 @@
 {
-  "dependencies": {
-    "axios": "^1.11.0"
+  "name": "racky.app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm run docker:up && concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "docker:up": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:down": "docker compose -f docker-compose.dev.yml down",
+    "docker:logs": "docker compose -f docker-compose.dev.yml logs -f",
+    "docker:restart": "docker compose -f docker-compose.dev.yml restart",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "build": "cd server && npm run build && cd ../client && npm run build",
+    "typecheck": "concurrently \"npm run typecheck:server\" \"npm run typecheck:client\"",
+    "typecheck:server": "cd server && npm run typecheck",
+    "typecheck:client": "cd client && npm run typecheck",
+    "validate": "npm run typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }

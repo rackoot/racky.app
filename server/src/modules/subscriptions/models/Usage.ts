@@ -11,6 +11,7 @@ export interface IUsage extends Document {
   aiSuggestions: number;
   opportunityScans: number;
   bulkOperations: number;
+  videoGenerations: number;
   billingPeriodStart: Date;
   billingPeriodEnd: Date;
   monthlyLimits: {
@@ -18,6 +19,7 @@ export interface IUsage extends Document {
     productSyncs: number;
     storeConnections: number;
     storageGB: number;
+    videoGenerations: number;
   };
   metadata: {
     features: string[];
@@ -91,6 +93,11 @@ const usageSchema = new Schema<IUsage>({
     default: 0,
     min: 0
   },
+  videoGenerations: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
   billingPeriodStart: {
     type: Date,
     required: true
@@ -115,6 +122,10 @@ const usageSchema = new Schema<IUsage>({
     storageGB: {
       type: Number,
       default: 1
+    },
+    videoGenerations: {
+      type: Number,
+      default: 30
     }
   },
   metadata: {
@@ -164,7 +175,9 @@ usageSchema.statics.incrementWorkspaceUsage = async function(workspaceId: string
     'opportunity_scan': 'opportunityScans',
     'opportunity_scans': 'opportunityScans',
     'bulk_operation': 'bulkOperations',
-    'bulk_operations': 'bulkOperations'
+    'bulk_operations': 'bulkOperations',
+    'video_generation': 'videoGenerations',
+    'video_generations': 'videoGenerations'
   };
 
   const schemaField = metricMap[metric] || metric;
@@ -180,7 +193,8 @@ usageSchema.statics.incrementWorkspaceUsage = async function(workspaceId: string
       storageUsed: 0,
       aiSuggestions: 0,
       opportunityScans: 0,
-      bulkOperations: 0
+      bulkOperations: 0,
+      videoGenerations: 0
     });
   }
 
@@ -196,7 +210,8 @@ usageSchema.statics.incrementWorkspaceUsage = async function(workspaceId: string
     storageUsed: 0,
     aiSuggestions: 0,
     opportunityScans: 0,
-    bulkOperations: 0
+    bulkOperations: 0,
+    videoGenerations: 0
   };
 
   // Remove the field being incremented from setOnInsert to avoid conflict
@@ -369,6 +384,7 @@ usageSchema.statics.resetMonthlyUsage = async function(workspaceIdOrUserId: stri
       productSyncs: 0,
       storeConnections: 0,
       storageUsed: 0,
+      videoGenerations: 0,
       date: currentDate,
       billingPeriodStart: startOfMonth,
       billingPeriodEnd: endOfMonth
@@ -392,6 +408,7 @@ usageSchema.statics.resetMonthlyUsage = async function(workspaceIdOrUserId: stri
         productSyncs: 0,
         storeConnections: 0,
         storageUsed: 0,
+        videoGenerations: 0,
         date: currentDate,
         billingPeriodStart: startOfMonth,
         billingPeriodEnd: endOfMonth
@@ -408,10 +425,10 @@ usageSchema.statics.resetMonthlyUsage = async function(workspaceIdOrUserId: stri
 };
 
 // Indexes for performance
-// Update indexes for workspace-based access
+// Main workspace-based index (unique for workspace + billing period)
 usageSchema.index({ workspaceId: 1, billingPeriodStart: 1 }, { unique: true });
-// Keep old index for backward compatibility during migration
-usageSchema.index({ userId: 1, billingPeriodStart: 1 });
+// General indexes for queries and backward compatibility
+usageSchema.index({ userId: 1 }); // Keep for backward compatibility queries only
 usageSchema.index({ billingPeriodStart: 1 });
 usageSchema.index({ createdAt: 1 });
 

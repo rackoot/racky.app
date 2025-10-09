@@ -11,46 +11,46 @@ import {
   DialogHeader, 
   DialogTitle 
 } from "@/components/ui/dialog"
-import { 
-  CreditCard, 
-  Calendar, 
-  TrendingUp, 
-  Database, 
-  Store, 
-  Package, 
+import {
+  CreditCard,
+  Calendar,
+  TrendingUp,
+  Database,
+  Store,
+  Package,
   Activity,
   CheckCircle,
   AlertTriangle,
   Crown,
-  Building
+  Building,
+  Tag,
+  Percent
 } from "lucide-react"
 import { useWorkspace } from "@/components/workspace/workspace-context"
-import { 
-  getWorkspaceSubscription, 
-  getWorkspaceUsage, 
-  getSubscriptionPlans,
+import {
+  getWorkspaceSubscription,
+  getWorkspaceUsage,
   previewWorkspaceSubscriptionChange,
   updateWorkspaceSubscription,
   cancelWorkspaceSubscription,
   cancelSubscriptionCancellation,
+  subscriptionApi,
   type WorkspaceSubscription,
   type WorkspaceUsage,
-  type SubscriptionPreview 
-} from "@/services/workspace"
-import { subscriptionApi } from "@/api/subscription"
+  type SubscriptionPreview
+} from "@/api"
+import { contributorPlans, getContributorPlanByType, formatPrice } from "@/common/data/contributor-data"
 import { SubscriptionChangeModal } from "@/components/workspace/subscription-change-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { useNavigate } from "react-router-dom"
 import { Slider } from "@/components/ui/slider"
 import { CancelledSubscriptionView } from "@/components/workspace/cancelled-subscription-view"
-import { Plan } from "@/types/plan"
 
 export default function WorkspaceSubscriptionPage() {
   const navigate = useNavigate()
   const { currentWorkspace, refreshWorkspaces } = useWorkspace()
   const [subscription, setSubscription] = useState<WorkspaceSubscription | null>(null)
   const [usage, setUsage] = useState<WorkspaceUsage | null>(null)
-  const [availablePlans, setAvailablePlans] = useState<Plan[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -89,15 +89,13 @@ export default function WorkspaceSubscriptionPage() {
       setIsLoading(true)
       setError(null)
 
-      const [subscriptionData, usageData, plansData] = await Promise.all([
+      const [subscriptionData, usageData] = await Promise.all([
         getWorkspaceSubscription(currentWorkspace._id),
-        getWorkspaceUsage(currentWorkspace._id),
-        getSubscriptionPlans()
+        getWorkspaceUsage(currentWorkspace._id)
       ])
 
       setSubscription(subscriptionData)
       setUsage(usageData)
-      setAvailablePlans(plansData)
     } catch (error) {
       console.error('Error loading subscription data:', error)
       setError(error instanceof Error ? error.message : 'Failed to load subscription data')
@@ -172,13 +170,13 @@ export default function WorkspaceSubscriptionPage() {
       await refreshWorkspaces()
       
       // Determine success message based on change type
-      const plan = availablePlans.find(p => p.contributorType === selectedPlan)
+      const plan = getContributorPlanByType(selectedPlan as 'JUNIOR' | 'SENIOR' | 'EXECUTIVE')
       const isUpgrade = subscriptionPreview?.pricing.isUpgrade
       const isDowngrade = subscriptionPreview?.pricing.isDowngrade
-      
+
       let title = 'Subscription Updated!'
       let message = `Your workspace subscription has been updated to ${plan?.displayName} with ${contributorCount[0]} contributor${contributorCount[0] > 1 ? 's' : ''}.`
-      
+
       if (isUpgrade) {
         title = 'Upgrade Complete!'
         message = `Successfully upgraded to ${plan?.displayName}! The changes are effective immediately and you'll be charged the prorated amount.`
@@ -358,9 +356,6 @@ export default function WorkspaceSubscriptionPage() {
 
   const currentPlan = subscription?.currentPlan
   const planName = currentPlan?.contributorType || 'No Plan'
-  
-  // Helper functions to format prices correctly (convert from cents to dollars)
-  const formatPrice = (cents: number) => (cents / 100).toFixed(0)
   
   // Check if there are any changes from current subscription
   const hasChanges = subscription && (
@@ -553,9 +548,14 @@ export default function WorkspaceSubscriptionPage() {
             <p className="text-xs text-muted-foreground">
               Current monthly cost
             </p>
+            {subscription?.subscription.hasCoupon && subscription.subscription.coupon && (
+              <Badge variant="secondary" className="mt-2 bg-green-100 text-green-800">
+                Coupon Applied
+              </Badge>
+            )}
             {subscription && subscription.totalMonthlyActions > 0 && (
               <p className="text-xs text-muted-foreground mt-1">
-                {subscription.totalMonthlyActions.toLocaleString()} actions/month
+                {subscription.totalMonthlyActions.toLocaleString()} tasks/month
               </p>
             )}
           </CardContent>
@@ -628,6 +628,110 @@ export default function WorkspaceSubscriptionPage() {
         </Card>
       )}
 
+      {/* Coupon Information Card */}
+      {subscription?.subscription.hasCoupon && subscription.subscription.coupon && (
+        <Card className="mb-8 border-green-200 bg-green-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-green-600" />
+              Active Coupon
+            </CardTitle>
+            <CardDescription>
+              You have a discount coupon applied to your subscription
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left Column - Coupon Details */}
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Coupon Code</div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-base font-mono bg-white">
+                      {subscription.subscription.coupon.id}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Discount</div>
+                  <div className="flex items-center gap-2">
+                    {subscription.subscription.coupon.type === 'percent' ? (
+                      <div className="flex items-center gap-1">
+                        <Percent className="h-4 w-4 text-green-600" />
+                        <span className="text-xl font-bold text-green-600">
+                          {subscription.subscription.coupon.value}% Off
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xl font-bold text-green-600">
+                        ${(subscription.subscription.coupon.value / 100).toFixed(2)} Off
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Duration Details */}
+              <div className="space-y-4">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Duration</div>
+                  <div className="text-base">
+                    {subscription.subscription.coupon.duration === 'forever' && (
+                      <Badge className="bg-green-600">Forever</Badge>
+                    )}
+                    {subscription.subscription.coupon.duration === 'once' && (
+                      <Badge variant="secondary">One-time discount</Badge>
+                    )}
+                    {subscription.subscription.coupon.duration === 'repeating' && subscription.subscription.coupon.durationInMonths && (
+                      <Badge variant="secondary">
+                        {subscription.subscription.coupon.durationInMonths} months
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {subscription.subscription.coupon.duration === 'repeating' && subscription.subscription.coupon.endsAt && (
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground mb-1">Discount Ends</div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-base">
+                        {new Date(subscription.subscription.coupon.endsAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">Applied On</div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-base">
+                      {new Date(subscription.subscription.coupon.appliedAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-green-100 rounded-lg">
+              <p className="text-sm text-green-900">
+                <strong>Note:</strong> Coupons cannot be changed or removed after subscription creation. The discount will automatically apply according to the duration specified above.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Subscription Manager */}
       <Card id="manage-subscription">
         <CardHeader>
@@ -641,16 +745,16 @@ export default function WorkspaceSubscriptionPage() {
           <div className="space-y-4">
             <h4 className="text-sm font-medium">Plan Selection</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {availablePlans.map((plan) => {
+              {contributorPlans.map((plan) => {
                 const isExecutive = plan.contributorType === 'EXECUTIVE';
                 const isSelectable = !isExecutive;
-                
+
                 return (
-                  <Card 
-                    key={plan.contributorType} 
+                  <Card
+                    key={plan.contributorType}
                     className={`relative transition-all ${
-                      isExecutive 
-                        ? 'cursor-not-allowed opacity-75' 
+                      isExecutive
+                        ? 'cursor-not-allowed opacity-75'
                         : `cursor-pointer ${selectedPlan === plan.contributorType ? 'ring-2 ring-primary' : 'hover:shadow-md'}`
                     }`}
                     onClick={isSelectable ? () => setSelectedPlan(plan.contributorType) : undefined}
@@ -677,11 +781,11 @@ export default function WorkspaceSubscriptionPage() {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mb-3">
-                        {isExecutive ? 'Unlimited actions per contributor' : `${plan.limits.apiCallsPerMonth.toLocaleString()} actions per contributor`}
+                        {isExecutive ? 'Unlimited tasks per contributor' : `${plan.actionsPerContributor.toLocaleString()} tasks per contributor`}
                       </div>
-                      
+
                       {isExecutive && (
-                        <Button 
+                        <Button
                           className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                           size="sm"
                           onClick={(e) => {
@@ -709,14 +813,14 @@ export default function WorkspaceSubscriptionPage() {
             <Slider
               value={contributorCount}
               onValueChange={setContributorCount}
-              max={selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.maxContributorsPerWorkspace || 5 : 5}
+              max={selectedPlan ? getContributorPlanByType(selectedPlan as 'JUNIOR' | 'SENIOR' | 'EXECUTIVE')?.maxContributorsPerWorkspace || 5 : 5}
               min={1}
               step={1}
               className="w-full"
             />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>1 contributor</span>
-              <span>{selectedPlan ? availablePlans.find(p => p.contributorType === selectedPlan)?.maxContributorsPerWorkspace || 5 : 5} contributors max</span>
+              <span>{selectedPlan ? getContributorPlanByType(selectedPlan as 'JUNIOR' | 'SENIOR' | 'EXECUTIVE')?.maxContributorsPerWorkspace || 5 : 5} contributors max</span>
             </div>
           </div>
 
@@ -725,22 +829,22 @@ export default function WorkspaceSubscriptionPage() {
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Selected plan:</span>
-                <span className="font-medium">{availablePlans.find(p => p.contributorType === selectedPlan)?.displayName}</span>
+                <span className="font-medium">{getContributorPlanByType(selectedPlan as 'JUNIOR' | 'SENIOR' | 'EXECUTIVE')?.displayName}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Contributors:</span>
                 <span className="font-medium">{contributorCount[0]}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Total monthly actions:</span>
+                <span className="text-sm text-muted-foreground">Total monthly tasks:</span>
                 <span className="font-medium">
-                  {((availablePlans.find(p => p.contributorType === selectedPlan)?.limits.apiCallsPerMonth || 0) * contributorCount[0]).toLocaleString()}
+                  {((getContributorPlanByType(selectedPlan as 'JUNIOR' | 'SENIOR' | 'EXECUTIVE')?.actionsPerContributor || 0) * contributorCount[0]).toLocaleString()}
                 </span>
               </div>
               <div className="border-t pt-3 flex justify-between items-center">
                 <span className="text-lg font-semibold">Estimated Monthly Cost:</span>
                 <span className="text-2xl font-bold text-primary">
-                  ${((availablePlans.find(p => p.contributorType === selectedPlan)?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)}
+                  ${((getContributorPlanByType(selectedPlan as 'JUNIOR' | 'SENIOR' | 'EXECUTIVE')?.monthlyPrice || 0) * contributorCount[0] / 100).toFixed(0)}
                 </span>
               </div>
             </div>

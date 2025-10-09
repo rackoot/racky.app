@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { 
-  RefreshCw, 
-  Check, 
-  X, 
-  Clock, 
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  RefreshCw,
+  Check,
+  X,
+  Clock,
   AlertCircle,
   Loader2,
   Sparkles,
@@ -20,8 +21,9 @@ import {
   FileText,
   Image
 } from "lucide-react"
-import { optimizationsService, type OptimizationSuggestion } from "@/services/optimizations"
+import { optimizationsApi, type OptimizationSuggestion } from "@/api"
 import type { ProductDetail } from "@/types/product"
+import { VideoTemplateModal } from "@/components/videos/video-template-modal"
 
 interface PlatformOptimizationStatus {
   inQueue: boolean;
@@ -116,7 +118,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
   useEffect(() => {
     const loadOptimizationStatus = async () => {
       try {
-        const statusData = await optimizationsService.getProductOptimizationStatus(product._id)
+        const statusData = await optimizationsApi.getProductOptimizationStatus(product._id)
         setPlatformStatuses(statusData.platforms || {})
         setInitialLoadComplete(true)
       } catch (error) {
@@ -142,7 +144,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
   // Refresh optimization status after changes
   const refreshOptimizationStatus = async () => {
     try {
-      const statusData = await optimizationsService.getProductOptimizationStatus(product._id)
+      const statusData = await optimizationsApi.getProductOptimizationStatus(product._id)
       setPlatformStatuses(statusData.platforms)
     } catch (error) {
       // Silently fail - the status will remain as it was
@@ -164,8 +166,8 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
     try {
       console.log('Calling optimization service...')
       const result = forceRegenerate 
-        ? await optimizationsService.regenerateDescriptionOptimization(product._id, platform)
-        : await optimizationsService.getDescriptionOptimization(product._id, platform)
+        ? await optimizationsApi.regenerateDescriptionOptimization(product._id, platform)
+        : await optimizationsApi.getDescriptionOptimization(product._id, platform)
       
       console.log('Optimization service result:', result)
       
@@ -237,12 +239,12 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
       setLoadingStates(prev => ({ ...prev, [`${platform}_individual`]: true }))
       setErrors(prev => ({ ...prev, [platform]: '' }))
 
-      const result = await optimizationsService.startIndividualOptimization(product._id, platform)
+      const result = await optimizationsApi.startIndividualOptimization(product._id, platform)
       
       // Start polling for results
       const pollInterval = setInterval(async () => {
         try {
-          const status = await optimizationsService.getOptimizationJobStatus(result.jobId)
+          const status = await optimizationsApi.getOptimizationJobStatus(result.jobId)
           
           if (status.status === 'completed') {
             clearInterval(pollInterval)
@@ -278,13 +280,13 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
     try {
       if (status === 'accepted') {
         // First update the status
-        await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
+        await optimizationsApi.updateSuggestionStatus(product._id, platform, suggestionId, status)
         
         // Then apply the description to the connected store
         setLoadingStates(prev => ({ ...prev, [`${platform}_apply`]: true }))
         
         try {
-          const result = await optimizationsService.applyDescriptionToStore(product._id, platform, suggestionId)
+          const result = await optimizationsApi.applyDescriptionToStore(product._id, platform, suggestionId)
           
           // Refresh status after applying
           await refreshOptimizationStatus()
@@ -302,7 +304,7 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
         }
       } else {
         // For rejected status, just update the status
-        await optimizationsService.updateSuggestionStatus(product._id, platform, suggestionId, status)
+        await optimizationsApi.updateSuggestionStatus(product._id, platform, suggestionId, status)
         
         // Refresh status after rejecting
         await refreshOptimizationStatus()
@@ -337,7 +339,6 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
               <TabsTrigger value="video" className="flex items-center gap-2">
                 <Video className="w-4 h-4" />
                 Video Content
-                <Badge variant="secondary" className="ml-1 text-xs">Coming Soon</Badge>
               </TabsTrigger>
             </TabsList>
             
@@ -736,9 +737,54 @@ export function OptimizationTabs({ product }: OptimizationTabsProps) {
 // Video Content Tab Component
 function VideoContentTab({ product }: { product: ProductDetail }) {
   const hasImages = product.images && product.images.length > 0
+  const [showTemplateModal, setShowTemplateModal] = useState(false)
+
+  // Get latest video
+  const latestVideo = product.videos && product.videos.length > 0
+    ? product.videos[product.videos.length - 1]
+    : null
+
+  const handleGenerateVideo = async () => {
+    setShowTemplateModal(true)
+  }
+
+  const handleTemplateSelected = async (templateId: string, templateName: string) => {
+    try {
+      console.log('Generating video for product with template:', {
+        productId: product._id,
+        productTitle: product.title,
+        templateId,
+        templateName
+      })
+
+      const { videosApi } = await import('@/api')
+      const result = await videosApi.generateVideoForProduct(product._id, templateId, templateName)
+
+      console.log('Video generation result:', result)
+
+      if (result.success) {
+        alert(`✅ Video generation started for ${product.title}!\n\n${result.message}`)
+      } else {
+        alert(`❌ Failed to generate video: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error generating video:', error)
+      alert(`❌ Error: ${error instanceof Error ? error.message : 'Failed to generate video'}`)
+    } finally {
+      setShowTemplateModal(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
+      {/* Video Template Modal */}
+      <VideoTemplateModal
+        open={showTemplateModal}
+        onOpenChange={setShowTemplateModal}
+        productCount={1}
+        onCreateVideo={handleTemplateSelected}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -760,22 +806,97 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Show latest video if available */}
+              {latestVideo && (
+                <Card className="border-blue-200 bg-blue-50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-blue-900">
+                      <Video className="w-5 h-5" />
+                      Generated Video
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {latestVideo.status === 'completed' && latestVideo.videoUrl ? (
+                      <div className="space-y-4">
+                        <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                          <video
+                            controls
+                            className="w-full h-full"
+                            src={latestVideo.videoUrl}
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-blue-900">Template: {latestVideo.templateName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Generated {new Date(latestVideo.completedAt || latestVideo.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(latestVideo.videoUrl, '_blank')}
+                            >
+                              <ExternalLink className="w-4 h-4 mr-2" />
+                              Open in New Tab
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={handleGenerateVideo}
+                            >
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Generate New
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : latestVideo.status === 'pending' ? (
+                      <div className="text-center py-8">
+                        <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
+                        <h3 className="text-lg font-semibold mb-2 text-blue-900">Generating Video...</h3>
+                        <p className="text-muted-foreground">
+                          Template: {latestVideo.templateName}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Started {new Date(latestVideo.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    ) : latestVideo.status === 'failed' ? (
+                      <div className="text-center py-8">
+                        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-600" />
+                        <h3 className="text-lg font-semibold mb-2 text-red-900">Video Generation Failed</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {latestVideo.error || 'An error occurred during video generation'}
+                        </p>
+                        <Button onClick={handleGenerateVideo}>
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Try Again
+                        </Button>
+                      </div>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium mb-3">Product Images ({product.images.length})</h4>
-                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-2 overflow-y-auto">
                     {product.images.map((image, index) => (
-                      <div key={index} className="aspect-square rounded-lg overflow-hidden bg-muted">
-                        <img 
-                          src={image.url} 
+                      <div key={index} className="rounded-lg overflow-hidden bg-muted">
+                        <img
+                          src={image.url}
                           alt={image.altText || `Product image ${index + 1}`}
-                          className="w-full h-full object-cover"
+                          className="max-w-[400px] h-auto object-cover"
                         />
                       </div>
                     ))}
                   </div>
                 </div>
-                
+
                 <div>
                   <h4 className="font-medium mb-3">Video Generation</h4>
                   <div className="space-y-4">
@@ -794,36 +915,30 @@ function VideoContentTab({ product }: { product: ProductDetail }) {
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3 h-3 text-green-500" />
-                          <span>Multiple aspect ratios</span>
+                          <span>Multiple video templates</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3 h-3 text-green-500" />
-                          <span>Background music options</span>
+                          <span>Professional animations</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Check className="w-3 h-3 text-green-500" />
-                          <span>Text overlay customization</span>
+                          <span>Ready to share on social media</span>
                         </div>
                       </div>
                     </div>
-                    
-                    <Button 
-                      size="lg" 
-                      disabled={true}
+
+                    <Button
+                      size="lg"
+                      onClick={handleGenerateVideo}
                       className="w-full relative overflow-hidden"
                     >
                       <Video className="w-4 h-4 mr-2" />
-                      Generate Product Video
-                      <Badge 
-                        variant="secondary" 
-                        className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-200"
-                      >
-                        Coming Soon
-                      </Badge>
+                      {latestVideo ? 'Generate New Video' : 'Generate Product Video'}
                     </Button>
-                    
+
                     <p className="text-xs text-center text-muted-foreground">
-                      Video generation will be processed using our AI service queue for optimal performance.
+                      Video generation typically completes within 2-5 minutes.
                     </p>
                   </div>
                 </div>

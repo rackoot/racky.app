@@ -49,12 +49,33 @@ export const ENDPOINTS = {
 
   // Products
   PRODUCTS: {
+    BASE: "/products",
     LIST: "/products",
     GET: (id: string) => `/products/${id}`,
     STORE_PRODUCTS: (connectionId: string) => `/products/store/${connectionId}`,
     STORE_COUNT: (connectionId: string) =>
       `/products/store/${connectionId}/count`,
     SYNC: (connectionId: string) => `/products/sync/${connectionId}`,
+  },
+
+  // Orders
+  ORDERS: {
+    BASE: "/orders",
+    LIST: "/orders",
+    GET: (id: string) => `/orders/${id}`,
+    SYNC_ALL: "/orders/sync",
+    SYNC_STORE: (storeConnectionId: string) => `/orders/sync/${storeConnectionId}`,
+    STATS: "/orders/stats/summary",
+  },
+
+  // Customers
+  CUSTOMERS: {
+    BASE: "/customers",
+    LIST: "/customers",
+    GET: (id: string) => `/customers/${id}`,
+    SYNC_ALL: "/customers/sync",
+    SYNC: "/customers/sync",
+    STATS: "/customers/stats/summary",
   },
 
   // Store Connections
@@ -101,6 +122,11 @@ export const ENDPOINTS = {
   BILLING: {
     CHECKOUT_SESSION: "/billing/create-checkout-session",
     PORTAL: "/billing/portal",
+  },
+
+  // Coupons
+  COUPONS: {
+    VALIDATE: "/coupons/validate",
   },
 
   // Plans

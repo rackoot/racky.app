@@ -54,6 +54,7 @@ interface AdminUser {
   stats: {
     storeCount: number
     productCount: number
+    workspaceCount: number
     currentUsage: Record<string, number>
   }
   subscriptionInfo: {
@@ -339,6 +340,7 @@ export function AdminUsers() {
                     <p className="text-sm text-muted-foreground truncate">{user.email}</p>
                     <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                       <span>{user.subscriptionPlan} plan</span>
+                      <span>{user.stats.workspaceCount} workspaces</span>
                       <span>{user.stats.storeCount} stores</span>
                       <span>{user.stats.productCount} products</span>
                       <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>

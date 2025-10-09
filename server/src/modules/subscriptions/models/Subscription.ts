@@ -8,12 +8,32 @@ export type SubscriptionStatus = 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'EXPIRED
 // Type for billing interval
 export type BillingInterval = 'month' | 'year';
 
+// Type for coupon duration
+export type CouponDuration = 'once' | 'repeating' | 'forever';
+
+// Type for coupon discount type
+export type CouponType = 'percent' | 'amount';
+
+// Interface for coupon data
+export interface ICoupon {
+  id: string; // Stripe coupon ID (e.g., "SUMMER2024")
+  type: CouponType; // 'percent' or 'amount'
+  value: number; // 20 (for 20%) or 1000 (for $10.00 in cents)
+  duration: CouponDuration; // 'once', 'repeating', or 'forever'
+  durationInMonths?: number; // Only if duration === 'repeating'
+  appliedAt: Date;
+  endsAt?: Date; // Only if duration === 'repeating'
+}
+
 // Interface for Subscription document
 export interface ISubscription extends Document {
   workspaceId: Types.ObjectId;
   userId: Types.ObjectId; // Keep for backward compatibility during migration
   planId: Types.ObjectId;
   status: SubscriptionStatus;
+  // Coupon tracking
+  hasCoupon: boolean;
+  coupon?: ICoupon;
   // Contributor-based fields
   contributorCount: number; // Number of contributors hired (1-5 for most plans)
   totalMonthlyActions: number; // Computed: contributorCount * plan.actionsPerContributor
@@ -201,6 +221,20 @@ const subscriptionSchema = new Schema<ISubscription>({
   metadata: {
     type: Schema.Types.Mixed,
     default: {}
+  },
+  // Coupon tracking
+  hasCoupon: {
+    type: Boolean,
+    default: false
+  },
+  coupon: {
+    id: { type: String, required: false },
+    type: { type: String, enum: ['percent', 'amount'], required: false },
+    value: { type: Number, required: false },
+    duration: { type: String, enum: ['once', 'repeating', 'forever'], required: false },
+    durationInMonths: { type: Number, required: false },
+    appliedAt: { type: Date, required: false },
+    endsAt: { type: Date, required: false }
   }
 }, {
   timestamps: true

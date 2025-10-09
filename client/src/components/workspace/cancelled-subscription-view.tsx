@@ -10,7 +10,7 @@ import {
   Building
 } from "lucide-react"
 import { ContributorSelector } from "@/components/pricing/contributor-selector"
-import { reactivateWorkspaceSubscription } from "@/services/workspace"
+import { reactivateWorkspaceSubscription } from "@/api"
 
 interface CancelledSubscriptionViewProps {
   workspaceName: string;

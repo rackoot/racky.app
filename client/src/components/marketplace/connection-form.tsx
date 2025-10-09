@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, ExternalLink, Save, TestTube } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { marketplaceService } from "@/services/marketplace"
+import { marketplacesApi } from "@/api"
 import type { Marketplace, MarketplaceCredentials } from "@/types/marketplace"
 
 interface ConnectionFormProps {
@@ -91,7 +91,7 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
     setTestResult(null)
 
     try {
-      const result = await marketplaceService.testConnection(marketplace.id, credentials)
+      const result = await marketplacesApi.testConnection(marketplace.id, credentials)
       setTestResult(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection test failed")
@@ -144,7 +144,7 @@ export function ConnectionForm({ marketplace, onSuccess, onCancel }: ConnectionF
 
     try {
       const storeName = generateStoreName()
-      await marketplaceService.createStoreWithMarketplace({
+      await marketplacesApi.createStoreWithMarketplace({
         storeName,
         type: marketplace.id,
         credentials

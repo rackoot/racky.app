@@ -10,11 +10,15 @@ import { Dashboard } from '@/pages/dashboard'
 import { Stores } from '@/pages/stores'
 import { Products } from '@/pages/products'
 import { ProductDetail } from '@/pages/product-detail'
+// import { Videos } from '@/pages/videos'
+// import { GenerateVideo } from '@/pages/videos/generate'
+import { NotFound } from '@/pages/not-found'
 import { MarketplacePage } from '@/pages/stores/[marketplace]'
 import { Login } from '@/pages/auth/login'
 import { Register } from '@/pages/auth/register'
 import { Account } from '@/pages/account'
-import { Subscription } from '@/pages/subscription'
+import { Orders } from '@/pages/orders'
+import { Customers } from '@/pages/customers'
 import WorkspaceSubscriptionPage from '@/pages/workspace-subscription'
 import { Usage } from '@/pages/usage'
 import { Pricing } from '@/pages/pricing'
@@ -22,6 +26,7 @@ import { PurchaseSuccess } from '@/pages/purchase-success'
 import { DemoCheckout } from '@/pages/demo-checkout'
 import { AdminDashboard } from '@/pages/admin/index'
 import { AdminUsers } from '@/pages/admin/users'
+import { AdminWorkspaces } from '@/pages/admin/workspaces'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import { AdminAnalytics } from '@/pages/admin/analytics'
 import Workspaces from '@/pages/workspaces'
@@ -125,6 +130,41 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Videos routes temporarily disabled - return 404 */}
+        <Route
+          path="/videos"
+          element={<NotFound />}
+        />
+        <Route
+          path="/videos/generate"
+          element={<NotFound />}
+        />
+        {/* Original videos routes - kept for future use
+        <Route
+          path="/videos"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <Videos />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/videos/generate"
+          element={
+            <ProtectedRoute>
+              <RequireSubscription>
+                <MainLayout>
+                  <GenerateVideo />
+                </MainLayout>
+              </RequireSubscription>
+            </ProtectedRoute>
+          }
+        />
+        */}
         <Route
           path="/ai-optimization"
           element={<Navigate to="/ai-optimization/opportunities" replace />}
@@ -183,10 +223,7 @@ function App() {
             <ProtectedRoute>
               <RequireSubscription>
                 <MainLayout>
-                  <div className="p-6">
-                    <h1 className="text-3xl font-bold mb-4">Orders</h1>
-                    <p>Orders page coming soon...</p>
-                  </div>
+                  <Orders />
                 </MainLayout>
               </RequireSubscription>
             </ProtectedRoute>
@@ -228,10 +265,7 @@ function App() {
             <ProtectedRoute>
               <RequireSubscription>
                 <MainLayout>
-                  <div className="p-6">
-                    <h1 className="text-3xl font-bold mb-4">Customers</h1>
-                    <p>Customers page coming soon...</p>
-                  </div>
+                  <Customers />
                 </MainLayout>
               </RequireSubscription>
             </ProtectedRoute>
@@ -277,16 +311,6 @@ function App() {
         />
         
         <Route
-          path="/subscription-legacy"
-          element={
-            <ProtectedRoute>
-              <MainLayout>
-                <Subscription />
-              </MainLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/usage"
           element={
             <ProtectedRoute>
@@ -327,6 +351,18 @@ function App() {
               <RequireSuperAdmin>
                 <AdminLayout>
                   <AdminUsers />
+                </AdminLayout>
+              </RequireSuperAdmin>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/workspaces"
+          element={
+            <ProtectedRoute>
+              <RequireSuperAdmin>
+                <AdminLayout>
+                  <AdminWorkspaces />
                 </AdminLayout>
               </RequireSuperAdmin>
             </ProtectedRoute>

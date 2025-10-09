@@ -19,7 +19,7 @@ import {
   CheckCircle,
   ArrowRight
 } from "lucide-react"
-import { SubscriptionPreview } from "@/services/workspace"
+import { SubscriptionPreview } from "@/api"
 
 interface SubscriptionChangeModalProps {
   isOpen: boolean

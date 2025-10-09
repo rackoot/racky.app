@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, Brain, Clock, Play, CheckCircle2, XCircle, Store, HelpCircle, Zap, Timer, Shield, Target } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { marketplaceService } from '@/services/marketplace';
+import { marketplacesApi } from '@/api';
 import type { Marketplace } from '@/types/marketplace';
 
 interface AIJob {
@@ -145,7 +145,7 @@ const AIStartScanPage = () => {
     setMarketplacesLoading(true);
     
     try {
-      const marketplaces = await marketplaceService.getMarketplaceStatus();
+      const marketplaces = await marketplacesApi.getMarketplaceStatus();
       // Filter to only connected marketplaces with products
       const connected = marketplaces.filter(m => 
         m.connectionInfo && m.connectionInfo.productsCount > 0

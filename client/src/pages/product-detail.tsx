@@ -7,21 +7,32 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { 
-  ArrowLeft, 
-  Package, 
-  Store, 
-  Tag, 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  ArrowLeft,
+  Package,
+  Store,
+  Tag,
   Calendar,
   AlertCircle,
   Loader2,
   ExternalLink,
   Clock,
-  TrendingUp
+  TrendingUp,
+  RefreshCw
 } from "lucide-react"
-import { productsService } from "@/services/products"
+import { productsApi, getMarketplaceProductUrl } from "@/api"
 import { ProductImageGallery } from "@/components/product/ProductImageGallery"
-import { OptimizationTabs } from "@/components/product/OptimizationTabs"
+import { DescriptionOptimization } from "@/components/product/DescriptionOptimization"
+import { VideoContentTab } from "@/components/product/VideoContentTab"
 import { ProductHistory } from "@/components/product/ProductHistory"
 import { EditableDescription } from "@/components/product/EditableDescription"
 import { OpportunitiesTab } from "@/components/product/OpportunitiesTab"
@@ -66,51 +77,6 @@ const formatDate = (dateString: string) => {
   })
 }
 
-const getMarketplaceProductUrl = (product: ProductDetail) => {
-  const { marketplace, externalId, handle, storeConnectionId } = product
-  
-  switch (marketplace) {
-    case 'shopify':
-      // For Shopify, use the actual shop_url from credentials
-      if (storeConnectionId?.credentials?.shop_url && handle) {
-        const shopUrl = storeConnectionId.credentials.shop_url
-        // Remove protocol if present and ensure it ends with .myshopify.com
-        const cleanShopUrl = shopUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')
-        return `https://${cleanShopUrl}/products/${handle}`
-      }
-      return null
-    case 'amazon':
-      if (externalId) {
-        return `https://www.amazon.com/dp/${externalId}`
-      }
-      return null
-    case 'mercadolibre':
-      if (externalId) {
-        return `https://www.mercadolibre.com/item/${externalId}`
-      }
-      return null
-    case 'vtex':
-      // For VTEX, use the account_name from credentials
-      if (storeConnectionId?.credentials?.account_name && handle) {
-        const accountName = storeConnectionId.credentials.account_name
-        return `https://${accountName}.vtexcommercestable.com.br/${handle}/p`
-      }
-      return null
-    case 'woocommerce':
-      // For WooCommerce, we'd need the actual domain from credentials
-      if (storeConnectionId?.credentials?.site_url && handle) {
-        const siteUrl = storeConnectionId.credentials.site_url.replace(/^https?:\/\//, '').replace(/\/$/, '')
-        return `https://${siteUrl}/product/${handle}`
-      }
-      return null
-    case 'facebook_shop':
-      return null // Facebook Shop URLs are complex and require specific page/shop IDs
-    case 'google_shopping':
-      return null // Google Shopping doesn't have direct product URLs
-    default:
-      return null
-  }
-}
 
 export function ProductDetail() {
   const { currentWorkspace } = useWorkspace()
@@ -120,6 +86,8 @@ export function ProductDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState("details")
+  const [resyncing, setResyncing] = useState(false)
+  const [resyncDialogOpen, setResyncDialogOpen] = useState(false)
 
   useEffect(() => {
     if (id && currentWorkspace) {
@@ -129,17 +97,36 @@ export function ProductDetail() {
 
   const loadProduct = async () => {
     if (!id) return
-    
+
     setLoading(true)
     setError("")
-    
+
     try {
-      const data = await productsService.getProductById(id)
+      const data = await productsApi.getProductById(id)
       setProduct(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load product")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResync = async () => {
+    if (!product || !id) return
+
+    setResyncing(true)
+    setError("")
+    setResyncDialogOpen(false) // Close dialog when starting resync
+
+    try {
+      // Call the resync endpoint
+      const updatedProduct = await productsApi.resyncProduct(id)
+      setProduct(updatedProduct)
+      // Show success message (you might want to add a toast notification here)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to resync product")
+    } finally {
+      setResyncing(false)
     }
   }
 
@@ -212,28 +199,73 @@ export function ProductDetail() {
             </div>
           </div>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => {
-            const url = product.marketplaceUrl || getMarketplaceProductUrl(product)
-            if (url) {
-              window.open(url, '_blank', 'noopener,noreferrer')
-            }
-          }}
-          disabled={!product.marketplaceUrl && !getMarketplaceProductUrl(product)}
-        >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          View in {product.marketplace}
-        </Button>
+        <div className="flex gap-2">
+          <Dialog open={resyncDialogOpen} onOpenChange={setResyncDialogOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={resyncing || !product.marketplace}
+              >
+                {resyncing ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Re-sync
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Re-sync Product Data</DialogTitle>
+                <DialogDescription>
+                  This will fetch the latest data for this product from {product.marketplace} and
+                  overwrite all local information including:
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                  <li>Product title and description</li>
+                  <li>Price and inventory</li>
+                  <li>Images and variants</li>
+                  <li>Status (active/draft/archived)</li>
+                </ul>
+                <p className="mt-4 text-sm font-semibold">This action cannot be undone.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setResyncDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleResync}>
+                  Confirm Re-sync
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url = product.marketplaceUrl || getMarketplaceProductUrl(product)
+              if (url) {
+                window.open(url, '_blank', 'noopener,noreferrer')
+              }
+            }}
+            disabled={!product.marketplaceUrl && !getMarketplaceProductUrl(product)}
+          >
+            <ExternalLink className="w-4 h-4 mr-2" />
+            View in {product.marketplace}
+          </Button>
+        </div>
       </div>
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="optimizations">SEO and Engagement</TabsTrigger>
-          <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
+          <TabsTrigger value="optimization">Optimization</TabsTrigger>
+          <TabsTrigger value="video">Video</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
@@ -441,13 +473,17 @@ export function ProductDetail() {
           </div>
         </TabsContent>
 
-        <TabsContent value="optimizations" className="space-y-6">
-          <OptimizationTabs product={product} />
+        <TabsContent value="optimization" className="space-y-6">
+          <DescriptionOptimization product={product} />
         </TabsContent>
 
-        <TabsContent value="opportunities" className="space-y-6">
-          <OpportunitiesTab product={product} />
+        <TabsContent value="video" className="space-y-6">
+          <VideoContentTab product={product} />
         </TabsContent>
+
+        {/* <TabsContent value="opportunities" className="space-y-6">
+          <OpportunitiesTab product={product} />
+        </TabsContent> */}
 
         <TabsContent value="history" className="space-y-6">
           <ProductHistory productId={product._id} />
