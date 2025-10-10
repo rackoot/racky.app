@@ -100,8 +100,7 @@ const JobSchema = new Schema<IJob>({
   },
   createdAt: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   startedAt: {
     type: Date
@@ -121,8 +120,7 @@ const JobSchema = new Schema<IJob>({
     type: String
   },
   parentJobId: {
-    type: String,
-    index: true
+    type: String
   },
   childJobIds: [{
     type: String
