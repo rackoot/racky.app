@@ -4,7 +4,7 @@ console.log(import.meta.env);
 export const API_CONFIG = {
   // In development, we rely on Vite's proxy configuration
   // In production, this should be set via environment variables
-  BASE_URL: import.meta.env.VITE_API_BASE_URL || "",
+  BASE_URL: import.meta.env.VITE_API_BASE_URL || "/api",
 
   // Timeout configurations
   TIMEOUT: 30000, // 30 seconds
