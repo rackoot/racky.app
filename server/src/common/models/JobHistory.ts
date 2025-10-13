@@ -70,8 +70,7 @@ const JobHistorySchema = new Schema<IJobHistory>({
   },
   timestamp: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   progress: {
     type: Number,

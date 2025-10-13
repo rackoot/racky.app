@@ -37,8 +37,7 @@ const QueueHealthSchema = new Schema<IQueueHealth>({
   },
   timestamp: {
     type: Date,
-    default: Date.now,
-    index: true
+    default: Date.now
   },
   stats: {
     waiting: { type: Number, default: 0 },

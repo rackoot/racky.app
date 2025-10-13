@@ -200,6 +200,7 @@ router.post('/login', async (req: express.Request<{}, {}, LoginRequestBody>, res
       }
     });
   } catch (error: any) {
+    console.log(error);
     res.status(500).json({ 
       success: false,
       message: 'Server error', 

@@ -72,6 +72,8 @@ services:
       dockerfile: Dockerfile
     container_name: racky-frontend
     restart: unless-stopped
+    stdin_open: true
+    tty: true
     ports:
       - "${FRONTEND_PORT}:5173"
     depends_on:
