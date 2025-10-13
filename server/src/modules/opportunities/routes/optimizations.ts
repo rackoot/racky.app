@@ -9,6 +9,7 @@ import Suggestion from '../models/Suggestion';
 import * as marketplaceService from '../../marketplaces/services/marketplaceService';
 import { protect } from '@/common/middleware/auth';
 import ProductHistoryService from '@/products/services/ProductHistoryService';
+import { JobType } from '@/common/types/jobTypes';
 
 const router = express.Router();
 
@@ -902,7 +903,7 @@ router.get('/products/:id/status', async (req: AuthenticatedRequest, res: Respon
     await protect(req, res, async () => {
       const { id: productId } = req.params;
       const workspaceId = req.workspace!._id;
-      
+
       // Verify product ownership
       const product = await Product.findOne({ _id: productId, workspaceId });
       if (!product) {
@@ -927,11 +928,11 @@ router.get('/products/:id/status', async (req: AuthenticatedRequest, res: Respon
 
       // Check status for each platform
       const platformStatuses: Record<string, any> = {};
-      
+
       for (const platform of availablePlatforms) {
         // Check if in queue
         const queueStatus = await getProductAIOptimizationStatus(productId, workspaceId.toString(), platform);
-        
+
         // Check for cached description in product.cachedDescriptions
         let cachedDescription: any = product.cachedDescriptions?.find(
           (cached: any) => cached.platform === platform
@@ -989,6 +990,120 @@ router.get('/products/:id/status', async (req: AuthenticatedRequest, res: Respon
     res.status(500).json({
       success: false,
       message: 'Failed to get optimization status'
+    });
+  }
+});
+
+// POST /api/products/bulk/optimizations/description - Bulk generate descriptions
+router.post('/products/bulk/description', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await protect(req, res, async () => {
+      const { productIds } = req.body;
+      const workspaceId = req.workspace!._id;
+      const userId = req.user!._id;
+
+      if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Product IDs array is required'
+        });
+      }
+
+      // Verify all products belong to this workspace
+      const products = await Product.find({
+        _id: { $in: productIds },
+        workspaceId
+      });
+
+      if (products.length !== productIds.length) {
+        return res.status(404).json({
+          success: false,
+          message: 'Some products not found or do not belong to this workspace'
+        });
+      }
+
+      // Import RabbitMQ service
+      const rabbitMQService = (await import('@/common/services/rabbitMQService')).default;
+
+      // Generate a unique batch ID
+      const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Queue each product for AI description generation
+      const queuedProducts: string[] = [];
+      const failedProducts: string[] = [];
+
+      for (let i = 0; i < products.length; i++) {
+        const product = products[i];
+        const marketplace = product.marketplace || 'shopify'; // Default to shopify if not set
+
+        try {
+          const jobData = {
+            productId: product._id.toString(),
+            workspaceId: workspaceId.toString(),
+            userId: userId.toString(),
+            marketplace,
+            batchId,
+            totalInBatch: products.length,
+            currentIndex: i + 1
+          };
+
+          const jobId = await rabbitMQService.addJob(
+            'ai-description',
+            JobType.AI_DESCRIPTION_GENERATION,
+            jobData
+          );
+
+          if (jobId) {
+            queuedProducts.push(product._id.toString());
+
+            // Mark product's AI description as processing in the database
+            const cachedIndex = product.cachedDescriptions?.findIndex(
+              (cached: any) => cached.platform === marketplace
+            );
+
+            if (cachedIndex !== undefined && cachedIndex >= 0 && product.cachedDescriptions) {
+              product.cachedDescriptions[cachedIndex].status = 'processing';
+              product.cachedDescriptions[cachedIndex].content = '';
+            } else {
+              product.cachedDescriptions = product.cachedDescriptions || [];
+              product.cachedDescriptions.push({
+                platform: marketplace as any,
+                content: '',
+                confidence: 0,
+                keywords: [],
+                tokens: 0,
+                createdAt: new Date(),
+                status: 'processing'
+              });
+            }
+
+            await product.save();
+          } else {
+            failedProducts.push(product._id.toString());
+          }
+        } catch (error: any) {
+          console.error(`Failed to queue product ${product._id}:`, error);
+          failedProducts.push(product._id.toString());
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Queued ${queuedProducts.length} product(s) for AI description generation`,
+        data: {
+          batchId,
+          queuedCount: queuedProducts.length,
+          failedCount: failedProducts.length,
+          queuedProducts,
+          failedProducts
+        }
+      });
+    });
+  } catch (error: any) {
+    console.error('Error bulk generating descriptions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to bulk generate descriptions'
     });
   }
 });

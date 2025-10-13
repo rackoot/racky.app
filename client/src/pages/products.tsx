@@ -200,10 +200,32 @@ export function Products() {
     }
   }
 
-  const handleBulkGenerateDescription = () => {
-    console.log('Generating descriptions for products:', Array.from(selectedProducts))
-    alert(`Generating descriptions for ${selectedProducts.size} product(s)`)
-    // TODO: Implement description generation dialog
+  const handleBulkGenerateDescription = async () => {
+    try {
+      setBulkActionInProgress(true)
+
+      const productIds = Array.from(selectedProducts)
+      console.log('Generating descriptions for products:', productIds)
+
+      const result = await optimizationsApi.bulkGenerateDescriptions(productIds)
+
+      console.log('Bulk description generation result:', result)
+
+      if (result.success) {
+        alert(`✅ Description generation started for ${result.data.queuedCount} product(s)!\n\n${result.message}\n\nDescriptions will be marked as "Pending approval" when completed. Check back in a few minutes.`)
+        // Clear selection after successful generation
+        setSelectedProducts(new Set())
+        // Reload products to show pending status
+        await loadProducts()
+      } else {
+        alert(`❌ Failed to generate descriptions: ${result.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error generating descriptions:', error)
+      alert(`❌ Error: ${error instanceof Error ? error.message : 'Failed to generate descriptions'}`)
+    } finally {
+      setBulkActionInProgress(false)
+    }
   }
 
   // Description approval modal handler
@@ -584,6 +606,14 @@ export function Products() {
                           >
                             <Sparkles className="w-3 h-3 mr-1" />
                             Optimized
+                          </Badge>
+                        ) : product.aiDescriptionStatus === 'processing' ? (
+                          <Badge
+                            variant="outline"
+                            className="bg-purple-50 text-purple-700 border-purple-300"
+                          >
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Processing...
                           </Badge>
                         ) : product.aiDescriptionStatus === 'pending' ? (
                           <Badge

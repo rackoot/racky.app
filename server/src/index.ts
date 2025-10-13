@@ -145,8 +145,9 @@ const startServer = async () => {
     if (env.USE_RABBITMQ) {
       try {
         await rabbitMQService.initialize();
-        // Set up RabbitMQ job processors
+        // Set up RabbitMQ job processors (includes description worker)
         setupRabbitMQJobProcessors();
+
         console.log("✅ RabbitMQ initialized successfully");
       } catch (error) {
         console.error("❌ Failed to initialize RabbitMQ:", error.message);

@@ -246,5 +246,37 @@ export const optimizationsApi = {
     }
 
     return data.data
+  },
+
+  /**
+   * Bulk generate AI descriptions for multiple products
+   */
+  async bulkGenerateDescriptions(productIds: string[]): Promise<{
+    success: boolean
+    message: string
+    data: {
+      batchId: string
+      queuedCount: number
+      failedCount: number
+      queuedProducts: string[]
+      failedProducts: string[]
+    }
+  }> {
+    const response = await fetch('/api/optimizations/products/bulk/description', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ productIds }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to start bulk description generation')
+    }
+
+    const data = await response.json()
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to start bulk description generation')
+    }
+
+    return data
   }
 }

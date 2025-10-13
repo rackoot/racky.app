@@ -4,6 +4,7 @@ import { processMarketplaceSync, processProductBatch } from './processors/market
 import { processAIOptimizationScan, processAIDescriptionBatch } from './processors/aiOptimizationProcessor';
 import { processMarketplaceUpdateJob } from './processors/marketplaceUpdateProcessor';
 import { rabbitMQMonitoringService } from '@/common/services/rabbitMQMonitoringService';
+import { processAIDescriptionJob } from '@/opportunities/services/descriptionWorker';
 
 /**
  * Set up all RabbitMQ job processors
@@ -75,6 +76,14 @@ export function setupRabbitMQJobProcessors(): void {
       JobType.MARKETPLACE_UPDATE,
       3, // Process up to 3 individual marketplace updates concurrently
       processMarketplaceUpdateJob as any
+    );
+
+    // AI description generation jobs - individual descriptions
+    rabbitMQService.process(
+      'ai-description',
+      JobType.AI_DESCRIPTION_GENERATION,
+      3, // Process up to 3 description generations concurrently
+      processAIDescriptionJob as any
     );
 
     console.log('✅ RabbitMQ job processors set up successfully');

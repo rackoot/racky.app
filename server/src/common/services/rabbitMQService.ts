@@ -53,6 +53,7 @@ class RabbitMQService {
       [JobType.AI_OPTIMIZATION_SCAN]: 'ai.scan',
       [JobType.AI_DESCRIPTION_BATCH]: 'ai.batch'
     },
+    'ai-description': 'ai.description',
     'marketplace-updates': 'updates.batch',
     'marketplace-update': 'updates.individual'
   };
@@ -64,6 +65,7 @@ class RabbitMQService {
     'products.individual': 'racky.products.exchange',
     'ai.scan': 'racky.ai.exchange',
     'ai.batch': 'racky.ai.exchange',
+    'ai.description': 'racky.ai.exchange',
     'updates.batch': 'racky.updates.exchange',
     'updates.individual': 'racky.updates.exchange'
   };
@@ -187,7 +189,9 @@ class RabbitMQService {
       'products.individual',
       'ai.scan',
       'ai.batch',
+      'ai.description',
       'updates.batch',
+      'updates.individual',
       'racky.failed' // Dead letter queue
     ];
 
@@ -212,7 +216,9 @@ class RabbitMQService {
       { exchange: 'racky.products.exchange', queue: 'products.individual', routingKey: 'products.individual.#' },
       { exchange: 'racky.ai.exchange', queue: 'ai.scan', routingKey: 'ai.scan.#' },
       { exchange: 'racky.ai.exchange', queue: 'ai.batch', routingKey: 'ai.batch.#' },
+      { exchange: 'racky.ai.exchange', queue: 'ai.description', routingKey: 'ai.description.#' },
       { exchange: 'racky.updates.exchange', queue: 'updates.batch', routingKey: 'updates.batch.#' },
+      { exchange: 'racky.updates.exchange', queue: 'updates.individual', routingKey: 'updates.individual.#' },
       { exchange: 'racky.dlx', queue: 'racky.failed', routingKey: 'failed' }
     ];
 

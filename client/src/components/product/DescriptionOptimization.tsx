@@ -22,7 +22,7 @@ interface DescriptionOptimizationProps {
 interface OptimizationSuggestion {
   id: string;
   suggestedContent: string;
-  status: 'pending' | 'accepted' | 'rejected';
+  status: 'processing' | 'pending' | 'accepted' | 'rejected';
   confidence: number;
   createdAt: string;
 }
@@ -192,32 +192,46 @@ export function DescriptionOptimization({ product }: DescriptionOptimizationProp
           {/* Suggestion Available */}
           {!loading && suggestion && (
             <div className="space-y-6">
+              {/* Processing State */}
+              {suggestion.status === 'processing' && (
+                <div className="text-center py-12 border-2 border-dashed border-purple-300 rounded-lg bg-purple-50">
+                  <Loader2 className="w-12 h-12 mx-auto mb-4 text-purple-600 animate-spin" />
+                  <h3 className="text-lg font-semibold mb-2 text-purple-900">Generating AI Description...</h3>
+                  <p className="text-purple-700 max-w-md mx-auto">
+                    Your AI-optimized description is being generated. This usually takes 10-30 seconds. Refresh the page to check progress.
+                  </p>
+                </div>
+              )}
+
               {/* Status Badge */}
-              <div className="flex items-center justify-between">
-                <Badge
-                  variant={
-                    suggestion.status === 'accepted' ? 'default' :
-                    suggestion.status === 'rejected' ? 'destructive' :
-                    'secondary'
-                  }
-                  className={
-                    suggestion.status === 'pending'
-                      ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
-                      : ''
-                  }
-                >
-                  {suggestion.status === 'accepted' && <Check className="w-3 h-3 mr-1" />}
-                  {suggestion.status === 'rejected' && <X className="w-3 h-3 mr-1" />}
-                  {suggestion.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                  Status: {suggestion.status === 'pending' ? 'Pending approval' : suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}
-                </Badge>
+              {suggestion.status !== 'processing' && (
+                <div className="flex items-center justify-between">
+                  <Badge
+                    variant={
+                      suggestion.status === 'accepted' ? 'default' :
+                      suggestion.status === 'rejected' ? 'destructive' :
+                      'secondary'
+                    }
+                    className={
+                      suggestion.status === 'pending'
+                        ? 'bg-yellow-50 text-yellow-700 border-yellow-300'
+                        : ''
+                    }
+                  >
+                    {suggestion.status === 'accepted' && <Check className="w-3 h-3 mr-1" />}
+                    {suggestion.status === 'rejected' && <X className="w-3 h-3 mr-1" />}
+                    {suggestion.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                    Status: {suggestion.status === 'pending' ? 'Pending approval' : suggestion.status.charAt(0).toUpperCase() + suggestion.status.slice(1)}
+                  </Badge>
                 {/* Confidence score - hidden but kept for future use */}
                 {/* <div className="text-sm text-muted-foreground">
                   Confidence: {Math.round(suggestion.confidence * 100)}%
                 </div> */}
               </div>
+              )}
 
-              {/* Comparison View */}
+              {/* Comparison View - Only show when not processing */}
+              {suggestion.status !== 'processing' && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Current Description */}
                 <div>
@@ -248,8 +262,10 @@ export function DescriptionOptimization({ product }: DescriptionOptimizationProp
                   </div>
                 </div>
               </div>
+              )}
 
-              {/* Action Buttons */}
+              {/* Action Buttons - Only show when not processing */}
+              {suggestion.status !== 'processing' && (
               <div className="flex items-center gap-3">
                 {suggestion.status === 'pending' && (
                   <>
@@ -285,6 +301,7 @@ export function DescriptionOptimization({ product }: DescriptionOptimizationProp
                   Request New
                 </Button>
               </div>
+              )}
             </div>
           )}
         </CardContent>

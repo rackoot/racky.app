@@ -13,7 +13,7 @@ export type ProductStatus = 'ACTIVE' | 'DRAFT' | 'ARCHIVED' | 'active' | 'draft'
 export type CachedDescriptionPlatform = 'shopify' | 'amazon' | 'mercadolibre' | 'woocommerce' | 'vtex' | 'facebook_shop' | 'google_shopping';
 
 // Type for cached description status
-export type CachedDescriptionStatus = 'pending' | 'accepted' | 'rejected';
+export type CachedDescriptionStatus = 'processing' | 'pending' | 'accepted' | 'rejected';
 
 // Type for video status
 export type VideoStatus = 'pending' | 'completed' | 'failed';
@@ -241,15 +241,15 @@ const productSchema = new Schema<IProduct>({
       enum: ['shopify', 'amazon', 'mercadolibre', 'woocommerce', 'vtex', 'facebook_shop', 'google_shopping'],
       required: true
     },
-    content: { type: String, required: true },
+    content: { type: String, required: false, default: '' },
     confidence: { type: Number, min: 0, max: 1 },
     keywords: [{ type: String }],
     tokens: { type: Number },
     createdAt: { type: Date, default: Date.now },
     status: {
       type: String,
-      enum: ['pending', 'accepted', 'rejected'],
-      default: 'pending'
+      enum: ['processing', 'pending', 'accepted', 'rejected'],
+      default: 'processing'
     }
   }],
   // Video generation tracking (array of videos, latest one is shown)
