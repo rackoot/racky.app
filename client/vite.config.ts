@@ -40,8 +40,12 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://backend:5000',
+        // In Kubernetes, both containers are in the same pod, so use localhost
+        // In Docker Compose, use the service name 'backend'
+        // VITE_BACKEND_URL can override for custom environments
+        target: process.env.VITE_BACKEND_URL || (process.env.DOCKER_ENV ? 'http://backend:5000' : 'http://localhost:5000'),
         changeOrigin: true,
+        secure: false, // Allow self-signed certificates in dev
       },
     },
   },
