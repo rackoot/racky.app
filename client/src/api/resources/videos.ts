@@ -186,7 +186,6 @@ export const videosApi = {
       productTitle: string
       templateId: string
       templateName: string
-      rckResponse: any
     }
   }> {
     return apiPost(VIDEOS_ENDPOINTS.GENERATE_FOR_PRODUCT, {
@@ -206,7 +205,6 @@ export const videosApi = {
       productCount: number
       templateId: string
       templateName: string
-      rckResponse: any
     }
   }> {
     return apiPost(VIDEOS_ENDPOINTS.BULK_GENERATE, {
