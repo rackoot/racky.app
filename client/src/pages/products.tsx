@@ -185,9 +185,11 @@ export function Products() {
       console.log('Bulk video generation result:', result)
 
       if (result.success) {
-        alert(`✅ Video generation started for ${productIds.length} product(s)!\n\n${result.message}`)
+        alert(`✅ ${result.message}`)
         // Clear selection after successful generation
         setSelectedProducts(new Set())
+        // Reload products to show "Processing..." status
+        await loadProducts()
       } else {
         alert(`❌ Failed to generate videos: ${result.message || 'Unknown error'}`)
       }

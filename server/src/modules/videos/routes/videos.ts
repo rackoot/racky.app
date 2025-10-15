@@ -233,7 +233,7 @@ router.get('/templates', async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * POST /api/videos/generate-for-product
- * Generate video for a single product using RCK Description Server
+ * Generate video for a single product (simulated - no external API call)
  */
 router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -255,13 +255,13 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
       })
     }
 
-    // Check if RCK Description Server is configured
-    if (!rckDescriptionService.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        message: 'RCK Description Server is not configured'
-      })
-    }
+    // COMMENTED OUT: External API check - we're simulating
+    // if (!rckDescriptionService.isConfigured()) {
+    //   return res.status(503).json({
+    //     success: false,
+    //     message: 'RCK Description Server is not configured'
+    //   })
+    // }
 
     // Import Product model to fetch product details
     const Product = require('../../products/models/Product').default
@@ -280,37 +280,34 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
       })
     }
 
-    // Prepare video generation request for RCK Description Server
-    const videoRequest = {
-      id_product: product._id.toString(),
-      title: product.title,
-      img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
-      user_id: userId,
-      sku: product.handle || product.sku || product.externalId || '',
-      template_name: templateName
-    }
+    // COMMENTED OUT: External API call - we're just simulating
+    // const videoRequest = {
+    //   id_product: product._id.toString(),
+    //   title: product.title,
+    //   img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+    //   user_id: userId,
+    //   sku: product.handle || product.sku || product.externalId || '',
+    //   template_name: templateName
+    // }
+    // const result = await rckDescriptionService.generateVideo(videoRequest)
 
-    // Send video generation request to RCK Description Server
-    const result = await rckDescriptionService.generateVideo(videoRequest)
-
-    // Add new video entry with pending status
+    // Add new video entry with processing status (simulated)
     product.videos.push({
       templateId,
       templateName,
-      status: 'pending',
+      status: 'processing', // Start with processing status
       createdAt: new Date()
     } as any)
     await product.save()
 
     res.json({
       success: true,
-      message: 'Video generation started',
+      message: 'Video will process, we\'ll let you know when it\'s ready!',
       data: {
         productId: product._id,
         productTitle: product.title,
         templateId,
-        templateName,
-        rckResponse: result
+        templateName
       }
     })
   } catch (error: any) {
@@ -324,7 +321,7 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
 
 /**
  * POST /api/videos/bulk-generate
- * Generate videos for multiple products using RCK Description Server
+ * Generate videos for multiple products (simulated - no external API call)
  */
 router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -346,13 +343,13 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
       })
     }
 
-    // Check if RCK Description Server is configured
-    if (!rckDescriptionService.isConfigured()) {
-      return res.status(503).json({
-        success: false,
-        message: 'RCK Description Server is not configured'
-      })
-    }
+    // COMMENTED OUT: External API check - we're simulating
+    // if (!rckDescriptionService.isConfigured()) {
+    //   return res.status(503).json({
+    //     success: false,
+    //     message: 'RCK Description Server is not configured'
+    //   })
+    // }
 
     // Import Product model to fetch product details
     const Product = require('../../products/models/Product').default
@@ -371,20 +368,18 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
       })
     }
 
-    // Prepare video generation requests for RCK Description Server
-    const videoRequests = products.map((product: any) => ({
-      id_product: product._id.toString(),
-      title: product.title,
-      img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
-      user_id: userId,
-      sku: product.handle || product.sku || product.externalId || '',
-      template_name: templateName
-    }))
+    // COMMENTED OUT: External API call - we're just simulating
+    // const videoRequests = products.map((product: any) => ({
+    //   id_product: product._id.toString(),
+    //   title: product.title,
+    //   img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+    //   user_id: userId,
+    //   sku: product.handle || product.sku || product.externalId || '',
+    //   template_name: templateName
+    // }))
+    // const result = await rckDescriptionService.bulkGenerateVideos(videoRequests)
 
-    // Send bulk video generation request to RCK Description Server
-    const result = await rckDescriptionService.bulkGenerateVideos(videoRequests)
-
-    // Add new video entry to each product with pending status
+    // Add new video entry to each product with processing status (simulated)
     for (const productId of productIds) {
       await Product.updateOne(
         { _id: productId, userId, workspaceId },
@@ -393,7 +388,7 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
             videos: {
               templateId,
               templateName,
-              status: 'pending',
+              status: 'processing', // Start with processing status
               createdAt: new Date()
             }
           }
@@ -403,12 +398,11 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
 
     res.json({
       success: true,
-      message: `Video generation started for ${products.length} product(s)`,
+      message: `Video will process for ${products.length} product(s), we'll let you know when they're ready!`,
       data: {
         productCount: products.length,
         templateId,
-        templateName,
-        rckResponse: result
+        templateName
       }
     })
   } catch (error: any) {

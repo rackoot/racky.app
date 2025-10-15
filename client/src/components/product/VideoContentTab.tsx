@@ -47,7 +47,9 @@ export function VideoContentTab({ product }: VideoContentTabProps) {
       console.log('Video generation result:', result)
 
       if (result.success) {
-        alert(`✅ Video generation started for ${product.title}!\n\n${result.message}`)
+        alert(`✅ ${result.message}`)
+        // Reload the page to show the updated video status
+        window.location.reload()
       } else {
         alert(`❌ Failed to generate video: ${result.message || 'Unknown error'}`)
       }
