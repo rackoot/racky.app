@@ -1,7 +1,7 @@
 import { PaginationResponse } from './common'
 
 // Product Video types
-export type VideoStatus = 'pending' | 'completed' | 'failed'
+export type VideoStatus = 'processing' | 'pending' | 'completed' | 'failed'
 
 export interface ProductVideo {
   _id?: string
@@ -9,6 +9,7 @@ export interface ProductVideo {
   templateName: string
   status: VideoStatus
   videoUrl?: string
+  youtubeUrl?: string
   error?: string
   createdAt: string
   completedAt?: string

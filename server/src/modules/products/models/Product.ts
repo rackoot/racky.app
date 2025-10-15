@@ -16,7 +16,7 @@ export type CachedDescriptionPlatform = 'shopify' | 'amazon' | 'mercadolibre' | 
 export type CachedDescriptionStatus = 'processing' | 'pending' | 'accepted' | 'rejected';
 
 // Type for video status
-export type VideoStatus = 'pending' | 'completed' | 'failed';
+export type VideoStatus = 'processing' | 'pending' | 'completed' | 'failed';
 
 // Interface for Product Video
 export interface IProductVideo {
@@ -24,6 +24,7 @@ export interface IProductVideo {
   templateName: string;
   status: VideoStatus;
   videoUrl?: string;
+  youtubeUrl?: string;
   error?: string;
   createdAt: Date;
   completedAt?: Date;
@@ -149,11 +150,12 @@ const ProductVideoSchema = new Schema<IProductVideo>({
   templateName: { type: String, required: true },
   status: {
     type: String,
-    enum: ['pending', 'completed', 'failed'],
-    default: 'pending',
+    enum: ['processing', 'pending', 'completed', 'failed'],
+    default: 'processing',
     required: true
   },
   videoUrl: { type: String },
+  youtubeUrl: { type: String },
   error: { type: String },
   createdAt: { type: Date, default: Date.now },
   completedAt: { type: Date },

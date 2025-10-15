@@ -8,12 +8,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Video, AlertCircle, CheckCircle2 } from "lucide-react"
-import { videosApi, type VideoTemplateResponse } from "@/api"
-import { cn } from "@/lib/utils"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Loader2, Video, Info } from "lucide-react"
 
 interface VideoTemplateModalProps {
   open: boolean
@@ -22,73 +26,128 @@ interface VideoTemplateModalProps {
   onCreateVideo: (templateId: string, templateName: string) => void | Promise<void>
 }
 
+// Predefined video templates related to product marketing
+const PREDEFINED_TEMPLATES = [
+  {
+    id: 'unboxing',
+    name: 'Unboxing Experience',
+    description: 'Showcase the product as it comes out of the box, highlighting packaging and first impressions'
+  },
+  {
+    id: 'product_demo',
+    name: 'Product Demo',
+    description: 'Demonstrate the product features and how to use it effectively'
+  },
+  {
+    id: 'lifestyle',
+    name: 'Lifestyle Showcase',
+    description: 'Show the product being used in everyday life situations'
+  },
+  {
+    id: 'comparison',
+    name: 'Before & After / Comparison',
+    description: 'Compare the product with alternatives or show before and after usage'
+  },
+  {
+    id: 'testimonial',
+    name: 'Customer Testimonial',
+    description: 'Feature customer reviews and testimonials about the product'
+  },
+  {
+    id: 'tutorial',
+    name: 'How-To Tutorial',
+    description: 'Step-by-step guide on how to use the product'
+  },
+  {
+    id: 'features',
+    name: 'Feature Highlights',
+    description: 'Quick overview of key product features and benefits'
+  },
+  {
+    id: 'social_promo',
+    name: 'Social Media Promo',
+    description: 'Short, engaging video optimized for social media platforms'
+  }
+]
+
 export function VideoTemplateModal({
   open,
   onOpenChange,
   productCount,
   onCreateVideo,
 }: VideoTemplateModalProps) {
-  const [templates, setTemplates] = useState<VideoTemplateResponse[]>([])
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  // Fetch templates when modal opens
+  // COMMENTED OUT: External API call to fetch templates
+  // This would normally fetch templates from an external service
+  // useEffect(() => {
+  //   if (open) {
+  //     loadTemplates()
+  //   }
+  // }, [open])
+  //
+  // const loadTemplates = async () => {
+  //   setLoading(true)
+  //   setError(null)
+  //
+  //   try {
+  //     const response = await videosApi.getVideoTemplates()
+  //
+  //     if (response.success && response.templates) {
+  //       setTemplates(response.templates)
+  //       if (response.templates.length > 0) {
+  //         setSelectedTemplateId(response.templates[0].id)
+  //       }
+  //     } else {
+  //       setError(response.error || "Failed to load video templates")
+  //     }
+  //   } catch (err) {
+  //     console.error("Error loading video templates:", err)
+  //     setError(
+  //       err instanceof Error
+  //         ? err.message
+  //         : "Failed to load video templates. The RCK Description Server may be offline."
+  //     )
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }
+
+  // Auto-select first template when modal opens
   useEffect(() => {
-    if (open) {
-      loadTemplates()
+    if (open && !selectedTemplateId) {
+      setSelectedTemplateId(PREDEFINED_TEMPLATES[0].id)
     }
   }, [open])
 
-  const loadTemplates = async () => {
-    setLoading(true)
-    setError(null)
-
-    try {
-      const response = await videosApi.getVideoTemplates()
-
-      if (response.success && response.templates) {
-        setTemplates(response.templates)
-        // Auto-select first template if available
-        if (response.templates.length > 0) {
-          setSelectedTemplateId(response.templates[0].id)
-        }
-      } else {
-        setError(response.error || "Failed to load video templates")
-      }
-    } catch (err) {
-      console.error("Error loading video templates:", err)
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load video templates. The RCK Description Server may be offline."
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleCreateVideo = async () => {
+  const handleGenerateVideo = async () => {
     if (selectedTemplateId) {
-      const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
+      const selectedTemplate = PREDEFINED_TEMPLATES.find(t => t.id === selectedTemplateId)
       if (selectedTemplate) {
-        await onCreateVideo(selectedTemplateId, selectedTemplate.title)
-        // Reset state
-        setSelectedTemplateId(null)
-        onOpenChange(false)
+        setLoading(true)
+        try {
+          await onCreateVideo(selectedTemplateId, selectedTemplate.name)
+          // Reset state
+          setSelectedTemplateId('')
+          onOpenChange(false)
+        } finally {
+          setLoading(false)
+        }
       }
     }
   }
 
   const handleClose = () => {
-    setSelectedTemplateId(null)
-    setError(null)
+    setSelectedTemplateId('')
     onOpenChange(false)
   }
 
+  const selectedTemplate = PREDEFINED_TEMPLATES.find(t => t.id === selectedTemplateId)
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Video className="w-5 h-5" />
@@ -100,87 +159,58 @@ export function VideoTemplateModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {loading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-              <span className="ml-2 text-sm text-muted-foreground">Loading templates...</span>
-            </div>
-          )}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Video generation will start in the background. We'll notify you when it's ready!
+            </AlertDescription>
+          </Alert>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="template-select">Video Template</Label>
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger id="template-select">
+                <SelectValue placeholder="Select a video template..." />
+              </SelectTrigger>
+              <SelectContent>
+                {PREDEFINED_TEMPLATES.map((template) => (
+                  <SelectItem key={template.id} value={template.id}>
+                    {template.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {!loading && !error && templates.length === 0 && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                No video templates available. Please try again later.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {!loading && templates.length > 0 && (
-            <div className="grid grid-cols-1 gap-3">
-              {templates.map((template) => (
-                <Card
-                  key={template.id}
-                  className={cn(
-                    "cursor-pointer transition-all hover:shadow-md",
-                    selectedTemplateId === template.id
-                      ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
-                      : "border-gray-200 hover:border-gray-300"
-                  )}
-                  onClick={() => setSelectedTemplateId(template.id)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0">
-                        {selectedTemplateId === template.id ? (
-                          <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                            <CheckCircle2 className="w-3 h-3 text-white" />
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full border-2 border-gray-300" />
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold text-sm">{template.title}</h4>
-                          <Badge variant="outline" className="text-xs">
-                            <Video className="w-3 h-3 mr-1" />
-                            {template.name_file_video}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {template.description}
-                        </p>
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          Background: {template.name_file_background_image}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+          {selectedTemplate && (
+            <div className="rounded-lg border p-4 bg-muted/50">
+              <h4 className="font-medium text-sm mb-2">{selectedTemplate.name}</h4>
+              <p className="text-sm text-muted-foreground">
+                {selectedTemplate.description}
+              </p>
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
           <Button
-            onClick={handleCreateVideo}
+            onClick={handleGenerateVideo}
             disabled={!selectedTemplateId || loading}
           >
-            <Video className="w-4 h-4 mr-2" />
-            Create Video{productCount > 1 ? "s" : ""}
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Video className="w-4 h-4 mr-2" />
+                Generate Video{productCount > 1 ? "s" : ""}
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

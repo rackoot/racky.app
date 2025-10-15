@@ -28,7 +28,7 @@ import {
   Sparkles,
   Clock
 } from "lucide-react"
-import { productsApi, videosApi, optimizationsApi, type Product, type ProductVideo, type ProductsResponse, type ProductsQuery } from "@/api"
+import { productsApi, videosApi, optimizationsApi, type Product, type ProductsResponse, type ProductsQuery } from "@/api"
 import { VideoTemplateModal } from "@/components/videos/video-template-modal"
 import { DescriptionApprovalModal } from "@/components/product/DescriptionApprovalModal"
 
@@ -582,10 +582,15 @@ export function Products() {
                               <Video className="w-4 h-4" />
                               View Video
                             </a>
+                          ) : latestVideo.status === 'processing' ? (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Processing...
+                            </Badge>
                           ) : latestVideo.status === 'pending' ? (
                             <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
                               <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              Generating...
+                              Pending...
                             </Badge>
                           ) : latestVideo.status === 'failed' ? (
                             <Badge variant="destructive">

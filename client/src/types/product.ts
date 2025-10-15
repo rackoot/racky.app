@@ -37,8 +37,9 @@ export interface CachedDescription {
 export interface ProductVideo {
   templateId: string;
   templateName: string;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'processing' | 'pending' | 'completed' | 'failed';
   videoUrl?: string;
+  youtubeUrl?: string;
   error?: string;
   createdAt: string;
   completedAt?: string;

@@ -137,10 +137,24 @@ export function VideoContentTab({ product }: VideoContentTabProps) {
                           </div>
                         </div>
                       </div>
+                    ) : latestVideo.status === 'processing' ? (
+                      <div className="text-center py-8">
+                        <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-purple-600" />
+                        <h3 className="text-lg font-semibold mb-2 text-purple-900">Processing Video...</h3>
+                        <p className="text-muted-foreground">
+                          Template: {latestVideo.templateName}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Started {new Date(latestVideo.createdAt).toLocaleString()}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Video will be ready soon. We'll let you know when it's complete!
+                        </p>
+                      </div>
                     ) : latestVideo.status === 'pending' ? (
                       <div className="text-center py-8">
-                        <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600" />
-                        <h3 className="text-lg font-semibold mb-2 text-blue-900">Generating Video...</h3>
+                        <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-yellow-600" />
+                        <h3 className="text-lg font-semibold mb-2 text-yellow-900">Video Pending...</h3>
                         <p className="text-muted-foreground">
                           Template: {latestVideo.templateName}
                         </p>
