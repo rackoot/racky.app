@@ -48,18 +48,32 @@ router.post('/start', async (req: AuthenticatedRequest, res: Response) => {
     const userId = req.user!._id.toString();
     const workspaceId = req.workspace!._id.toString();
 
-    // Verify connection exists and belongs to user
+    // Verify connection exists and belongs to workspace
     const connection = await StoreConnection.findOne({
       _id: connectionId,
-      userId: userId,
-      marketplaceType: marketplace,
-      isActive: true
+      workspaceId: req.workspace!._id
     });
 
     if (!connection) {
       return res.status(404).json({
         success: false,
-        message: 'Store connection not found or inactive'
+        message: 'Store connection not found'
+      });
+    }
+
+    // Verify connection is active
+    if (!connection.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Store connection is not active'
+      });
+    }
+
+    // Verify marketplace type matches
+    if (connection.marketplaceType !== marketplace) {
+      return res.status(400).json({
+        success: false,
+        message: `Marketplace type mismatch. Connection is for ${connection.marketplaceType}, but ${marketplace} was requested.`
       });
     }
 

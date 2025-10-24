@@ -9,8 +9,16 @@ import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits, checkSy
 import syncRoutes from './sync';
 import historyRoutes from './history';
 import ProductHistoryService from '../services/ProductHistoryService';
+import { VtexService, VtexCompleteProduct } from '@/marketplaces/services/vtexService';
+import { VtexCredentials } from '@/marketplaces/services/marketplaceService';
+import { ProductSyncFilters, FetchProductsOptions, FetchProductsResult } from '@/common/types/syncFilters';
+import MarketplaceCatalogCache from '@/common/models/MarketplaceCatalogCache';
 
 const router = express.Router();
+
+// Mount sync routes BEFORE dynamic :connectionId route to avoid routing conflicts
+// This ensures /sync/start, /sync/health, etc. are matched before /sync/:connectionId
+router.use('/sync', syncRoutes);
 
 // Helper function to generate marketplace URLs
 function generateMarketplaceUrl(product: any): string | null {
@@ -289,9 +297,8 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
           await trackUsage('products_sync')(req, res, async () => {
             await trackUsage('api_call')(req, res, async () => {
               const { connectionId } = req.params;
-              const { force = false } = req.body;
-              
-                                          
+              const { force = false, filters } = req.body;
+
               // Verify user owns the store connection
               const connection = await StoreConnection.findOne({
                 _id: connectionId,
@@ -324,6 +331,7 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
                 req.user!._id.toString(),
                 req.workspace!._id.toString(),
                 connectionId,
+                filters,
                 force
               );
 
@@ -332,7 +340,12 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
               connection.syncStatus = 'completed';
               await connection.save();
 
-              const responseMessage = force 
+              // Invalidate category/brand cache after successful sync
+              // This ensures next fetch will show updated data
+              await MarketplaceCatalogCache.invalidateAll(new Types.ObjectId(connection._id.toString()));
+              console.log(`[Product Sync] Invalidated catalog cache for connection ${connectionId}`);
+
+              const responseMessage = force
                 ? `Successfully replaced ${deletedProducts} products with ${result.totalProducts} fresh products from ${connection.marketplaceType}`
                 : `Successfully synced ${result.totalProducts} products from ${connection.marketplaceType}`;
 
@@ -364,18 +377,20 @@ router.post('/sync/:connectionId', async (req: AuthenticatedRequest, res: Respon
 
 // Helper functions for product sync
 async function syncProductsFromMarketplace(
-  type: string, 
-  credentials: any, 
-  userId: string, 
+  type: string,
+  credentials: any,
+  userId: string,
   workspaceId: string,
-  connectionId: string, 
+  connectionId: string,
+  filters?: ProductSyncFilters,
   force: boolean = false
 ) {
   switch (type) {
     case 'shopify':
+      // Shopify sync doesn't support filters yet, pass undefined
       return await syncShopifyProducts(credentials, userId, workspaceId, connectionId, force);
     case 'vtex':
-      return await syncVtexProducts(credentials, userId, workspaceId, connectionId, force);
+      return await syncVtexProducts(credentials, userId, workspaceId, connectionId, filters, force);
     default:
       throw new Error(`Product sync not implemented for ${type}`);
   }
@@ -675,12 +690,34 @@ async function saveShopifyProduct(shopifyProduct: any, userId: string, workspace
   }
 }
 
-// VTEX product synchronization
+/**
+ * VTEX product synchronization with filter support
+ *
+ * Syncs products from VTEX using private APIs with complete data including:
+ * - Product metadata and descriptions
+ * - Pricing (list price, cost, sale price)
+ * - Inventory levels across warehouses
+ * - Images and specifications
+ *
+ * NOTE: Uses POST-FILTER approach - fetches all products via GetProductAndSkuIds
+ * API (which doesn't support filters) and applies filters in memory. This means
+ * it needs to scan through products to find matches. Current limit: 10,000 products.
+ * For catalogs >10K with narrow filters, consider using Search API instead.
+ *
+ * @param credentials VTEX account credentials
+ * @param userId User ID
+ * @param workspaceId Workspace ID
+ * @param connectionId Store connection ID
+ * @param filters Optional filters to apply (active status, categories, brands)
+ * @param force Force full resync
+ * @returns Sync statistics
+ */
 async function syncVtexProducts(
-  credentials: any,
+  credentials: VtexCredentials,
   userId: string,
   workspaceId: string,
   connectionId: string,
+  filters?: ProductSyncFilters,
   force: boolean = false
 ) {
   const { account_name, app_key, app_token } = credentials;
@@ -689,99 +726,409 @@ async function syncVtexProducts(
     throw new Error('Account name, app key, and app token are required for VTEX sync');
   }
 
-  // Clean account name (same logic as in marketplace service)
-  let cleanAccountName = account_name.trim();
-  cleanAccountName = cleanAccountName.replace(/^https?:\/\//, '');
-  
-  if (cleanAccountName.includes('.vtexcommercestable.com.br') || 
-      cleanAccountName.includes('.vtex.com.br') ||
-      cleanAccountName.includes('.vtexcommerce.com.br')) {
-    cleanAccountName = cleanAccountName.split('.')[0];
-  }
-  
-  cleanAccountName = cleanAccountName.replace(/\//g, '').trim();
-
   try {
     let totalProducts = 0;
     let newProducts = 0;
     let updatedProducts = 0;
 
-    console.log(`Starting VTEX sync for user: ${userId}, account: ${cleanAccountName}`);
+    console.log(`[VTEX Sync] Starting sync for workspace: ${workspaceId}`);
+    console.log(`[VTEX Sync] Filters:`, JSON.stringify(filters, null, 2));
 
-    // Fetch products from VTEX with limit of 30
-    const vtexProducts = await fetchVtexProducts(cleanAccountName, app_key, app_token, 30);
-    
-    console.log(`Retrieved ${vtexProducts.length} products from VTEX`);
+    // Prepare fetch options with filters
+    const fetchOptions: FetchProductsOptions = {
+      filters: filters || {
+        includeActive: true,
+        includeInactive: false,
+        categoryIds: null,
+        brandIds: null
+      },
+      page: 1,
+      pageSize: 50,
+      maxProducts: 10000 // Increased limit to handle filtered syncs better
+    };
 
-    for (const vtexProduct of vtexProducts) {
-      const syncResult = await saveVtexProduct(vtexProduct, userId, workspaceId, connectionId);
-      totalProducts++;
-      if (syncResult.isNew) {
-        newProducts++;
-      } else {
-        updatedProducts++;
+    // Fetch products with pagination
+    let hasMore = true;
+    let currentPage = 1;
+
+    while (hasMore && totalProducts < (fetchOptions.maxProducts || 10000)) {
+      fetchOptions.page = currentPage;
+
+      const result = await fetchVtexProducts(credentials, fetchOptions);
+
+      console.log(`[VTEX Sync] Page ${currentPage}: Fetched ${result.products.length} filtered products`);
+
+      for (const vtexProduct of result.products) {
+        const syncResult = await saveVtexCompleteProduct(
+          vtexProduct,
+          userId,
+          workspaceId,
+          connectionId
+        );
+
+        totalProducts++;
+        if (syncResult.isNew) {
+          newProducts++;
+        } else {
+          updatedProducts++;
+        }
+      }
+
+      hasMore = result.hasMore;
+      currentPage = result.nextPage || currentPage + 1;
+
+      // Avoid infinite loops - allow up to 200 pages (for 10000 products with pageSize=50)
+      if (currentPage > 200) {
+        console.warn('[VTEX Sync] Reached max page limit (200), stopping sync');
+        break;
       }
     }
 
-    console.log(`VTEX sync completed. Total: ${totalProducts}, New: ${newProducts}, Updated: ${updatedProducts}`);
+    console.log(`[VTEX Sync] Completed. Total: ${totalProducts}, New: ${newProducts}, Updated: ${updatedProducts}`);
     return { success: true, totalProducts, newProducts, updatedProducts };
+
   } catch (error) {
-    console.error('Error syncing VTEX products:', error);
+    console.error('[VTEX Sync] Error syncing VTEX products:', error);
     throw error;
   }
 }
 
-async function fetchVtexProducts(accountName: string, appKey: string, appToken: string, limit: number = 30) {
-  try {
-    const axios = require('axios');
-    
-    // Use VTEX public search API which works without authentication issues
-    const apiUrl = `https://${accountName}.vtexcommercestable.com.br/api/catalog_system/pub/products/search`;
-    
-    console.log(`[VTEX] Fetching products from: ${apiUrl}`);
-    
-    // Fetch products using public API with pagination
-    const response = await axios.get(apiUrl, {
-      params: {
-        '_from': 0,
-        '_to': limit - 1
-      },
-      timeout: 30000
+/**
+ * Apply filters to VTEX products
+ *
+ * Filters products based on active status, categories, and brands.
+ * This happens after fetching complete product data from VTEX API.
+ *
+ * @param products Array of complete VTEX products
+ * @param filters Filters to apply
+ * @returns Filtered array of products
+ */
+function applyVtexFilters(
+  products: VtexCompleteProduct[],
+  filters: ProductSyncFilters
+): VtexCompleteProduct[] {
+  console.log(`[VTEX] Applying filters to ${products.length} products`);
+  console.log(`[VTEX] Filter criteria:`, JSON.stringify(filters, null, 2));
+
+  let filtered = products;
+
+  // Filter by active status
+  filtered = filtered.filter(item => {
+    const isActive = item.product.IsActive && item.sku.IsActive;
+
+    if (isActive && filters.includeActive) return true;
+    if (!isActive && filters.includeInactive) return true;
+
+    return false;
+  });
+
+  console.log(`[VTEX] After active/inactive filter: ${filtered.length} products`);
+
+  // Filter by categories
+  if (filters.categoryIds && filters.categoryIds.length > 0) {
+    filtered = filtered.filter(item => {
+      const productCategoryId = item.product.CategoryId?.toString();
+
+      // Check if product category matches any of the selected categories
+      if (productCategoryId && filters.categoryIds!.includes(productCategoryId)) {
+        return true;
+      }
+
+      // Also check SKU categories
+      if (item.sku.Categories && item.sku.Categories.length > 0) {
+        return item.sku.Categories.some(catId =>
+          filters.categoryIds!.includes(catId.toString())
+        );
+      }
+
+      return false;
     });
 
-    const products = response.data;
-    console.log(`[VTEX] Found ${Array.isArray(products) ? products.length : 0} products`);
+    console.log(`[VTEX] After category filter: ${filtered.length} products`);
+  }
 
-    if (!Array.isArray(products)) {
-      console.warn('[VTEX] Invalid response format - expected array of products');
-      return [];
+  // Filter by brands
+  if (filters.brandIds && filters.brandIds.length > 0) {
+    filtered = filtered.filter(item => {
+      const productBrandId = item.product.BrandId?.toString();
+      const skuBrandId = item.sku.BrandId?.toString();
+
+      return (
+        (productBrandId && filters.brandIds!.includes(productBrandId)) ||
+        (skuBrandId && filters.brandIds!.includes(skuBrandId))
+      );
+    });
+
+    console.log(`[VTEX] After brand filter: ${filtered.length} products`);
+  }
+
+  console.log(`[VTEX] Final filtered count: ${filtered.length} products`);
+
+  return filtered;
+}
+
+/**
+ * Fetch VTEX products using private API with pagination and filters
+ *
+ * Uses the authenticated VTEX Catalog API to fetch complete product data including:
+ * - Product and SKU metadata
+ * - Pricing information
+ * - Inventory levels
+ * - Images and specifications
+ *
+ * @param credentials VTEX account credentials
+ * @param options Fetch options including filters and pagination
+ * @returns Paginated product results
+ */
+async function fetchVtexProducts(
+  credentials: VtexCredentials,
+  options: FetchProductsOptions
+): Promise<FetchProductsResult> {
+  try {
+    const { filters, page = 1, pageSize = 50, maxProducts = 10000 } = options;
+
+    console.log(`[VTEX] Fetching products - Page ${page}, Size ${pageSize}`);
+    console.log(`[VTEX] Filters:`, JSON.stringify(filters, null, 2));
+
+    // Step 1: Fetch product and SKU IDs using private API
+    const productIdsResponse = await VtexService.fetchProductAndSkuIds(
+      credentials,
+      page,
+      Math.min(pageSize, 100) // VTEX API max is 100
+    );
+
+    // Ensure productIdsResponse.data is always an array (handle null/undefined from VTEX API)
+    const productIds = Array.isArray(productIdsResponse.data) ? productIdsResponse.data : [];
+
+    if (productIds.length === 0) {
+      console.log('[VTEX] No products found');
+      return {
+        products: [],
+        totalCount: productIdsResponse.range?.total || 0,
+        hasMore: false
+      };
     }
 
-    if (products.length === 0) {
-      console.warn('[VTEX] No products found in catalog');
-      return [];
+    console.log(`[VTEX] Fetched ${productIds.length} product IDs (Total: ${productIdsResponse.range.total})`);
+
+    // Step 2: Fetch complete data for each product
+    const completeProducts: VtexCompleteProduct[] = [];
+
+    for (const item of productIds) {
+      // Each product may have multiple SKUs, we'll use the first one
+      const primarySkuId = item.skuIds[0];
+
+      if (!primarySkuId) {
+        console.warn(`[VTEX] Product ${item.productId} has no SKUs, skipping`);
+        continue;
+      }
+
+      try {
+        const productData = await VtexService.fetchCompleteProductData(
+          credentials,
+          item.productId,
+          primarySkuId
+        );
+
+        completeProducts.push(productData);
+
+        // Respect maxProducts limit
+        if (completeProducts.length >= maxProducts) {
+          console.log(`[VTEX] Reached max products limit (${maxProducts})`);
+          break;
+        }
+      } catch (error: any) {
+        console.error(`[VTEX] Error fetching product ${item.productId}:`, error.message);
+        // Continue with other products
+      }
     }
 
-    // The public search API returns complete product data, so we don't need additional calls
-    console.log(`[VTEX] Successfully retrieved ${products.length} products`);
-    return products.slice(0, limit); // Ensure we don't exceed the limit
-    
+    console.log(`[VTEX] Successfully fetched ${completeProducts.length} complete products`);
+
+    // Step 3: Apply filters
+    const filteredProducts = applyVtexFilters(completeProducts, filters);
+
+    // Calculate pagination
+    const currentPage = productIdsResponse.range.from / pageSize + 1;
+    const totalPages = Math.ceil(productIdsResponse.range.total / pageSize);
+    const hasMore = currentPage < totalPages;
+
+    console.log(`[VTEX] Pagination: Page ${currentPage}/${totalPages}, Has more: ${hasMore}`);
+
+    return {
+      products: filteredProducts,
+      totalCount: productIdsResponse.range.total,
+      hasMore,
+      nextPage: hasMore ? page + 1 : undefined
+    };
+
   } catch (error: any) {
     console.error('[VTEX] Error fetching products:', error.message);
-    if (error.response?.status === 401) {
-      console.error('[VTEX] Authentication failed - using public API instead');
-    }
     throw new Error(`Failed to fetch VTEX products: ${error.message}`);
   }
 }
 
+/**
+ * Save VTEX product with complete data (new private API format)
+ *
+ * Handles complete product data including pricing and inventory
+ *
+ * @param vtexProduct Complete VTEX product data
+ * @param userId User ID
+ * @param workspaceId Workspace ID
+ * @param connectionId Store connection ID
+ * @returns Sync result with isNew flag
+ */
+async function saveVtexCompleteProduct(
+  vtexProduct: VtexCompleteProduct,
+  userId: string,
+  workspaceId: string,
+  connectionId: string
+) {
+  try {
+    const { product, sku, pricing, inventory } = vtexProduct;
+
+    // Extract product data
+    const productId = product.Id.toString();
+    const skuId = sku.Id.toString();
+    const productName = product.Name || sku.ProductName;
+    const productReference = sku.AlternateIds?.RefId || product.RefId || '';
+
+    // Calculate price from pricing data
+    let price = 0;
+    let compareAtPrice = 0;
+    let cost = 0;
+
+    if (pricing) {
+      // Use fixed price if available, otherwise base price
+      if (pricing.fixedPrices && pricing.fixedPrices.length > 0) {
+        price = pricing.fixedPrices[0].value;
+        compareAtPrice = pricing.fixedPrices[0].listPrice || pricing.listPrice || 0;
+      } else {
+        price = pricing.basePrice;
+        compareAtPrice = pricing.listPrice || 0;
+      }
+      cost = pricing.costPrice || 0;
+    }
+
+    // Calculate inventory from warehouse data
+    let totalInventory = 0;
+    if (inventory && inventory.balance) {
+      totalInventory = inventory.balance.reduce((total, warehouse) => {
+        if (warehouse.hasUnlimitedQuantity) {
+          return 999999; // Represent unlimited as large number
+        }
+        return total + (warehouse.availableQuantity || warehouse.totalQuantity || 0);
+      }, 0);
+    }
+
+    // Extract images and map to IProductImage format
+    const images = (sku.Images?.map(img => ({
+      url: img.ImageUrl,
+      altText: img.ImageName || undefined
+    })) || []).filter(img => img.url);
+
+    // If no images in array, try the single ImageUrl field
+    if (images.length === 0 && sku.ImageUrl) {
+      images.push({
+        url: sku.ImageUrl,
+        altText: sku.NameComplete || undefined
+      });
+    }
+
+    // Determine product status
+    const status = (product.IsActive && sku.IsActive) ? 'ACTIVE' : 'DRAFT';
+
+    // Find existing product by VTEX product ID
+    const existingProduct = await Product.findOne({
+      workspaceId: workspaceId,
+      'platforms.platformId': productId
+    });
+
+    const vtexPlatform = {
+      platform: 'vtex' as PlatformType,
+      platformId: productId,
+      platformSku: skuId,
+      platformPrice: price,
+      platformInventory: totalInventory,
+      platformStatus: status.toLowerCase(),
+      lastSyncAt: new Date()
+    };
+
+    let isNew = false;
+
+    if (existingProduct) {
+      // Update existing product
+      const platformIndex = existingProduct.platforms.findIndex((p: any) => p.platform === 'vtex');
+
+      if (platformIndex >= 0) {
+        existingProduct.platforms[platformIndex] = vtexPlatform;
+      } else {
+        existingProduct.platforms.push(vtexPlatform);
+      }
+
+      // Update product fields with latest data
+      existingProduct.title = productName;
+      existingProduct.description = product.Description || product.DescriptionShort || '';
+      existingProduct.price = price;
+      existingProduct.sku = productReference;
+      existingProduct.inventory = totalInventory;
+      existingProduct.vendor = sku.BrandName || '';
+      existingProduct.images = images;
+      existingProduct.status = status;
+      existingProduct.stock = totalInventory;
+      existingProduct.lastSyncedAt = new Date();
+
+      await existingProduct.save();
+
+    } else {
+      // Create new product
+      isNew = true;
+
+      await Product.create({
+        workspaceId: new Types.ObjectId(workspaceId),
+        userId: new Types.ObjectId(userId),
+        storeConnectionId: new Types.ObjectId(connectionId),
+        title: productName,
+        description: product.Description || product.DescriptionShort || '',
+        price: price,
+        sku: productReference,
+        inventory: totalInventory,
+        vendor: sku.BrandName || '',
+        productType: sku.Categories?.[0] || '',
+        tags: product.KeyWords?.split(',').map(k => k.trim()).filter(Boolean) || [],
+        images: images,
+        variants: [], // VTEX variants would need separate handling
+        platforms: [vtexPlatform],
+        status: status,
+        marketplace: 'vtex',
+        externalId: productId,
+        currency: 'BRL', // Default for VTEX Brazil
+        stock: totalInventory,
+        lastSyncedAt: new Date(),
+        cachedDescriptions: []
+      });
+    }
+
+    return { isNew };
+
+  } catch (error: any) {
+    console.error(`[VTEX Sync] Error saving product ${vtexProduct.product.Name}:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Save VTEX product (legacy public API format)
+ * DEPRECATED: Use saveVtexCompleteProduct for new implementations
+ */
 async function saveVtexProduct(vtexProduct: any, userId: string, workspaceId: string, connectionId: string) {
   try {
     // Map fields from VTEX public API response format
     const productId = vtexProduct.productId;
     const productName = vtexProduct.productName;
     const productReference = vtexProduct.productReference;
-    
+
     // Find existing product by VTEX ID or title
     const existingProduct = await Product.findOne({
       workspaceId: workspaceId,
@@ -806,7 +1153,7 @@ async function saveVtexProduct(vtexProduct: any, userId: string, workspaceId: st
     if (existingProduct) {
       // Update existing product
       const platformIndex = existingProduct.platforms.findIndex((p: any) => p.platform === 'vtex');
-      
+
       if (platformIndex >= 0) {
         existingProduct.platforms[platformIndex] = vtexPlatform;
       } else {
@@ -820,14 +1167,14 @@ async function saveVtexProduct(vtexProduct: any, userId: string, workspaceId: st
 
       existingProduct.lastSyncedAt = new Date();
       await existingProduct.save();
-      
+
     } else {
       // Create new product
       isNew = true;
-      
+
       // Extract category from categoryId if available
       const category = vtexProduct.categories ? vtexProduct.categories[0] : '';
-      
+
       await Product.create({
         workspaceId: new Types.ObjectId(workspaceId),
         userId: new Types.ObjectId(userId),
@@ -1789,9 +2136,6 @@ router.post('/accept-all-descriptions', async (req: AuthenticatedRequest, res: R
     });
   }
 });
-
-// Add sync routes
-router.use('/sync', syncRoutes);
 
 // Add history routes
 router.use(historyRoutes);

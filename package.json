@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "npm run docker:up && concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev": "./dev.sh",
+    "dev:simple": "npm run docker:up && concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "docker:up": "docker compose -f docker-compose.dev.yml up -d",

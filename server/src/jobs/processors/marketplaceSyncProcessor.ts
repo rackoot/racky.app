@@ -11,6 +11,9 @@ import JobHistory from '@/common/models/JobHistory';
 import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
 import ProductHistoryService from '@/products/services/ProductHistoryService';
+import { VtexService, VtexCompleteProduct } from '@/marketplaces/services/vtexService';
+import { VtexCredentials } from '@/marketplaces/services/marketplaceService';
+import { PlatformType } from '@/products/models/Product';
 
 /**
  * Marketplace Sync Processor
@@ -40,7 +43,7 @@ export class MarketplaceSyncProcessor {
       // Get store connection details
       const connection = await StoreConnection.findOne({
         _id: connectionId,
-        userId: userId
+        workspaceId: workspaceId
       });
 
       if (!connection) {
@@ -151,7 +154,7 @@ export class MarketplaceSyncProcessor {
       // Get store connection
       const connection = await StoreConnection.findOne({
         _id: connectionId,
-        userId: userId
+        workspaceId: workspaceId
       });
 
       if (!connection) {
@@ -318,14 +321,90 @@ export class MarketplaceSyncProcessor {
     marketplace: string,
     productData: any
   ): Promise<any> {
-    // Convert marketplace data to our product schema
+    const externalId = productData.id || productData.externalId;
+
+    // For VTEX, use the platforms-based approach (same as sync system)
+    if (marketplace === 'vtex') {
+      const vtexPlatform = {
+        platform: 'vtex' as PlatformType,
+        platformId: externalId,
+        platformSku: productData.sku || productData.variants?.[0]?.sku || '',
+        platformPrice: productData.price || 0,
+        platformInventory: productData.inventory?.quantity || 0,
+        platformStatus: productData.isActive ? 'active' : 'draft',
+        lastSyncAt: new Date()
+      };
+
+      // Find existing product by platform ID
+      const existingProduct = await Product.findOne({
+        workspaceId: workspaceId,
+        'platforms.platformId': externalId
+      });
+
+      if (existingProduct) {
+        // Update existing product
+        const platformIndex = existingProduct.platforms.findIndex((p: any) => p.platform === 'vtex');
+
+        if (platformIndex >= 0) {
+          existingProduct.platforms[platformIndex] = vtexPlatform;
+        } else {
+          existingProduct.platforms.push(vtexPlatform);
+        }
+
+        // Update product fields
+        existingProduct.title = productData.title || productData.name;
+        existingProduct.description = productData.description || '';
+        existingProduct.price = productData.price || 0;
+        existingProduct.compareAtPrice = productData.compareAtPrice;
+        existingProduct.sku = productData.sku || '';
+        existingProduct.inventory = productData.inventory?.quantity || 0;
+        existingProduct.vendor = productData.brand || '';
+        existingProduct.productType = productData.category || '';
+        existingProduct.images = productData.images || [];
+        existingProduct.variants = productData.variants || [];
+        existingProduct.status = productData.isActive ? 'ACTIVE' : 'DRAFT';
+        existingProduct.lastSyncedAt = new Date();
+
+        await existingProduct.save();
+        return existingProduct;
+
+      } else {
+        // Create new product
+        const newProduct = new Product({
+          userId,
+          workspaceId,
+          storeConnectionId: connectionId,
+          title: productData.title || productData.name,
+          description: productData.description || '',
+          price: productData.price || 0,
+          compareAtPrice: productData.compareAtPrice,
+          currency: productData.currency || 'BRL',
+          sku: productData.sku || '',
+          inventory: productData.inventory?.quantity || 0,
+          vendor: productData.brand || '',
+          productType: productData.category || '',
+          images: productData.images || [],
+          variants: productData.variants || [],
+          platforms: [vtexPlatform],
+          status: productData.isActive ? 'ACTIVE' : 'DRAFT',
+          marketplace: 'vtex',
+          externalId: externalId,
+          lastSyncedAt: new Date()
+        });
+
+        await newProduct.save();
+        return newProduct;
+      }
+    }
+
+    // Original logic for other marketplaces
     const productDoc = {
       userId,
       workspaceId,
-      connectionId,
+      storeConnectionId: connectionId,
       marketplace,
-      externalId: productData.id || productData.externalId,
-      name: productData.title || productData.name,
+      externalId: externalId,
+      title: productData.title || productData.name,
       description: productData.description || '',
       price: productData.price || 0,
       currency: productData.currency || 'USD',
@@ -334,10 +413,7 @@ export class MarketplaceSyncProcessor {
       category: productData.category,
       tags: productData.tags || [],
       variants: productData.variants || [],
-      inventory: {
-        quantity: productData.inventory?.quantity || 0,
-        inStock: productData.inventory?.inStock || false,
-      },
+      inventory: productData.inventory?.quantity || 0,
       seo: {
         metaTitle: productData.seo?.metaTitle || productData.title,
         metaDescription: productData.seo?.metaDescription || productData.description,
@@ -347,10 +423,8 @@ export class MarketplaceSyncProcessor {
       syncStatus: 'completed' as const,
     };
 
-    // Use upsert to create or update
     const savedProduct = await Product.findOneAndUpdate(
       {
-        userId,
         workspaceId,
         marketplace,
         externalId: productDoc.externalId,
@@ -378,13 +452,53 @@ export class MarketplaceSyncProcessor {
     return mockProducts;
   }
 
-  private static async fetchVtexProducts(credentials: any): Promise<Array<{ externalId: string }>> {
-    // Simulate VTEX API call
-    const mockProducts = [];
-    for (let i = 1; i <= 50; i++) {
-      mockProducts.push({ externalId: `vtex_product_${i}` });
+  private static async fetchVtexProducts(credentials: VtexCredentials): Promise<Array<{ externalId: string }>> {
+    try {
+      console.log('[VTEX Processor] Fetching all product IDs from VTEX...');
+
+      const allProductIds: Array<{ externalId: string }> = [];
+      let page = 1;
+      let hasMore = true;
+      const pageSize = 100; // VTEX API max per page
+
+      while (hasMore) {
+        const response = await VtexService.fetchProductAndSkuIds(credentials, page, pageSize);
+
+        // Validate that response.data is an array (VTEX API can return null/undefined)
+        const responseData = Array.isArray(response.data) ? response.data : [];
+
+        if (responseData.length === 0) {
+          hasMore = false;
+          break;
+        }
+
+        // Extract product IDs
+        const productIds = responseData.map(item => ({
+          externalId: item.productId.toString()
+        }));
+
+        allProductIds.push(...productIds);
+
+        console.log(`[VTEX Processor] Page ${page}: Fetched ${productIds.length} products (Total so far: ${allProductIds.length})`);
+
+        // Check if there are more pages
+        hasMore = responseData.length === pageSize;
+        page++;
+
+        // Safety limit to avoid infinite loops
+        if (page > 100) {
+          console.warn('[VTEX Processor] Reached max page limit (100)');
+          break;
+        }
+      }
+
+      console.log(`[VTEX Processor] Total products fetched: ${allProductIds.length}`);
+      return allProductIds;
+
+    } catch (error: any) {
+      console.error('[VTEX Processor] Error fetching products:', error.message);
+      throw new Error(`Failed to fetch VTEX products: ${error.message}`);
     }
-    return mockProducts;
   }
 
   private static async fetchWooCommerceProducts(credentials: any): Promise<Array<{ externalId: string }>> {
@@ -429,18 +543,131 @@ export class MarketplaceSyncProcessor {
     };
   }
 
-  private static async fetchVtexProductDetails(productId: string, credentials: any): Promise<any> {
-    // Mock VTEX product details
+  private static async fetchVtexProductDetails(productId: string, credentials: VtexCredentials): Promise<any> {
+    try {
+      console.log(`[VTEX Processor] Fetching details for product ${productId}...`);
+
+      // Fetch product and SKU IDs first to get the primary SKU
+      const productIdsResponse = await VtexService.fetchProductAndSkuIds(credentials, 1, 100);
+
+      // Validate that response.data is an array (VTEX API can return null/undefined)
+      const responseData = Array.isArray(productIdsResponse.data) ? productIdsResponse.data : [];
+
+      // Find the product in the response
+      const productData = responseData.find(item => item.productId.toString() === productId);
+
+      if (!productData || !productData.skuIds || productData.skuIds.length === 0) {
+        throw new Error(`Product ${productId} has no SKUs`);
+      }
+
+      // Use the first SKU
+      const primarySkuId = productData.skuIds[0];
+
+      // Fetch complete product data with pricing and inventory
+      const completeData = await VtexService.fetchCompleteProductData(
+        credentials,
+        parseInt(productId),
+        primarySkuId
+      );
+
+      // Transform to format expected by saveProduct()
+      return MarketplaceSyncProcessor.transformVtexProductData(completeData);
+
+    } catch (error: any) {
+      console.error(`[VTEX Processor] Error fetching product ${productId}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Transform VTEX complete product data to processor format
+   */
+  private static transformVtexProductData(vtexProduct: VtexCompleteProduct): any {
+    const { product, sku, pricing, inventory } = vtexProduct;
+
+    // Calculate price
+    let price = 0;
+    let compareAtPrice = 0;
+    let cost = 0;
+
+    if (pricing) {
+      if (pricing.fixedPrices && pricing.fixedPrices.length > 0) {
+        price = pricing.fixedPrices[0].value;
+        compareAtPrice = pricing.fixedPrices[0].listPrice || pricing.listPrice || 0;
+      } else {
+        price = pricing.basePrice;
+        compareAtPrice = pricing.listPrice || 0;
+      }
+      cost = pricing.costPrice || 0;
+    }
+
+    // Calculate inventory
+    let totalInventory = 0;
+    if (inventory && inventory.balance) {
+      totalInventory = inventory.balance.reduce((total, warehouse) => {
+        if (warehouse.hasUnlimitedQuantity) {
+          return 999999;
+        }
+        return total + (warehouse.availableQuantity || warehouse.totalQuantity || 0);
+      }, 0);
+    }
+
+    // Extract images
+    const images = (sku.Images?.map(img => ({
+      url: img.ImageUrl,
+      altText: img.ImageName || ''
+    })) || []).filter(img => img.url);
+
+    // Fallback to single ImageUrl if no images array
+    if (images.length === 0 && sku.ImageUrl) {
+      images.push({
+        url: sku.ImageUrl,
+        altText: sku.NameComplete || ''
+      });
+    }
+
+    // Build variants array (VTEX SKUs as variants)
+    const variants = [{
+      id: sku.Id.toString(),
+      title: sku.NameComplete || sku.SkuName,
+      sku: sku.AlternateIds?.RefId || product.RefId || '',
+      price: price,
+      compareAtPrice: compareAtPrice > price ? compareAtPrice : undefined,
+      inventory: totalInventory,
+      barcode: sku.AlternateIds?.Ean || undefined,
+      weight: sku.RealDimension?.realWeight || sku.Dimension?.weight || undefined,
+      isActive: sku.IsActive
+    }];
+
     return {
-      id: productId,
-      name: `VTEX Product ${productId}`,
-      description: `Description for ${productId}`,
-      price: Math.random() * 200,
-      currency: 'USD',
-      imageUrl: `https://example.com/images/${productId}.jpg`,
-      url: `https://store.vtexcommercestable.com.br/p/${productId}`,
-      category: 'Fashion',
-      tags: ['vtex', 'product'],
+      id: product.Id.toString(),
+      externalId: product.Id.toString(),
+      title: product.Name || sku.ProductName,
+      name: product.Name || sku.ProductName,
+      description: product.Description || product.DescriptionShort || '',
+      price: price,
+      compareAtPrice: compareAtPrice > price ? compareAtPrice : undefined,
+      cost: cost,
+      currency: 'BRL', // TODO: Detect from store settings
+      category: product.CategoryId?.toString() || '',
+      brand: sku.BrandName || '',
+      brandId: sku.BrandId || product.BrandId?.toString() || '',
+      sku: sku.AlternateIds?.RefId || product.RefId || '',
+      tags: [],
+      images: images,
+      variants: variants,
+      inventory: {
+        quantity: totalInventory,
+        inStock: totalInventory > 0
+      },
+      url: `https://vtexcommercestable.com.br/p/${product.Id}`,
+      handle: product.LinkId || product.Id.toString(),
+      isActive: product.IsActive && sku.IsActive,
+      seo: {
+        metaTitle: product.Title || product.Name,
+        metaDescription: product.MetaTagDescription || product.DescriptionShort,
+        slug: product.LinkId
+      }
     };
   }
 

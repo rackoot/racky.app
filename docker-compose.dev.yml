@@ -1,4 +1,5 @@
 services:
+  # MongoDB Database
   mongodb:
     image: mongo:7.0
     container_name: racky-mongodb-dev
@@ -19,10 +20,35 @@ services:
       retries: 5
       start_period: 10s
 
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: racky-rabbitmq-dev
+    restart: unless-stopped
+    ports:
+      - "5672:5672"      # AMQP port
+      - "15672:15672"    # Management UI
+    volumes:
+      - rabbitmq_dev_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: racky
+      RABBITMQ_DEFAULT_PASS: racky123
+      RABBITMQ_DEFAULT_VHOST: racky
+    networks:
+      - racky-dev-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      timeout: 5s
+      interval: 10s
+      retries: 5
+      start_period: 10s
+
 volumes:
   mongodb_dev_data:
     driver: local
   mongodb_dev_config:
+    driver: local
+  rabbitmq_dev_data:
     driver: local
 
 networks:

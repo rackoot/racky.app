@@ -1,10 +1,13 @@
 import express, { Response } from 'express';
 import Joi from 'joi';
+import { Types } from 'mongoose';
 import { AuthenticatedRequest } from '@/common/types/express';
 import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
 import { protect, trackUsage, checkSubscriptionStatus, checkUsageLimits } from '@/common/middleware/auth';
 import * as marketplaceService from '../services/marketplaceService';
+import { VtexService } from '../services/vtexService';
+import { ProductCategory, ProductBrand } from '@/common/types/marketplace';
 
 const router = express.Router();
 
@@ -331,6 +334,168 @@ router.put('/:connectionId/toggle', async (req: AuthenticatedRequest, res: Respo
       success: false,
       message: 'Error toggling marketplace status', 
       error: error.message 
+    });
+  }
+});
+
+// GET /api/marketplaces/:connectionId/categories - Get available categories from marketplace
+router.get('/:connectionId/categories', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { connectionId } = req.params;
+    const { includeCount } = req.query;
+    const workspaceId = new Types.ObjectId(req.workspace!._id.toString());
+
+    // Find store connection
+    const connection = await StoreConnection.findOne({
+      _id: connectionId,
+      workspaceId
+    });
+
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: 'Store connection not found'
+      });
+    }
+
+    // Fetch categories based on marketplace type
+    switch (connection.marketplaceType) {
+      case 'vtex':
+        // Check if product count is requested
+        if (includeCount === 'true') {
+          // Get categories from VTEX API with cache
+          const categoriesWithCount = await VtexService.getCategoriesWithCount(
+            connection.credentials as marketplaceService.VtexCredentials,
+            new Types.ObjectId(connection._id.toString()),
+            workspaceId
+          );
+
+          return res.json({
+            success: true,
+            data: {
+              categories: categoriesWithCount,
+              totalCount: categoriesWithCount.length,
+              includingProductCount: true,
+              source: 'cached'  // Data from cache or VTEX API
+            }
+          });
+        } else{
+          // Original behavior: fetch without counts
+          const categories = await VtexService.fetchCategories(
+            connection.credentials as marketplaceService.VtexCredentials
+          );
+
+          return res.json({
+            success: true,
+            data: {
+              categories,
+              totalCount: categories.length,
+              includingProductCount: false
+            }
+          });
+        }
+
+      // Future: Add other marketplaces
+      case 'shopify':
+        // TODO: Implement Shopify collections fetch
+        return res.status(400).json({
+          success: false,
+          message: 'Category filtering for Shopify coming soon'
+        });
+
+      default:
+        return res.status(400).json({
+          success: false,
+          message: `Category filtering not supported for ${connection.marketplaceType}`
+        });
+    }
+
+  } catch (error: any) {
+    console.error('[Marketplaces] Error fetching categories:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error fetching categories'
+    });
+  }
+});
+
+// GET /api/marketplaces/:connectionId/brands - Get available brands from marketplace
+router.get('/:connectionId/brands', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { connectionId } = req.params;
+    const { includeCount } = req.query;
+    const workspaceId = new Types.ObjectId(req.workspace!._id.toString());
+
+    // Find store connection
+    const connection = await StoreConnection.findOne({
+      _id: connectionId,
+      workspaceId
+    });
+
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        message: 'Store connection not found'
+      });
+    }
+
+    // Fetch brands based on marketplace type
+    switch (connection.marketplaceType) {
+      case 'vtex':
+        // Check if product count is requested
+        if (includeCount === 'true') {
+          // Get brands from VTEX API with cache
+          const brandsWithCount = await VtexService.getBrandsWithCount(
+            connection.credentials as marketplaceService.VtexCredentials,
+            new Types.ObjectId(connection._id.toString()),
+            workspaceId
+          );
+
+          return res.json({
+            success: true,
+            data: {
+              brands: brandsWithCount,
+              totalCount: brandsWithCount.length,
+              includingProductCount: true,
+              source: 'cached'  // Data from cache or VTEX API
+            }
+          });
+        } else {
+          // Original behavior: fetch without counts
+          const brands = await VtexService.fetchBrands(
+            connection.credentials as marketplaceService.VtexCredentials
+          );
+
+          return res.json({
+            success: true,
+            data: {
+              brands,
+              totalCount: brands.length,
+              includingProductCount: false
+            }
+          });
+        }
+
+      // Future: Add other marketplaces
+      case 'shopify':
+        // TODO: Implement Shopify vendors fetch
+        return res.status(400).json({
+          success: false,
+          message: 'Brand filtering for Shopify coming soon'
+        });
+
+      default:
+        return res.status(400).json({
+          success: false,
+          message: `Brand filtering not supported for ${connection.marketplaceType}`
+        });
+    }
+
+  } catch (error: any) {
+    console.error('[Marketplaces] Error fetching brands:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error fetching brands'
     });
   }
 });
