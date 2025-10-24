@@ -44,6 +44,9 @@ const envSchema = z.object({
   // RCK Description Server - External service for AI-generated descriptions and videos
   RCK_DESCRIPTION_SERVER_URL: z.string().default('http://localhost:8000'),
 
+  // Server URL - Base URL for this server (for webhook callbacks)
+  SERVER_URL: z.string().default('http://localhost:5000'),
+
   // Client - can be a single URL or comma-separated URLs
   CLIENT_URL: z.string().default('http://localhost:5173'),
 });
@@ -70,6 +73,7 @@ const parseEnv = () => {
       STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
       STRIPE_SKIP_WEBHOOK_VERIFICATION: process.env.STRIPE_SKIP_WEBHOOK_VERIFICATION,
       RCK_DESCRIPTION_SERVER_URL: process.env.RCK_DESCRIPTION_SERVER_URL,
+      SERVER_URL: process.env.SERVER_URL,
       CLIENT_URL: process.env.CLIENT_URL,
     });
   } catch (error) {

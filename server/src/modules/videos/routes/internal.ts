@@ -1,68 +1,126 @@
 import { Router, Request, Response } from 'express'
+import mongoose from 'mongoose'
+import Joi from 'joi'
 
 const router = Router()
+
+// Validation schemas
+const videoSuccessSchema = Joi.object({
+  videoId: Joi.string().required().messages({
+    'string.empty': 'videoId is required',
+    'any.required': 'videoId is required'
+  }),
+  youtubeVideoId: Joi.string().optional().allow(null, ''),
+  localFilename: Joi.string().optional().allow(null, ''),
+  video_url: Joi.string().optional().allow(null, ''),
+  id_product: Joi.string().optional() // Backward compatibility
+})
+
+const videoFailureSchema = Joi.object({
+  videoId: Joi.string().required().messages({
+    'string.empty': 'videoId is required',
+    'any.required': 'videoId is required'
+  }),
+  error: Joi.string().optional().allow(null, ''),
+  id_product: Joi.string().optional() // Backward compatibility
+})
 
 /**
  * POST /internal/videos/success
  * Webhook endpoint for RCK Description Server to notify video completion
  * NOT PROTECTED - Called by external service
+ *
+ * Payload:
+ * - videoId: AIVideo MongoDB _id (required)
+ * - youtubeVideoId: YouTube video ID (optional)
+ * - localFilename: File path on external server (optional)
+ * - video_url: Direct video URL (optional)
+ * - id_product: Product ID for backward compatibility (optional)
  */
 router.post('/videos/success', async (req: Request, res: Response) => {
   try {
-    const { id_product, video_url } = req.body
-
-    if (!id_product || !video_url) {
+    // Validate request body
+    const { error, value } = videoSuccessSchema.validate(req.body)
+    if (error) {
       return res.status(400).json({
         success: false,
-        message: 'id_product and video_url are required'
+        message: error.details[0].message
       })
     }
 
-    console.log('[Internal Webhook] Video completed:', { id_product, video_url })
+    const { videoId, youtubeVideoId, localFilename, video_url, id_product } = value
 
-    // Import Product model
+    // Validate videoId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid videoId format'
+      })
+    }
+
+    console.log('[Internal Webhook] Video completed:', {
+      videoId,
+      youtubeVideoId,
+      localFilename,
+      video_url
+    })
+
+    // Import models
+    const { AIVideo } = require('../models/AIVideo')
     const Product = require('../../products/models/Product').default
 
-    // Find the product
-    const product = await Product.findById(id_product)
+    // Find the AIVideo record
+    const video = await AIVideo.findById(videoId)
 
-    if (!product) {
-      console.error('[Internal Webhook] Product not found:', id_product)
+    if (!video) {
+      console.error('[Internal Webhook] AIVideo not found:', videoId)
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: 'Video not found'
       })
     }
 
-    // Find the most recent pending video for this product
-    const videos = product.videos || []
-    const pendingVideoIndex = videos.findIndex((v: any) => v.status === 'pending')
-
-    if (pendingVideoIndex === -1) {
-      console.warn('[Internal Webhook] No pending video found for product:', id_product)
-      // Still return success to prevent retries from RCK server
-      return res.json({
-        success: true,
-        message: 'No pending video found, but request acknowledged'
-      })
+    // Update AIVideo record
+    video.status = 'completed'
+    video.metadata = {
+      ...video.metadata,
+      youtubeVideoId,
+      localFilename,
+      videoUrl: video_url || video.metadata?.videoUrl,
+      completedAt: new Date()
     }
+    await video.save()
 
-    // Update the pending video to completed
-    videos[pendingVideoIndex].status = 'completed'
-    videos[pendingVideoIndex].videoUrl = video_url
-    videos[pendingVideoIndex].completedAt = new Date()
+    console.log('[Internal Webhook] AIVideo updated:', videoId)
 
-    product.videos = videos
-    await product.save()
+    // Also update Product.videos array for dual storage
+    const product = await Product.findById(video.productId)
+    if (product) {
+      const videos = product.videos || []
+      const pendingVideoIndex = videos.findIndex((v: any) =>
+        v.status === 'pending' || v.status === 'generating'
+      )
 
-    console.log('[Internal Webhook] Video marked as completed for product:', id_product)
+      if (pendingVideoIndex !== -1) {
+        videos[pendingVideoIndex].status = 'completed'
+        videos[pendingVideoIndex].videoUrl = video_url
+        videos[pendingVideoIndex].youtubeUrl = youtubeVideoId ? `https://www.youtube.com/watch?v=${youtubeVideoId}` : undefined
+        videos[pendingVideoIndex].completedAt = new Date()
+        product.videos = videos
+        await product.save()
+        console.log('[Internal Webhook] Product.videos array updated for product:', video.productId)
+      }
+    }
 
     res.json({
       success: true,
       message: 'Video status updated successfully',
       data: {
-        productId: id_product,
-        videoUrl: video_url
+        videoId,
+        youtubeVideoId,
+        localFilename,
+        videoUrl: video_url,
+        productId: video.productId.toString()
       }
     })
   } catch (error: any) {
@@ -78,61 +136,85 @@ router.post('/videos/success', async (req: Request, res: Response) => {
  * POST /internal/videos/failure
  * Webhook endpoint for RCK Description Server to notify video failure
  * NOT PROTECTED - Called by external service
+ *
+ * Payload:
+ * - videoId: AIVideo MongoDB _id (required)
+ * - error: Error message (optional)
+ * - id_product: Product ID for backward compatibility (optional)
  */
 router.post('/videos/failure', async (req: Request, res: Response) => {
   try {
-    const { id_product, error } = req.body
-
-    if (!id_product) {
+    // Validate request body
+    const { error: validationError, value } = videoFailureSchema.validate(req.body)
+    if (validationError) {
       return res.status(400).json({
         success: false,
-        message: 'id_product is required'
+        message: validationError.details[0].message
       })
     }
 
-    console.log('[Internal Webhook] Video failed:', { id_product, error })
+    const { videoId, error, id_product } = value
 
-    // Import Product model
+    // Validate videoId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid videoId format'
+      })
+    }
+
+    console.log('[Internal Webhook] Video failed:', { videoId, error })
+
+    // Import models
+    const { AIVideo } = require('../models/AIVideo')
     const Product = require('../../products/models/Product').default
 
-    // Find the product
-    const product = await Product.findById(id_product)
+    // Find the AIVideo record
+    const video = await AIVideo.findById(videoId)
 
-    if (!product) {
-      console.error('[Internal Webhook] Product not found:', id_product)
+    if (!video) {
+      console.error('[Internal Webhook] AIVideo not found:', videoId)
       return res.status(404).json({
         success: false,
-        message: 'Product not found'
+        message: 'Video not found'
       })
     }
 
-    // Find the most recent pending video for this product
-    const videos = product.videos || []
-    const pendingVideoIndex = videos.findIndex((v: any) => v.status === 'pending')
-
-    if (pendingVideoIndex === -1) {
-      console.warn('[Internal Webhook] No pending video found for product:', id_product)
-      return res.json({
-        success: true,
-        message: 'No pending video found, but request acknowledged'
-      })
+    // Update AIVideo record
+    video.status = 'failed'
+    video.error = error || 'Video generation failed'
+    video.metadata = {
+      ...video.metadata,
+      failedAt: new Date()
     }
+    await video.save()
 
-    // Update the pending video to failed
-    videos[pendingVideoIndex].status = 'failed'
-    videos[pendingVideoIndex].error = error || 'Video generation failed'
-    videos[pendingVideoIndex].completedAt = new Date()
+    console.log('[Internal Webhook] AIVideo marked as failed:', videoId)
 
-    product.videos = videos
-    await product.save()
+    // Also update Product.videos array for dual storage
+    const product = await Product.findById(video.productId)
+    if (product) {
+      const videos = product.videos || []
+      const pendingVideoIndex = videos.findIndex((v: any) =>
+        v.status === 'pending' || v.status === 'generating'
+      )
 
-    console.log('[Internal Webhook] Video marked as failed for product:', id_product)
+      if (pendingVideoIndex !== -1) {
+        videos[pendingVideoIndex].status = 'failed'
+        videos[pendingVideoIndex].error = error || 'Video generation failed'
+        videos[pendingVideoIndex].completedAt = new Date()
+        product.videos = videos
+        await product.save()
+        console.log('[Internal Webhook] Product.videos array updated for product:', video.productId)
+      }
+    }
 
     res.json({
       success: true,
       message: 'Video failure recorded successfully',
       data: {
-        productId: id_product,
+        videoId,
+        productId: video.productId.toString(),
         error
       }
     })

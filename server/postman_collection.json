@@ -1166,6 +1166,124 @@
           }
         }
       ]
+    },
+    {
+      "name": "Webhooks (Internal)",
+      "description": "Internal webhook endpoints for external service callbacks (NOT protected by auth)",
+      "item": [
+        {
+          "name": "Video Success Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoId\": \"507f1f77bcf86cd799439011\",\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\",\n  \"localFilename\": \"videos/test_video.mp4\",\n  \"video_url\": \"https://example.com/videos/test.mp4\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/success",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "success"]
+            },
+            "description": "Webhook for external video generation service to notify video completion. Updates AIVideo record status to 'completed' and stores metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "Video Failure Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoId\": \"507f1f77bcf86cd799439011\",\n  \"error\": \"Video generation failed due to insufficient resources\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/failure",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "failure"]
+            },
+            "description": "Webhook for external video generation service to notify video generation failure. Updates AIVideo record status to 'failed' and stores error message."
+          },
+          "response": []
+        },
+        {
+          "name": "Video Success - Invalid VideoId",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoId\": \"invalid-id-format\",\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/success",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "success"]
+            },
+            "description": "Test case: Invalid videoId format (should return 400)"
+          },
+          "response": []
+        },
+        {
+          "name": "Video Success - Missing VideoId",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\",\n  \"localFilename\": \"videos/test.mp4\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/success",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "success"]
+            },
+            "description": "Test case: Missing required videoId field (should return 400)"
+          },
+          "response": []
+        }
+      ]
     }
   ]
 }

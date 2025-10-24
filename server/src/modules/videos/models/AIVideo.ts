@@ -20,6 +20,8 @@ export interface IAIVideo extends Document {
     generationTime?: number
     aiModel?: string
     externalJobId?: string // Track external API job
+    youtubeVideoId?: string // YouTube video ID from external service
+    localFilename?: string // File path on external server
     [key: string]: any
   }
   error?: string

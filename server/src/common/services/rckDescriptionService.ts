@@ -154,8 +154,10 @@ class RCKDescriptionService {
     user_id: string;
     sku: string;
     template_name: string;
+    video_id: string; // AIVideo MongoDB _id for webhook callback
+    callback_url: string; // Webhook URL to call when video is ready
   }): Promise<any> {
-    console.log('[RCK Description Service] Generating video for product:', params.id_product);
+    console.log('[RCK Description Service] Generating video for product:', params.id_product, 'with videoId:', params.video_id);
 
     const response = await this.client.post('/api/v1/videos/generate', params);
 

@@ -1226,6 +1226,140 @@ The system supports the following marketplace types with their required credenti
 }
 ```
 
+## Webhook Endpoints (Internal)
+
+These endpoints are NOT protected by authentication and are designed to be called by external services (like the RCK Description Server). They are used for asynchronous callback notifications.
+
+**Base URL:** `http://localhost:5000/internal`
+
+### Video Generation Webhooks
+
+#### POST /internal/videos/success
+Webhook endpoint for external video generation service to notify video completion.
+
+**Request Body:**
+```json
+{
+  "videoId": "507f1f77bcf86cd799439011",
+  "youtubeVideoId": "dQw4w9WgXcQ",
+  "localFilename": "videos/test_video.mp4",
+  "video_url": "https://example.com/videos/test.mp4"
+}
+```
+
+**Field Descriptions:**
+- `videoId` - **Required**. AIVideo MongoDB _id (must be a valid ObjectId)
+- `youtubeVideoId` - Optional. YouTube video ID for the generated video
+- `localFilename` - Optional. File path on external server where video is stored
+- `video_url` - Optional. Direct URL to access the generated video
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Video status updated successfully",
+  "data": {
+    "videoId": "507f1f77bcf86cd799439011",
+    "youtubeVideoId": "dQw4w9WgXcQ",
+    "localFilename": "videos/test_video.mp4",
+    "videoUrl": "https://example.com/videos/test.mp4",
+    "productId": "507f1f77bcf86cd799439012"
+  }
+}
+```
+
+**Error Responses:**
+- `400` - Bad Request (missing videoId or invalid format)
+```json
+{
+  "success": false,
+  "message": "videoId is required"
+}
+```
+- `404` - Not Found (video not found)
+```json
+{
+  "success": false,
+  "message": "Video not found"
+}
+```
+- `500` - Internal Server Error
+```json
+{
+  "success": false,
+  "message": "Failed to process video completion"
+}
+```
+
+**Behavior:**
+- Updates the AIVideo record status to `completed`
+- Stores YouTube video ID, local filename, and video URL in metadata
+- Also updates Product.videos array for dual storage compatibility
+- Idempotent - can be called multiple times safely
+
+#### POST /internal/videos/failure
+Webhook endpoint for external video generation service to notify video generation failure.
+
+**Request Body:**
+```json
+{
+  "videoId": "507f1f77bcf86cd799439011",
+  "error": "Video generation failed due to insufficient resources"
+}
+```
+
+**Field Descriptions:**
+- `videoId` - **Required**. AIVideo MongoDB _id (must be a valid ObjectId)
+- `error` - Optional. Error message describing why generation failed (defaults to "Video generation failed")
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Video failure recorded successfully",
+  "data": {
+    "videoId": "507f1f77bcf86cd799439011",
+    "productId": "507f1f77bcf86cd799439012",
+    "error": "Video generation failed due to insufficient resources"
+  }
+}
+```
+
+**Error Responses:**
+- `400` - Bad Request (missing videoId or invalid format)
+```json
+{
+  "success": false,
+  "message": "videoId is required"
+}
+```
+- `404` - Not Found (video not found)
+```json
+{
+  "success": false,
+  "message": "Video not found"
+}
+```
+- `500` - Internal Server Error
+```json
+{
+  "success": false,
+  "message": "Failed to process video failure"
+}
+```
+
+**Behavior:**
+- Updates the AIVideo record status to `failed`
+- Stores error message in the error field
+- Also updates Product.videos array for dual storage compatibility
+- Idempotent - can be called multiple times safely
+
+**Security Notes:**
+- These endpoints are NOT protected by JWT authentication
+- They should only be accessible from trusted external services
+- Consider implementing IP whitelisting or API key validation in production
+- Always validate the videoId format and existence before processing
+
 ## Error Responses
 
 All error responses follow this format:

@@ -3,6 +3,8 @@ import Product from '../../products/models/Product'
 import Usage from '../../subscriptions/models/Usage'
 import { CreateVideoDTO, UpdateVideoDTO, VideoQuery, VideoResponse, VideosListResponse } from '../interfaces/video.interface'
 import { Types } from 'mongoose'
+import { rckDescriptionService } from '@/common/services/rckDescriptionService'
+import { getEnv } from '@/common/config/env'
 
 export class VideoService {
   /**
@@ -225,41 +227,53 @@ export class VideoService {
       throw new Error('Video not found or already generating')
     }
 
-    // TODO: Call external video generation API here
-    // This would make an HTTP request to your external video generation service
-    // For now, we'll simulate the external API call
-    const externalJobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // Get product data for API call
+    const product = await Product.findById(video.productId)
+    if (!product) {
+      throw new Error('Product not found')
+    }
 
-    // Update video with external job ID for tracking
-    await AIVideo.findByIdAndUpdate(videoId, {
-      $set: {
-        'metadata.externalJobId': externalJobId
-      }
-    })
+    // Get environment configuration
+    const env = getEnv()
+    const callbackUrl = `${env.SERVER_URL}/internal/videos/success`
 
-    // Simulate external API response - in real implementation, this would be a webhook
-    setTimeout(async () => {
+    try {
+      // Call external video generation API
+      const response = await rckDescriptionService.generateVideo({
+        id_product: product._id.toString(),
+        title: product.title,
+        img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+        user_id: userId,
+        sku: product.sku || product._id.toString(),
+        template_name: video.template,
+        video_id: videoId, // AIVideo MongoDB _id for webhook callback
+        callback_url: callbackUrl // Webhook URL to call when video is ready
+      })
+
+      // Update video with external job ID for tracking (if provided by external API)
+      const externalJobId = response.job_id || response.externalJobId || `job_${Date.now()}`
       await AIVideo.findByIdAndUpdate(videoId, {
         $set: {
-          status: 'completed',
-          metadata: {
-            externalJobId,
-            title: `AI Generated: ${video.template.replace('_', ' ')} Video`,
-            description: `Professional ${video.template.replace('_', ' ')} video generated with AI technology`,
-            duration: 30,
-            format: 'mp4',
-            resolution: '1920x1080',
-            fileSize: 15000000,
-            videoUrl: `/videos/${videoId}.mp4`,
-            thumbnailUrl: `/thumbnails/${videoId}.jpg`,
-            generationTime: 45,
-            aiModel: 'ExternalVideoAI-v1'
-          }
+          'metadata.externalJobId': externalJobId
         }
       })
-    }, 5000)
 
-    const product = await Product.findById(video.productId)
+      console.log('[VideoService] Video generation started:', {
+        videoId,
+        externalJobId,
+        productId: product._id.toString()
+      })
+    } catch (error) {
+      // If external API call fails, mark video as failed
+      await AIVideo.findByIdAndUpdate(videoId, {
+        $set: {
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Failed to start video generation'
+        }
+      })
+      throw error
+    }
+
     return this.formatVideoResponse(video, product)
   }
 
