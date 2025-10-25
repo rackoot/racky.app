@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { Users, BarChart3, Settings, Shield, CreditCard, Activity, Home, Briefcase } from "lucide-react"
+import { Users, BarChart3, Settings, Shield, CreditCard, Activity, Home, Briefcase, BookOpen } from "lucide-react"
 import { UserProfile } from "./user-profile"
 import { getCurrentUser } from "@/lib/auth"
 
@@ -44,6 +44,12 @@ const adminNavItems = [
     href: "/admin/system",
     icon: Activity,
     description: "System health and performance monitoring"
+  },
+  {
+    title: "API Documentation",
+    href: "/admin/api-docs",
+    icon: BookOpen,
+    description: "View API endpoints documentation"
   },
   {
     title: "Settings",

@@ -29,6 +29,7 @@ import { AdminUsers } from '@/pages/admin/users'
 import { AdminWorkspaces } from '@/pages/admin/workspaces'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import { AdminAnalytics } from '@/pages/admin/analytics'
+import { ApiDocsPage } from '@/pages/admin/api-docs'
 import Workspaces from '@/pages/workspaces'
 import AIOpportunitiesPage from '@/pages/ai-optimization/opportunities'
 import AIStartScanPage from '@/pages/ai-optimization/start-scan'
@@ -402,6 +403,18 @@ function App() {
                     <h1 className="text-2xl font-bold">System</h1>
                     <p className="text-muted-foreground">System monitoring coming soon...</p>
                   </div>
+                </AdminLayout>
+              </RequireSuperAdmin>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/api-docs"
+          element={
+            <ProtectedRoute>
+              <RequireSuperAdmin>
+                <AdminLayout>
+                  <ApiDocsPage />
                 </AdminLayout>
               </RequireSuperAdmin>
             </ProtectedRoute>
