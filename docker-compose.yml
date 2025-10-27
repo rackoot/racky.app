@@ -58,6 +58,7 @@ services:
       - RABBITMQ_URL=amqp://racky:racky123@rabbitmq:5672/racky
       - USE_RABBITMQ=true
       - STRIPE_SKIP_WEBHOOK_VERIFICATION=true
+      - RCK_DESCRIPTION_SERVER_URL=https://dev-description-server.racky.ai
     volumes:
       - ./server:/app
       - /app/node_modules

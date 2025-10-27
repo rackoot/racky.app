@@ -17,6 +17,7 @@ data:
   RABBITMQ_MGMT_URL: http://rabbitmq:15672
   VITE_STRIPE_PUBLISHABLE_KEY: {{ .Values.stripe.public_key }}
   CLIENT_URL: {{ .Values.stripe.frontend_url }}
+  RCK_DESCRIPTION_SERVER_URL: "https://dev-description-server.racky.ai"
 kind: ConfigMap
 metadata:
   name: racky-app-env
