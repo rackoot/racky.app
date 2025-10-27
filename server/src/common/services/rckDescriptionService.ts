@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import https from 'https';
 import { getEnv } from '@/common/config/env';
 
 /**
@@ -23,6 +24,10 @@ class RCKDescriptionService {
       headers: {
         'Content-Type': 'application/json',
       },
+      // Bypass SSL certificate validation for development/self-signed certificates
+      httpsAgent: new https.Agent({
+        rejectUnauthorized: false,
+      }),
     });
 
     // Request interceptor for logging

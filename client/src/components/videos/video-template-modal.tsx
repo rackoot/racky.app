@@ -17,7 +17,8 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Loader2, Video, Info } from "lucide-react"
+import { Loader2, Video, Info, AlertCircle } from "lucide-react"
+import { videosApi, VideoTemplateResponse } from "@/api/resources/videos"
 
 interface VideoTemplateModalProps {
   open: boolean
@@ -26,49 +27,24 @@ interface VideoTemplateModalProps {
   onCreateVideo: (templateId: string, templateName: string) => void | Promise<void>
 }
 
-// Predefined video templates related to product marketing
-const PREDEFINED_TEMPLATES = [
-  {
-    id: 'unboxing',
-    name: 'Unboxing Experience',
-    description: 'Showcase the product as it comes out of the box, highlighting packaging and first impressions'
-  },
-  {
-    id: 'product_demo',
-    name: 'Product Demo',
-    description: 'Demonstrate the product features and how to use it effectively'
-  },
-  {
-    id: 'lifestyle',
-    name: 'Lifestyle Showcase',
-    description: 'Show the product being used in everyday life situations'
-  },
-  {
-    id: 'comparison',
-    name: 'Before & After / Comparison',
-    description: 'Compare the product with alternatives or show before and after usage'
-  },
-  {
-    id: 'testimonial',
-    name: 'Customer Testimonial',
-    description: 'Feature customer reviews and testimonials about the product'
-  },
-  {
-    id: 'tutorial',
-    name: 'How-To Tutorial',
-    description: 'Step-by-step guide on how to use the product'
-  },
-  {
-    id: 'features',
-    name: 'Feature Highlights',
-    description: 'Quick overview of key product features and benefits'
-  },
-  {
-    id: 'social_promo',
-    name: 'Social Media Promo',
-    description: 'Short, engaging video optimized for social media platforms'
+// Default fallback video URL
+const DEFAULT_PREVIEW_VIDEO = "https://www.youtube.com/embed/2T-ZiEdMHvw"
+
+// Helper to convert YouTube URL to embed format
+const getYouTubeEmbedUrl = (url: string): string => {
+  if (!url) return DEFAULT_PREVIEW_VIDEO
+
+  // If already an embed URL, return as is
+  if (url.includes('/embed/')) return url
+
+  // Extract video ID from various YouTube URL formats
+  const videoIdMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s]+)/)
+  if (videoIdMatch && videoIdMatch[1]) {
+    return `https://www.youtube.com/embed/${videoIdMatch[1]}`
   }
-]
+
+  return DEFAULT_PREVIEW_VIDEO
+}
 
 export function VideoTemplateModal({
   open,
@@ -77,62 +53,57 @@ export function VideoTemplateModal({
   onCreateVideo,
 }: VideoTemplateModalProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
-  const [loading, setLoading] = useState(false)
+  const [templates, setTemplates] = useState<VideoTemplateResponse[]>([])
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [generatingVideo, setGeneratingVideo] = useState(false)
 
-  // COMMENTED OUT: External API call to fetch templates
-  // This would normally fetch templates from an external service
-  // useEffect(() => {
-  //   if (open) {
-  //     loadTemplates()
-  //   }
-  // }, [open])
-  //
-  // const loadTemplates = async () => {
-  //   setLoading(true)
-  //   setError(null)
-  //
-  //   try {
-  //     const response = await videosApi.getVideoTemplates()
-  //
-  //     if (response.success && response.templates) {
-  //       setTemplates(response.templates)
-  //       if (response.templates.length > 0) {
-  //         setSelectedTemplateId(response.templates[0].id)
-  //       }
-  //     } else {
-  //       setError(response.error || "Failed to load video templates")
-  //     }
-  //   } catch (err) {
-  //     console.error("Error loading video templates:", err)
-  //     setError(
-  //       err instanceof Error
-  //         ? err.message
-  //         : "Failed to load video templates. The RCK Description Server may be offline."
-  //     )
-  //   } finally {
-  //     setLoading(false)
-  //   }
-  // }
-
-  // Auto-select first template when modal opens
+  // Fetch templates from external API when modal opens
   useEffect(() => {
-    if (open && !selectedTemplateId) {
-      setSelectedTemplateId(PREDEFINED_TEMPLATES[0].id)
+    if (open) {
+      loadTemplates()
     }
   }, [open])
 
+  const loadTemplates = async () => {
+    setLoadingTemplates(true)
+    setError(null)
+
+    try {
+      const response = await videosApi.getVideoTemplates()
+
+      if (response.success && response.templates) {
+        setTemplates(response.templates)
+        if (response.templates.length > 0) {
+          setSelectedTemplateId(response.templates[0].id)
+        }
+      } else {
+        setError(response.error || "Failed to load video templates")
+      }
+    } catch (err) {
+      console.error("Error loading video templates:", err)
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load video templates. The RCK Description Server may be offline."
+      )
+    } finally {
+      setLoadingTemplates(false)
+    }
+  }
+
   const handleGenerateVideo = async () => {
     if (selectedTemplateId) {
-      const selectedTemplate = PREDEFINED_TEMPLATES.find(t => t.id === selectedTemplateId)
+      const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
       if (selectedTemplate) {
-        setLoading(true)
+        setGeneratingVideo(true)
         try {
-          await onCreateVideo(selectedTemplateId, selectedTemplate.name)
+          await onCreateVideo(selectedTemplateId, selectedTemplate.title)
           // Reset state
           setSelectedTemplateId('')
           onOpenChange(false)
         } finally {
-          setLoading(false)
+          setGeneratingVideo(false)
         }
       }
     }
@@ -140,14 +111,16 @@ export function VideoTemplateModal({
 
   const handleClose = () => {
     setSelectedTemplateId('')
+    setError(null)
     onOpenChange(false)
   }
 
-  const selectedTemplate = PREDEFINED_TEMPLATES.find(t => t.id === selectedTemplateId)
+  const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
+  const isLoading = loadingTemplates || generatingVideo
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Video className="w-5 h-5" />
@@ -166,41 +139,88 @@ export function VideoTemplateModal({
             </AlertDescription>
           </Alert>
 
-          <div className="space-y-2">
-            <Label htmlFor="template-select">Video Template</Label>
-            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-              <SelectTrigger id="template-select">
-                <SelectValue placeholder="Select a video template..." />
-              </SelectTrigger>
-              <SelectContent>
-                {PREDEFINED_TEMPLATES.map((template) => (
-                  <SelectItem key={template.id} value={template.id}>
-                    {template.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Error Alert */}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          {selectedTemplate && (
-            <div className="rounded-lg border p-4 bg-muted/50">
-              <h4 className="font-medium text-sm mb-2">{selectedTemplate.name}</h4>
-              <p className="text-sm text-muted-foreground">
-                {selectedTemplate.description}
-              </p>
+          {/* Loading State */}
+          {loadingTemplates && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="ml-3 text-muted-foreground">Loading templates...</span>
+            </div>
+          )}
+
+          {/* Templates Selection */}
+          {!loadingTemplates && templates.length > 0 && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="template-select">Video Template</Label>
+                <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                  <SelectTrigger id="template-select">
+                    <SelectValue placeholder="Select a video template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Template Preview */}
+              {selectedTemplate && (
+                <div className="space-y-3">
+                  {/* YouTube Preview */}
+                  <div className="rounded-lg border overflow-hidden bg-black aspect-video">
+                    <iframe
+                      src={getYouTubeEmbedUrl(selectedTemplate.url_video || '')}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title={`${selectedTemplate.title} Preview`}
+                    />
+                  </div>
+
+                  {/* Template Information */}
+                  <div className="rounded-lg border p-4 bg-muted/50">
+                    <h4 className="font-medium text-sm mb-2">{selectedTemplate.title}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedTemplate.description}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Empty State */}
+          {!loadingTemplates && templates.length === 0 && !error && (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Video className="w-12 h-12 text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">No templates available</p>
+              <Button variant="link" onClick={loadTemplates} className="mt-2">
+                Try again
+              </Button>
             </div>
           )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={loading}>
+          <Button variant="outline" onClick={handleClose} disabled={isLoading}>
             Cancel
           </Button>
           <Button
             onClick={handleGenerateVideo}
-            disabled={!selectedTemplateId || loading}
+            disabled={!selectedTemplateId || isLoading || templates.length === 0}
           >
-            {loading ? (
+            {generatingVideo ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Generating...

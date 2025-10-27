@@ -86,6 +86,7 @@ export interface VideoTemplateResponse {
   name_file_video: string
   name_file_background_image: string
   description: string
+  url_video?: string
 }
 
 export interface VideoTemplatesResponse {
