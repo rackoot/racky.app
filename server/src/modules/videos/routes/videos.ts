@@ -59,7 +59,13 @@ router.get('/templates', async (req: AuthenticatedRequest, res: Response) => {
     // Fetch templates from external service
     const result = await rckDescriptionService.getVideoTemplates()
 
-    res.json(result)
+    console.log('[Video Templates] Result from RCK service:', JSON.stringify(result, null, 2))
+
+    // Return in standardized API format
+    res.json({
+      success: true,
+      data: result
+    })
   } catch (error: any) {
     console.error('Error fetching video templates:', error)
     res.status(500).json({
