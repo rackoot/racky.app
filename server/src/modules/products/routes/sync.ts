@@ -2,11 +2,12 @@ import express, { Response } from 'express';
 import Joi from 'joi';
 import { AuthenticatedRequest } from '@/common/types/express';
 import { protect, requireWorkspace } from '@/common/middleware/auth';
-import { 
-  JobType, 
-  JobPriority, 
-  MarketplaceSyncJobData 
+import {
+  JobType,
+  JobPriority,
+  MarketplaceSyncJobData
 } from '@/common/types/jobTypes';
+import { ProductSyncFilters } from '@/common/types/syncFilters';
 import rabbitMQService from '@/common/services/rabbitMQService';
 import { healthMonitorService } from '@/common/services/healthMonitorService';
 import Job from '@/common/models/Job';
@@ -21,6 +22,12 @@ const startSyncSchema = Joi.object({
   marketplace: Joi.string().required(),
   estimatedProducts: Joi.number().integer().min(1).default(1000),
   batchSize: Joi.number().integer().min(10).max(200).default(75),
+  filters: Joi.object({
+    includeActive: Joi.boolean().default(true),
+    includeInactive: Joi.boolean().default(false),
+    categoryIds: Joi.array().items(Joi.string()).allow(null).default(null),
+    brandIds: Joi.array().items(Joi.string()).allow(null).default(null),
+  }).optional(),
 });
 
 interface StartSyncRequestBody {
@@ -28,6 +35,7 @@ interface StartSyncRequestBody {
   marketplace: string;
   estimatedProducts?: number;
   batchSize?: number;
+  filters?: ProductSyncFilters;
 }
 
 /**
@@ -44,7 +52,7 @@ router.post('/start', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const { connectionId, marketplace, estimatedProducts = 1000, batchSize = 75 } = req.body;
+    const { connectionId, marketplace, estimatedProducts = 1000, batchSize = 75, filters } = req.body;
     const userId = req.user!._id.toString();
     const workspaceId = req.workspace!._id.toString();
 
@@ -85,6 +93,7 @@ router.post('/start', async (req: AuthenticatedRequest, res: Response) => {
       marketplace,
       estimatedProducts,
       batchSize,
+      filters,
       createdAt: new Date(),
       priority: JobPriority.NORMAL,
     };

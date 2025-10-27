@@ -4,6 +4,8 @@ import {
   JobType,
   JobPriority,
 } from '@/common/types/jobTypes';
+import { ProductSyncFilters, DEFAULT_SYNC_FILTERS } from '@/common/types/syncFilters';
+import { applyVtexFilters } from '@/common/utils/vtexFilters';
 import rabbitMQService from '@/common/services/rabbitMQService';
 import Job from '@/common/models/Job';
 import JobHistory from '@/common/models/JobHistory';
@@ -32,10 +34,11 @@ export class MarketplaceSyncProcessor {
     totalBatches: number;
     message: string;
   }> {
-    const { userId, workspaceId, connectionId, marketplace, estimatedProducts } = job.data;
-    
+    const { userId, workspaceId, connectionId, marketplace, estimatedProducts, filters } = job.data;
+
     console.log(`🔄 Starting marketplace sync for user ${userId}, connection ${connectionId}`);
-    
+    console.log(`🔍 Filters:`, JSON.stringify(filters, null, 2));
+
     try {
       // Update job progress
       await job.progress(10);
@@ -61,7 +64,8 @@ export class MarketplaceSyncProcessor {
       console.log(`📊 Fetching product list from ${marketplace}...`);
       const productList = await MarketplaceSyncProcessor.fetchMarketplaceProducts(
         marketplace,
-        connection.credentials
+        connection.credentials,
+        filters
       );
 
       const totalProducts = productList.length;
@@ -89,6 +93,7 @@ export class MarketplaceSyncProcessor {
           productIds: batchProducts.map(p => p.externalId),
           batchNumber: batchNumber + 1,
           totalBatches,
+          filters,
           parentJobId: job.id!.toString(),
           createdAt: new Date(),
           priority: JobPriority.NORMAL,
@@ -262,21 +267,22 @@ export class MarketplaceSyncProcessor {
    * Fetch product list from marketplace
    */
   private static async fetchMarketplaceProducts(
-    marketplace: string, 
-    credentials: any
+    marketplace: string,
+    credentials: any,
+    filters?: any
   ): Promise<Array<{ externalId: string }>> {
     // This would call the actual marketplace APIs
     // For now, we'll simulate with the existing marketplace service
     try {
       switch (marketplace.toLowerCase()) {
         case 'shopify':
-          return await MarketplaceSyncProcessor.fetchShopifyProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchShopifyProducts(credentials, filters);
         case 'vtex':
-          return await MarketplaceSyncProcessor.fetchVtexProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchVtexProducts(credentials, filters);
         case 'woocommerce':
-          return await MarketplaceSyncProcessor.fetchWooCommerceProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchWooCommerceProducts(credentials, filters);
         case 'mercadolibre':
-          return await MarketplaceSyncProcessor.fetchMercadoLibreProducts(credentials);
+          return await MarketplaceSyncProcessor.fetchMercadoLibreProducts(credentials, filters);
         default:
           throw new Error(`Marketplace ${marketplace} not supported for batch sync`);
       }
@@ -442,9 +448,13 @@ export class MarketplaceSyncProcessor {
   /**
    * Marketplace-specific product list fetchers
    */
-  private static async fetchShopifyProducts(credentials: any): Promise<Array<{ externalId: string }>> {
+  private static async fetchShopifyProducts(
+    credentials: any,
+    filters?: ProductSyncFilters
+  ): Promise<Array<{ externalId: string }>> {
     // Simulate Shopify API call
     // In real implementation, this would call Shopify's products API
+    // TODO: Implement filters for Shopify
     const mockProducts = [];
     for (let i = 1; i <= 100; i++) {
       mockProducts.push({ externalId: `shopify_product_${i}` });
@@ -452,16 +462,24 @@ export class MarketplaceSyncProcessor {
     return mockProducts;
   }
 
-  private static async fetchVtexProducts(credentials: VtexCredentials): Promise<Array<{ externalId: string }>> {
+  private static async fetchVtexProducts(
+    credentials: VtexCredentials,
+    filters?: ProductSyncFilters
+  ): Promise<Array<{ externalId: string }>> {
     try {
-      console.log('[VTEX Processor] Fetching all product IDs from VTEX...');
+      console.log('[VTEX Processor] Fetching product IDs from VTEX...');
+
+      // Use default filters if none provided
+      const appliedFilters = filters || DEFAULT_SYNC_FILTERS;
+      console.log('[VTEX Processor] Filters:', JSON.stringify(appliedFilters, null, 2));
 
       const allProductIds: Array<{ externalId: string }> = [];
       let page = 1;
       let hasMore = true;
-      const pageSize = 100; // VTEX API max per page
+      const pageSize = 50; // Match sync endpoint
+      const maxProducts = 10000; // Safety limit
 
-      while (hasMore) {
+      while (hasMore && allProductIds.length < maxProducts) {
         const response = await VtexService.fetchProductAndSkuIds(credentials, page, pageSize);
 
         // Validate that response.data is an array (VTEX API can return null/undefined)
@@ -472,27 +490,57 @@ export class MarketplaceSyncProcessor {
           break;
         }
 
-        // Extract product IDs
-        const productIds = responseData.map(item => ({
-          externalId: item.productId.toString()
+        // Fetch complete product data for filtering
+        const completeProducts: VtexCompleteProduct[] = [];
+
+        for (const item of responseData) {
+          const primarySkuId = item.skuIds[0];
+
+          if (!primarySkuId) {
+            console.warn(`[VTEX Processor] Product ${item.productId} has no SKUs, skipping`);
+            continue;
+          }
+
+          try {
+            const productData = await VtexService.fetchCompleteProductData(
+              credentials,
+              item.productId,
+              primarySkuId
+            );
+
+            completeProducts.push(productData);
+          } catch (error: any) {
+            console.error(`[VTEX Processor] Error fetching product ${item.productId}:`, error.message);
+            // Continue with other products
+          }
+        }
+
+        console.log(`[VTEX Processor] Page ${page}: Fetched ${completeProducts.length} complete products`);
+
+        // Apply filters to this batch
+        const filteredProducts = applyVtexFilters(completeProducts, appliedFilters);
+
+        // Extract product IDs from filtered products
+        const productIds = filteredProducts.map(item => ({
+          externalId: item.product.Id.toString()
         }));
 
         allProductIds.push(...productIds);
 
-        console.log(`[VTEX Processor] Page ${page}: Fetched ${productIds.length} products (Total so far: ${allProductIds.length})`);
+        console.log(`[VTEX Processor] Page ${page}: ${productIds.length} products passed filters (Total so far: ${allProductIds.length})`);
 
         // Check if there are more pages
         hasMore = responseData.length === pageSize;
         page++;
 
         // Safety limit to avoid infinite loops
-        if (page > 100) {
-          console.warn('[VTEX Processor] Reached max page limit (100)');
+        if (page > 200) {
+          console.warn('[VTEX Processor] Reached max page limit (200)');
           break;
         }
       }
 
-      console.log(`[VTEX Processor] Total products fetched: ${allProductIds.length}`);
+      console.log(`[VTEX Processor] Total filtered products: ${allProductIds.length}`);
       return allProductIds;
 
     } catch (error: any) {
@@ -501,8 +549,12 @@ export class MarketplaceSyncProcessor {
     }
   }
 
-  private static async fetchWooCommerceProducts(credentials: any): Promise<Array<{ externalId: string }>> {
+  private static async fetchWooCommerceProducts(
+    credentials: any,
+    filters?: ProductSyncFilters
+  ): Promise<Array<{ externalId: string }>> {
     // Simulate WooCommerce API call
+    // TODO: Implement filters for WooCommerce
     const mockProducts = [];
     for (let i = 1; i <= 75; i++) {
       mockProducts.push({ externalId: `woo_product_${i}` });
@@ -510,8 +562,12 @@ export class MarketplaceSyncProcessor {
     return mockProducts;
   }
 
-  private static async fetchMercadoLibreProducts(credentials: any): Promise<Array<{ externalId: string }>> {
+  private static async fetchMercadoLibreProducts(
+    credentials: any,
+    filters?: ProductSyncFilters
+  ): Promise<Array<{ externalId: string }>> {
     // Simulate MercadoLibre API call
+    // TODO: Implement filters for MercadoLibre
     const mockProducts = [];
     for (let i = 1; i <= 25; i++) {
       mockProducts.push({ externalId: `ml_product_${i}` });

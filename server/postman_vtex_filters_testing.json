@@ -901,7 +901,7 @@
       "name": "5b. Product Sync ASYNC (NEW)",
       "item": [
         {
-          "name": "Start Async Sync Job",
+          "name": "Start Async Sync (No Filters)",
           "event": [
             {
               "listen": "test",
@@ -952,7 +952,216 @@
               "host": ["{{base_url}}"],
               "path": ["products", "sync", "start"]
             },
-            "description": "🚀 NEW: Start async product sync job. Returns immediately with job ID. Processes products in background with 3 concurrent batches. NO timeout limits!"
+            "description": "🚀 Start async sync without filters. Default: includeActive=true, includeInactive=false. No timeout limits!"
+          },
+          "response": []
+        },
+        {
+          "name": "Start Async Sync (Active + Inactive)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Job created successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.jobId).to.exist;",
+                  "    ",
+                  "    pm.collectionVariables.set(\"job_id\", jsonData.data.jobId);",
+                  "    console.log(\"✅ Async Job Started with Active + Inactive filter!\");",
+                  "    console.log(\"Job ID:\", jsonData.data.jobId);",
+                  "    console.log(\"Estimated Products:\", jsonData.data.estimatedProducts);",
+                  "    console.log(\"Estimated Time:\", jsonData.data.estimatedTime);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"connectionId\": \"{{connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 1000,\n  \"batchSize\": 75,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": true,\n    \"categoryIds\": null,\n    \"brandIds\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/start",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "start"]
+            },
+            "description": "🚀 Start async sync with BOTH active AND inactive products. Useful for complete catalog sync."
+          },
+          "response": []
+        },
+        {
+          "name": "Start Async Sync (Category Filter)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Job created successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.jobId).to.exist;",
+                  "    ",
+                  "    pm.collectionVariables.set(\"job_id\", jsonData.data.jobId);",
+                  "    console.log(\"✅ Async Job Started with Category filter!\");",
+                  "    console.log(\"Job ID:\", jsonData.data.jobId);",
+                  "    console.log(\"Estimated Products:\", jsonData.data.estimatedProducts);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"connectionId\": \"{{connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 500,\n  \"batchSize\": 75,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"categoryIds\": [\"1\", \"2\", \"3\"],\n    \"brandIds\": null\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/start",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "start"]
+            },
+            "description": "🚀 Start async sync filtering by specific categories. Replace IDs with actual category IDs from 'Get VTEX Categories' endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Start Async Sync (Brand Filter)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Job created successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.jobId).to.exist;",
+                  "    ",
+                  "    pm.collectionVariables.set(\"job_id\", jsonData.data.jobId);",
+                  "    console.log(\"✅ Async Job Started with Brand filter!\");",
+                  "    console.log(\"Job ID:\", jsonData.data.jobId);",
+                  "    console.log(\"Estimated Products:\", jsonData.data.estimatedProducts);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"connectionId\": \"{{connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 500,\n  \"batchSize\": 75,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"categoryIds\": null,\n    \"brandIds\": [\"10\", \"20\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/start",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "start"]
+            },
+            "description": "🚀 Start async sync filtering by specific brands. Replace IDs with actual brand IDs from 'Get VTEX Brands' endpoint."
+          },
+          "response": []
+        },
+        {
+          "name": "Start Async Sync (ALL Filters)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Job created successfully\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.jobId).to.exist;",
+                  "    ",
+                  "    pm.collectionVariables.set(\"job_id\", jsonData.data.jobId);",
+                  "    console.log(\"✅ Async Job Started with ALL filters!\");",
+                  "    console.log(\"Job ID:\", jsonData.data.jobId);",
+                  "    console.log(\"Filters Applied:\");",
+                  "    console.log(\"  - Status: Active only\");",
+                  "    console.log(\"  - Categories: Specific IDs\");",
+                  "    console.log(\"  - Brands: Specific IDs\");",
+                  "    console.log(\"Estimated Products:\", jsonData.data.estimatedProducts);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"connectionId\": \"{{connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 200,\n  \"batchSize\": 75,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"categoryIds\": [\"1\", \"2\"],\n    \"brandIds\": [\"10\", \"20\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/start",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "start"]
+            },
+            "description": "🚀 Start async sync with ALL filters combined: active status + specific categories + specific brands. Most restrictive sync."
           },
           "response": []
         },
@@ -1163,7 +1372,7 @@
           "response": []
         }
       ],
-      "description": "🚀 NEW: Async product sync system. No timeout limits, background processing with progress monitoring. Processes thousands of products with 3 concurrent batches."
+      "description": "🚀 UPDATED: Async product sync system with FILTER SUPPORT! Now supports same filters as sync endpoint: includeActive, includeInactive, categoryIds, brandIds. No timeout limits, background processing with progress monitoring. Processes thousands of products with 3 concurrent batches."
     },
     {
       "name": "6. View Results",

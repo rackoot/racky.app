@@ -1,3 +1,5 @@
+import { ProductSyncFilters } from './syncFilters';
+
 export enum JobType {
   MARKETPLACE_SYNC = 'marketplace-sync',
   PRODUCT_BATCH = 'product-batch',
@@ -24,6 +26,7 @@ export interface MarketplaceSyncJobData {
   marketplace: string;
   estimatedProducts: number;
   batchSize: number;
+  filters?: ProductSyncFilters;
   createdAt: Date;
   priority: JobPriority;
   metadata?: Record<string, any>;
@@ -38,6 +41,7 @@ export interface ProductBatchJobData {
   parentJobId: string;
   batchNumber: number;
   totalBatches: number;
+  filters?: ProductSyncFilters;
   createdAt: Date;
   priority: JobPriority;
   metadata?: Record<string, any>;
