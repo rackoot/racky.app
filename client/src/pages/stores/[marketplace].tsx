@@ -5,7 +5,11 @@ import { ConnectionForm } from "@/components/marketplace/connection-form"
 import { ConnectedMarketplaceDetail } from "@/components/marketplace/connected-marketplace-detail"
 import { ConnectedShopifyDetail } from "@/components/marketplace/connected-shopify-detail"
 import { SyncConfirmationDialog } from "@/components/marketplace/sync-confirmation-dialog"
+import { SyncFiltersModal } from "@/components/marketplace/sync-filters-modal"
+import { SyncProgressDisplay } from "@/components/marketplace/sync-progress-display"
+import { saveSyncJob, getSyncJob } from "@/lib/sync-storage"
 import { marketplacesApi, productsApi } from "@/api"
+import type { ProductSyncFilters } from "@/types/sync"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -29,6 +33,11 @@ export function MarketplacePage() {
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [deleteProducts, setDeleteProducts] = useState(true)
+
+  // Async sync states
+  const [showFiltersModal, setShowFiltersModal] = useState(false)
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [showSyncProgress, setShowSyncProgress] = useState(false)
 
   const loadMarketplace = async () => {
     if (!marketplaceId) return
@@ -67,30 +76,26 @@ export function MarketplacePage() {
     }
   }, [marketplaceId, currentWorkspace])
 
+  // Check for active sync job in localStorage on mount
+  useEffect(() => {
+    if (marketplace?.connectionInfo) {
+      const storedJob = getSyncJob(marketplace.connectionInfo.connectionId)
+      if (storedJob) {
+        setCurrentJobId(storedJob.jobId)
+        setShowSyncProgress(true)
+      }
+    }
+  }, [marketplace])
+
   const handleConnectionSuccess = async () => {
     await loadMarketplace()
   }
 
   const handleSync = async (marketplace: Marketplace) => {
     if (!marketplace.connectionInfo) return
-    
-    // Check if products exist
-    try {
-      const productInfo = await productsApi.hasProducts(marketplace.connectionInfo.connectionId)
-      setProductCount(productInfo.count)
-      
-      if (productInfo.hasProducts) {
-        // Show warning modal if products exist
-        setShowSyncConfirm(true)
-      } else {
-        // No products exist, sync directly
-        await performSync(marketplace, false)
-      }
-    } catch (error) {
-      console.error('Error checking products:', error)
-      // If error checking, proceed with sync (fail safe)
-      await performSync(marketplace, false)
-    }
+
+    // Open filters modal for async sync with filters
+    setShowFiltersModal(true)
   }
 
   const handleConfirmedSync = async () => {
@@ -101,7 +106,7 @@ export function MarketplacePage() {
 
   const performSync = async (marketplace: Marketplace, force: boolean = false) => {
     if (!marketplace.connectionInfo) return
-    
+
     setSyncing(true)
     try {
       await productsApi.syncProducts(
@@ -114,6 +119,59 @@ export function MarketplacePage() {
     } finally {
       setSyncing(false)
     }
+  }
+
+  const handleStartAsyncSync = async (filters: ProductSyncFilters) => {
+    if (!marketplace?.connectionInfo) return
+
+    setSyncing(true)
+    try {
+      console.log('Starting async sync with filters:', filters)
+
+      const response = await productsApi.startAsyncSync({
+        connectionId: marketplace.connectionInfo.connectionId,
+        marketplace: marketplace.id,
+        estimatedProducts: productCount || 50,
+        batchSize: 50,
+        filters
+      })
+
+      console.log('Async sync started:', response)
+
+      // Save job to localStorage for persistence
+      saveSyncJob({
+        jobId: response.jobId,
+        connectionId: marketplace.connectionInfo.connectionId,
+        marketplace: marketplace.id,
+        startedAt: new Date().toISOString()
+      })
+
+      // Save job ID and show progress
+      setCurrentJobId(response.jobId)
+      setShowFiltersModal(false)
+      setShowSyncProgress(true)
+    } catch (error) {
+      console.error('Error starting async sync:', error)
+      alert('Error al iniciar la sincronización. Por favor, intenta nuevamente.')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleSyncComplete = () => {
+    console.log('Sync completed! Reloading marketplace...')
+    loadMarketplace()
+
+    // Hide progress after a delay
+    setTimeout(() => {
+      setShowSyncProgress(false)
+      setCurrentJobId(null)
+    }, 3000)
+  }
+
+  const handleSyncError = (error: string) => {
+    console.error('Sync error:', error)
+    alert(`Error en la sincronización: ${error}`)
   }
 
   const handleDisconnect = async (marketplace: Marketplace) => {
@@ -225,6 +283,31 @@ export function MarketplacePage() {
           productCount={productCount}
           isLoading={syncing}
         />
+
+        {/* Sync Filters Modal - NEW */}
+        {marketplace.connectionInfo && (
+          <SyncFiltersModal
+            open={showFiltersModal}
+            onOpenChange={setShowFiltersModal}
+            connectionId={marketplace.connectionInfo.connectionId}
+            marketplace={marketplace.id}
+            onStartSync={handleStartAsyncSync}
+          />
+        )}
+
+        {/* Sync Progress Display - NEW */}
+        {showSyncProgress && currentJobId && marketplace.connectionInfo && (
+          <div className="fixed bottom-4 right-4 w-[500px] z-50 shadow-lg">
+            <SyncProgressDisplay
+              jobId={currentJobId}
+              connectionId={marketplace.connectionInfo.connectionId}
+              onComplete={handleSyncComplete}
+              onError={handleSyncError}
+              autoClose={true}
+              autoCloseDelay={3000}
+            />
+          </div>
+        )}
 
         {/* Disconnect Confirmation Dialog */}
         <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>

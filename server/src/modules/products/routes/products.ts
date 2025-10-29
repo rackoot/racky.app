@@ -1415,8 +1415,7 @@ router.post('/:id/resync', async (req: AuthenticatedRequest, res: Response) => {
 
         // Reload the product with all populated fields
         const updatedProduct = await Product.findById(syncedProduct.productId || id)
-          .populate('storeConnectionId')
-          .populate('opportunityCount');
+          .populate('storeConnectionId');
 
         res.json({
           success: true,

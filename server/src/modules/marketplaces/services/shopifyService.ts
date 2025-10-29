@@ -1,5 +1,7 @@
 import { ShopifyCredentials } from './marketplaceService';
 import { ProductSyncFilters } from '@/common/types/syncFilters';
+import MarketplaceCatalogCache from '@/common/models/MarketplaceCatalogCache';
+import { Types } from 'mongoose';
 
 /**
  * Shopify Complete Product Interface
@@ -334,6 +336,348 @@ export class ShopifyService {
         inventoryQuantity: edge.node.inventoryQuantity || 0,
         taxable: edge.node.taxable
       }))
+    };
+  }
+
+  /**
+   * Fetch all unique vendors (brands) from Shopify with product counts
+   * Fetches ALL products from Shopify API and aggregates vendors in memory
+   *
+   * @param credentials Shopify credentials
+   * @returns Array of vendors with product counts
+   */
+  static async fetchAllVendors(
+    credentials: ShopifyCredentials
+  ): Promise<Array<{ name: string; productCount: number }>> {
+    const { shop_url, access_token } = credentials;
+
+    if (!shop_url || !access_token) {
+      throw new Error('Shop URL and access token are required for Shopify');
+    }
+
+    // Extract store name from shop_url
+    let storeName = shop_url
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '')
+      .replace(/\.myshopify\.com$/, '');
+
+    const apiUrl = `https://${storeName}.myshopify.com/admin/api/2023-10/graphql.json`;
+
+    console.log('[Shopify Service] Fetching all vendors from Shopify API...');
+
+    // GraphQL query to fetch products with vendor
+    const query = `
+      query GetProducts($first: Int!, $after: String) {
+        products(first: $first, after: $after, query: "status:ACTIVE") {
+          edges {
+            node {
+              id
+              vendor
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `;
+
+    // Paginate and aggregate vendors
+    const vendorCounts = new Map<string, number>();
+    let cursor: string | null = null;
+    let hasMore = true;
+    let page = 1;
+
+    while (hasMore) {
+      console.log(`[Shopify Service] Fetching vendors page ${page}...`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': access_token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query,
+          variables: { first: 250, after: cursor }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Shopify API request failed: ${response.statusText}`);
+      }
+
+      const data: any = await response.json();
+
+      if (data.errors) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+      }
+
+      const products = data.data.products.edges;
+
+      // Count vendors
+      products.forEach(({ node }: any) => {
+        if (node.vendor && node.vendor.trim() !== '') {
+          const vendor = node.vendor.trim();
+          vendorCounts.set(vendor, (vendorCounts.get(vendor) || 0) + 1);
+        }
+      });
+
+      hasMore = data.data.products.pageInfo.hasNextPage;
+      cursor = data.data.products.pageInfo.endCursor;
+      page++;
+
+      // Safety limit
+      if (page > 200) {
+        console.warn('[Shopify Service] Reached max page limit (200)');
+        break;
+      }
+    }
+
+    console.log(`[Shopify Service] Found ${vendorCounts.size} unique vendors`);
+
+    // Convert to array and sort by product count descending
+    return Array.from(vendorCounts.entries())
+      .map(([name, productCount]) => ({ name, productCount }))
+      .sort((a, b) => b.productCount - a.productCount);
+  }
+
+  /**
+   * Fetch all unique product types (categories) from Shopify with product counts
+   * Fetches ALL products from Shopify API and aggregates product types in memory
+   *
+   * @param credentials Shopify credentials
+   * @returns Array of product types with product counts
+   */
+  static async fetchAllProductTypes(
+    credentials: ShopifyCredentials
+  ): Promise<Array<{ name: string; productCount: number }>> {
+    const { shop_url, access_token } = credentials;
+
+    if (!shop_url || !access_token) {
+      throw new Error('Shop URL and access token are required for Shopify');
+    }
+
+    // Extract store name from shop_url
+    let storeName = shop_url
+      .replace(/^https?:\/\//, '')
+      .replace(/\/$/, '')
+      .replace(/\.myshopify\.com$/, '');
+
+    const apiUrl = `https://${storeName}.myshopify.com/admin/api/2023-10/graphql.json`;
+
+    console.log('[Shopify Service] Fetching all product types from Shopify API...');
+
+    // GraphQL query to fetch products with productType
+    const query = `
+      query GetProducts($first: Int!, $after: String) {
+        products(first: $first, after: $after, query: "status:ACTIVE") {
+          edges {
+            node {
+              id
+              productType
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `;
+
+    // Paginate and aggregate product types
+    const productTypeCounts = new Map<string, number>();
+    let cursor: string | null = null;
+    let hasMore = true;
+    let page = 1;
+
+    while (hasMore) {
+      console.log(`[Shopify Service] Fetching product types page ${page}...`);
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': access_token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query,
+          variables: { first: 250, after: cursor }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Shopify API request failed: ${response.statusText}`);
+      }
+
+      const data: any = await response.json();
+
+      if (data.errors) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+      }
+
+      const products = data.data.products.edges;
+
+      // Count product types
+      products.forEach(({ node }: any) => {
+        if (node.productType && node.productType.trim() !== '') {
+          const productType = node.productType.trim();
+          productTypeCounts.set(productType, (productTypeCounts.get(productType) || 0) + 1);
+        }
+      });
+
+      hasMore = data.data.products.pageInfo.hasNextPage;
+      cursor = data.data.products.pageInfo.endCursor;
+      page++;
+
+      // Safety limit
+      if (page > 200) {
+        console.warn('[Shopify Service] Reached max page limit (200)');
+        break;
+      }
+    }
+
+    console.log(`[Shopify Service] Found ${productTypeCounts.size} unique product types`);
+
+    // Convert to array and sort by product count descending
+    return Array.from(productTypeCounts.entries())
+      .map(([name, productCount]) => ({ name, productCount }))
+      .sort((a, b) => b.productCount - a.productCount);
+  }
+
+  /**
+   * Get vendors with product counts (with 24h cache)
+   *
+   * @param connectionId Store connection ID
+   * @param workspaceId Workspace ID
+   * @param credentials Shopify credentials
+   * @returns Array of vendors with counts and cache info
+   */
+  static async getVendorsWithCount(
+    connectionId: string,
+    workspaceId: Types.ObjectId,
+    credentials: ShopifyCredentials
+  ): Promise<{
+    vendors: Array<{ name: string; productCount: number }>;
+    totalCount: number;
+    source: 'cache' | 'api';
+  }> {
+    console.log('[Shopify Service] Getting vendors with count for connection:', connectionId);
+
+    const storeConnectionId = new Types.ObjectId(connectionId);
+
+    // Check cache first
+    const cachedData = await MarketplaceCatalogCache.findValidCache(storeConnectionId, 'brand');
+
+    if (cachedData && !cachedData.isExpired()) {
+      console.log('[Shopify Service] Returning vendors from cache');
+      const vendors = cachedData.items.map(item => ({
+        name: item.name,
+        productCount: item.productCount
+      }));
+      return {
+        vendors,
+        totalCount: vendors.length,
+        source: 'cache'
+      };
+    }
+
+    // Cache expired or doesn't exist, fetch from API
+    console.log('[Shopify Service] Cache expired or not found, fetching from Shopify API...');
+    const vendors = await this.fetchAllVendors(credentials);
+
+    // Transform to ICatalogCacheItem format (id, name, productCount)
+    const cacheItems = vendors.map(vendor => ({
+      id: vendor.name, // Use name as ID for Shopify vendors
+      name: vendor.name,
+      productCount: vendor.productCount
+    }));
+
+    // Save to cache with 24h TTL using createOrUpdate method
+    await MarketplaceCatalogCache.createOrUpdate(
+      storeConnectionId,
+      workspaceId,
+      'shopify',
+      'brand',
+      cacheItems,
+      24 // 24 hours TTL
+    );
+
+    console.log(`[Shopify Service] Cached ${vendors.length} vendors for 24 hours`);
+
+    return {
+      vendors,
+      totalCount: vendors.length,
+      source: 'api'
+    };
+  }
+
+  /**
+   * Get product types with product counts (with 24h cache)
+   *
+   * @param connectionId Store connection ID
+   * @param workspaceId Workspace ID
+   * @param credentials Shopify credentials
+   * @returns Array of product types with counts and cache info
+   */
+  static async getProductTypesWithCount(
+    connectionId: string,
+    workspaceId: Types.ObjectId,
+    credentials: ShopifyCredentials
+  ): Promise<{
+    productTypes: Array<{ name: string; productCount: number }>;
+    totalCount: number;
+    source: 'cache' | 'api';
+  }> {
+    console.log('[Shopify Service] Getting product types with count for connection:', connectionId);
+
+    const storeConnectionId = new Types.ObjectId(connectionId);
+
+    // Check cache first
+    const cachedData = await MarketplaceCatalogCache.findValidCache(storeConnectionId, 'category');
+
+    if (cachedData && !cachedData.isExpired()) {
+      console.log('[Shopify Service] Returning product types from cache');
+      const productTypes = cachedData.items.map(item => ({
+        name: item.name,
+        productCount: item.productCount
+      }));
+      return {
+        productTypes,
+        totalCount: productTypes.length,
+        source: 'cache'
+      };
+    }
+
+    // Cache expired or doesn't exist, fetch from API
+    console.log('[Shopify Service] Cache expired or not found, fetching from Shopify API...');
+    const productTypes = await this.fetchAllProductTypes(credentials);
+
+    // Transform to ICatalogCacheItem format (id, name, productCount)
+    const cacheItems = productTypes.map(type => ({
+      id: type.name, // Use name as ID for Shopify product types
+      name: type.name,
+      productCount: type.productCount
+    }));
+
+    // Save to cache with 24h TTL using createOrUpdate method
+    await MarketplaceCatalogCache.createOrUpdate(
+      storeConnectionId,
+      workspaceId,
+      'shopify',
+      'category',
+      cacheItems,
+      24 // 24 hours TTL
+    );
+
+    console.log(`[Shopify Service] Cached ${productTypes.length} product types for 24 hours`);
+
+    return {
+      productTypes,
+      totalCount: productTypes.length,
+      source: 'api'
     };
   }
 }

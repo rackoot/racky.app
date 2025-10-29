@@ -9,7 +9,11 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, RotateCcw, Package, TrendingUp, Trash2, AlertTriangle } from "lucide-react"
 import { productsApi, marketplacesApi, type Product } from "@/api"
 import { SyncConfirmationDialog } from "./sync-confirmation-dialog"
+import { SyncFiltersModal } from "./sync-filters-modal"
+import { SyncProgressDisplay } from "./sync-progress-display"
+import { saveSyncJob, getSyncJob } from "@/lib/sync-storage"
 import type { Marketplace } from "@/types/marketplace"
+import type { ProductSyncFilters } from "@/types/sync"
 
 interface ConnectedShopifyDetailProps {
   marketplace: Marketplace
@@ -33,6 +37,11 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     inventoryValue: 0
   })
   const [lastSync, setLastSync] = useState<string | null>(null)
+
+  // New async sync states
+  const [showFiltersModal, setShowFiltersModal] = useState(false)
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [showSyncProgress, setShowSyncProgress] = useState(false)
 
   const loadProducts = async () => {
     if (!marketplace.connectionInfo) return
@@ -60,50 +69,70 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
 
   const handleSyncClick = async () => {
     if (!marketplace.connectionInfo) return
-    
-    // Check if products exist
-    try {
-      const productInfo = await productsApi.hasProducts(marketplace.connectionInfo.connectionId)
-      
-      if (productInfo.hasProducts) {
-        // Show warning modal if products exist
-        setShowSyncConfirm(true)
-      } else {
-        // No products exist, sync directly
-        await performSync(false)
-      }
-    } catch (error) {
-      console.error('Error checking products:', error)
-      // If error checking, proceed with sync (fail safe)
-      await performSync(false)
-    }
+
+    // Open filters modal for user to select sync options
+    setShowFiltersModal(true)
   }
 
   const handleConfirmedSync = async () => {
     setShowSyncConfirm(false)
-    await performSync(true) // Force sync
+    // Open filters modal instead of direct sync
+    setShowFiltersModal(true)
   }
 
-  const performSync = async (force: boolean = false) => {
+  // New async sync function
+  const handleStartAsyncSync = async (filters: ProductSyncFilters) => {
     if (!marketplace.connectionInfo) return
-    
+
     setSyncing(true)
     try {
-      console.log('Starting sync for connection:', marketplace.connectionInfo.connectionId, 'force:', force)
-      const result = await productsApi.syncProducts(
-        marketplace.connectionInfo.connectionId,
-        force
-      )
-      console.log('Sync API result:', result)
-      setLastSync(new Date().toLocaleString())
-      console.log('Reloading products after sync...')
-      await loadProducts()
-      console.log('Sync completed successfully')
+      console.log('Starting async sync with filters:', filters)
+
+      const response = await productsApi.startAsyncSync({
+        connectionId: marketplace.connectionInfo.connectionId,
+        marketplace: 'shopify',
+        estimatedProducts: stats.totalProducts || 50,
+        batchSize: 50,
+        filters
+      })
+
+      console.log('Async sync started:', response)
+
+      // Save job to localStorage for persistence
+      saveSyncJob({
+        jobId: response.jobId,
+        connectionId: marketplace.connectionInfo.connectionId,
+        marketplace: 'shopify',
+        startedAt: new Date().toISOString()
+      })
+
+      // Save job ID and show progress
+      setCurrentJobId(response.jobId)
+      setShowFiltersModal(false)
+      setShowSyncProgress(true)
     } catch (error) {
-      console.error('Error syncing products:', error)
+      console.error('Error starting async sync:', error)
+      alert('Error al iniciar la sincronización. Por favor, intenta nuevamente.')
     } finally {
       setSyncing(false)
     }
+  }
+
+  const handleSyncComplete = () => {
+    console.log('Sync completed! Reloading products...')
+    setLastSync(new Date().toLocaleString())
+    loadProducts()
+
+    // Hide progress after a delay
+    setTimeout(() => {
+      setShowSyncProgress(false)
+      setCurrentJobId(null)
+    }, 3000)
+  }
+
+  const handleSyncError = (error: string) => {
+    console.error('Sync error:', error)
+    alert(`Error en la sincronización: ${error}`)
   }
 
   const handleDisconnect = async () => {
@@ -133,6 +162,15 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
     loadProducts()
     if (marketplace.connectionInfo?.lastSync) {
       setLastSync(new Date(marketplace.connectionInfo.lastSync).toLocaleString())
+    }
+
+    // Check for active sync job in localStorage
+    if (marketplace.connectionInfo) {
+      const storedJob = getSyncJob(marketplace.connectionInfo.connectionId)
+      if (storedJob) {
+        setCurrentJobId(storedJob.jobId)
+        setShowSyncProgress(true)
+      }
     }
   }, [marketplace])
 
@@ -319,6 +357,31 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
         productCount={stats.totalProducts}
         isLoading={syncing}
       />
+
+      {/* Sync Filters Modal - NEW */}
+      {marketplace.connectionInfo && (
+        <SyncFiltersModal
+          open={showFiltersModal}
+          onOpenChange={setShowFiltersModal}
+          connectionId={marketplace.connectionInfo.connectionId}
+          marketplace="shopify"
+          onStartSync={handleStartAsyncSync}
+        />
+      )}
+
+      {/* Sync Progress Display - NEW */}
+      {showSyncProgress && currentJobId && marketplace.connectionInfo && (
+        <div className="fixed bottom-4 right-4 w-[500px] z-50 shadow-lg">
+          <SyncProgressDisplay
+            jobId={currentJobId}
+            connectionId={marketplace.connectionInfo.connectionId}
+            onComplete={handleSyncComplete}
+            onError={handleSyncError}
+            autoClose={true}
+            autoCloseDelay={3000}
+          />
+        </div>
+      )}
 
       {/* Disconnect Confirmation Dialog */}
       <Dialog open={showDisconnectConfirm} onOpenChange={setShowDisconnectConfirm}>

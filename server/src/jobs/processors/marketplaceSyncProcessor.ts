@@ -404,6 +404,94 @@ export class MarketplaceSyncProcessor {
       }
     }
 
+    // For Shopify, use the platforms-based approach (same as saveShopifyProduct)
+    if (marketplace === 'shopify') {
+      const shopifyPlatform = {
+        platform: 'shopify' as PlatformType,
+        platformId: externalId,
+        platformSku: productData.handle,
+        platformPrice: productData.price || 0,
+        platformInventory: productData.inventory?.quantity || 0,
+        platformStatus: productData.status,
+        lastSyncAt: new Date()
+      };
+
+      // Find existing product by Shopify ID or title
+      const existingProduct = await Product.findOne({
+        workspaceId: workspaceId,
+        $or: [
+          { shopifyId: externalId },
+          { 'platforms.platformId': externalId },
+          { title: productData.title, storeConnectionId: connectionId }
+        ]
+      });
+
+      if (existingProduct) {
+        // Update existing product with ALL data from Shopify
+        const platformIndex = existingProduct.platforms.findIndex((p: any) => p.platform === 'shopify');
+
+        if (platformIndex >= 0) {
+          existingProduct.platforms[platformIndex] = shopifyPlatform;
+        } else {
+          existingProduct.platforms.push(shopifyPlatform);
+        }
+
+        // Update ALL fields from Shopify (source of truth)
+        existingProduct.title = productData.title;
+        existingProduct.description = productData.description || '';
+        existingProduct.price = productData.price || 0;
+        existingProduct.compareAtPrice = productData.variants[0]?.compareAtPrice;
+        existingProduct.sku = productData.handle;
+        existingProduct.inventory = productData.inventory?.quantity || 0;
+        existingProduct.vendor = productData.vendor || '';
+        existingProduct.productType = productData.productType || '';
+        existingProduct.tags = productData.tags || [];
+        existingProduct.images = productData.images || [];  // Already transformed with shopifyId, url, altText
+        existingProduct.variants = productData.variants || [];  // Already transformed with all fields
+        existingProduct.status = productData.isActive ? 'active' : 'archived';
+        existingProduct.shopifyId = externalId;
+        existingProduct.handle = productData.handle;
+        existingProduct.shopifyUpdatedAt = new Date(productData.updatedAt);
+        existingProduct.lastSyncedAt = new Date();
+
+        await existingProduct.save();
+        return existingProduct;
+
+      } else {
+        // Create new product
+        const newProduct = new Product({
+          workspaceId,
+          userId,
+          storeConnectionId: connectionId,
+          title: productData.title,
+          description: productData.description || '',
+          price: productData.price || 0,
+          compareAtPrice: productData.variants[0]?.compareAtPrice,
+          sku: productData.handle,
+          inventory: productData.inventory?.quantity || 0,
+          vendor: productData.vendor || '',
+          productType: productData.productType || '',
+          tags: productData.tags || [],
+          images: productData.images || [],  // Already transformed
+          variants: productData.variants || [],  // Already transformed
+          platforms: [shopifyPlatform],
+          status: 'active',
+          shopifyId: externalId,
+          handle: productData.handle,
+          shopifyCreatedAt: new Date(productData.createdAt),
+          shopifyUpdatedAt: new Date(productData.updatedAt),
+          // Legacy fields for backward compatibility
+          marketplace: 'shopify',
+          externalId: externalId,
+          stock: productData.inventory?.quantity || 0,
+          lastSyncedAt: new Date()
+        });
+
+        await newProduct.save();
+        return newProduct;
+      }
+    }
+
     // Original logic for other marketplaces
     const productDoc = {
       userId,
@@ -617,11 +705,6 @@ export class MarketplaceSyncProcessor {
       0
     );
 
-    // Get primary image
-    const primaryImage = shopifyProduct.images.length > 0
-      ? shopifyProduct.images[0].url
-      : null;
-
     // Get price from first variant (Shopify products must have at least one variant)
     const primaryVariant = shopifyProduct.variants[0];
     const price = primaryVariant ? parseFloat(primaryVariant.price) : 0;
@@ -632,17 +715,28 @@ export class MarketplaceSyncProcessor {
       description: shopifyProduct.description,
       price: price,
       currency: 'USD', // Shopify doesn't return currency in this query, assume USD
-      image: primaryImage,
+      // Transform images to array of objects with metadata (matches saveShopifyProduct format)
+      images: shopifyProduct.images.map(img => ({
+        shopifyId: img.id,
+        url: img.url,
+        altText: img.altText || ''
+      })),
       url: `https://store.myshopify.com/products/${shopifyProduct.handle}`,
       handle: shopifyProduct.handle,
       category: shopifyProduct.productType,
+      vendor: shopifyProduct.vendor,
+      productType: shopifyProduct.productType,
       tags: shopifyProduct.tags,
+      status: shopifyProduct.status,
+      // Transform variants with all required fields (matches saveShopifyProduct format)
       variants: shopifyProduct.variants.map(variant => ({
         id: variant.id,
+        shopifyId: variant.id,  // Add shopifyId for consistency
         title: variant.title,
-        price: parseFloat(variant.price),
-        compareAtPrice: variant.compareAtPrice ? parseFloat(variant.compareAtPrice) : null,
-        sku: variant.sku,
+        price: variant.price || '0',  // Keep as string for consistency
+        compareAtPrice: variant.compareAtPrice || undefined,
+        sku: variant.sku || '',
+        inventory: variant.inventoryQuantity || 0,  // Add inventory field
         inventoryQuantity: variant.inventoryQuantity || 0,
         taxable: variant.taxable
       })),
@@ -650,6 +744,10 @@ export class MarketplaceSyncProcessor {
         quantity: totalInventory,
         inStock: totalInventory > 0
       },
+      // Add Shopify-specific tracking fields
+      shopifyId: shopifyProduct.id,
+      shopifyCreatedAt: shopifyProduct.createdAt,
+      shopifyUpdatedAt: shopifyProduct.updatedAt,
       isActive: shopifyProduct.status === 'ACTIVE',
       createdAt: shopifyProduct.createdAt,
       updatedAt: shopifyProduct.updatedAt
