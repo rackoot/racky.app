@@ -38,6 +38,7 @@ export function MarketplacePage() {
   const [showFiltersModal, setShowFiltersModal] = useState(false)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [showSyncProgress, setShowSyncProgress] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const loadMarketplace = async () => {
     if (!marketplaceId) return
@@ -94,7 +95,8 @@ export function MarketplacePage() {
   const handleSync = async (marketplace: Marketplace) => {
     if (!marketplace.connectionInfo) return
 
-    // Open filters modal for async sync with filters
+    // Clear previous error and open filters modal
+    setSyncError(null)
     setShowFiltersModal(true)
   }
 
@@ -121,21 +123,19 @@ export function MarketplacePage() {
     }
   }
 
-  const handleStartAsyncSync = async (filters: ProductSyncFilters) => {
+  const handleStartAsyncSync = (filters: ProductSyncFilters) => {
     if (!marketplace?.connectionInfo) return
 
     setSyncing(true)
-    try {
-      console.log('Starting async sync with filters:', filters)
 
-      const response = await productsApi.startAsyncSync({
-        connectionId: marketplace.connectionInfo.connectionId,
-        marketplace: marketplace.id,
-        estimatedProducts: productCount || 50,
-        batchSize: 50,
-        filters
-      })
-
+    productsApi.startAsyncSync({
+      connectionId: marketplace.connectionInfo.connectionId,
+      marketplace: marketplace.id,
+      estimatedProducts: productCount || 50,
+      batchSize: 50,
+      filters
+    })
+    .then((response) => {
       console.log('Async sync started:', response)
 
       // Save job to localStorage for persistence
@@ -150,12 +150,22 @@ export function MarketplacePage() {
       setCurrentJobId(response.jobId)
       setShowFiltersModal(false)
       setShowSyncProgress(true)
-    } catch (error) {
-      console.error('Error starting async sync:', error)
-      alert('Error al iniciar la sincronización. Por favor, intenta nuevamente.')
-    } finally {
       setSyncing(false)
-    }
+    })
+    .catch((error: any) => {
+      console.error('Error starting async sync:', error)
+      setSyncing(false)
+
+      let errorMessage: string
+      if (error.response?.status === 409) {
+        errorMessage = 'A sync is already in progress for this connection. Please wait for it to complete before starting another sync.'
+      } else {
+        errorMessage = error.response?.data?.message || 'Failed to start synchronization. Please try again or contact support if the problem persists.'
+      }
+
+      // Set error to be displayed in modal
+      setSyncError(errorMessage)
+    })
   }
 
   const handleSyncComplete = () => {
@@ -292,6 +302,8 @@ export function MarketplacePage() {
             connectionId={marketplace.connectionInfo.connectionId}
             marketplace={marketplace.id}
             onStartSync={handleStartAsyncSync}
+            error={syncError}
+            isStarting={syncing}
           />
         )}
 

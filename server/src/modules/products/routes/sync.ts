@@ -85,6 +85,27 @@ router.post('/start', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
+    // Check for existing active jobs for this connection
+    const existingJob = await Job.findOne({
+      workspaceId: req.workspace!._id.toString(),
+      'data.connectionId': connectionId,
+      jobType: JobType.MARKETPLACE_SYNC,
+      status: { $in: ['queued', 'processing'] }
+    }).sort({ createdAt: -1 });
+
+    if (existingJob) {
+      return res.status(409).json({
+        success: false,
+        message: 'A sync job is already in progress for this connection',
+        data: {
+          existingJobId: existingJob.jobId,
+          status: existingJob.status,
+          progress: existingJob.progress,
+          createdAt: existingJob.createdAt
+        }
+      });
+    }
+
     // Create marketplace sync job
     const syncJobData: MarketplaceSyncJobData = {
       userId,

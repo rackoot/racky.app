@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { Loader2 } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { marketplacesApi } from '@/api/resources/marketplaces'
 import type { CategoryFilter, ProductSyncFilters } from '@/types/sync'
 
@@ -13,6 +14,8 @@ interface SyncFiltersModalProps {
   connectionId: string
   marketplace: string
   onStartSync: (filters: ProductSyncFilters) => void
+  error?: string | null
+  isStarting?: boolean
 }
 
 export function SyncFiltersModal({
@@ -20,7 +23,9 @@ export function SyncFiltersModal({
   onOpenChange,
   connectionId,
   marketplace,
-  onStartSync
+  onStartSync,
+  error = null,
+  isStarting = false
 }: SyncFiltersModalProps) {
   // Filter options from API
   const [categories, setCategories] = useState<CategoryFilter[]>([])
@@ -32,8 +37,8 @@ export function SyncFiltersModal({
   const [includeInactive, setIncludeInactive] = useState(false)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
 
-  // UI state
-  const [starting, setStarting] = useState(false)
+  // Validation error (local only)
+  const [validationError, setValidationError] = useState<string | null>(null)
 
   // Load filters when modal opens
   useEffect(() => {
@@ -42,6 +47,7 @@ export function SyncFiltersModal({
       setCategories([])
       setSelectedCategories([])
       setFilterError(null)
+      setValidationError(null)
       loadFilters()
     }
   }, [open, connectionId])
@@ -72,11 +78,12 @@ export function SyncFiltersModal({
   const handleStartSync = () => {
     // Validation: at least one status must be selected
     if (!includeActive && !includeInactive) {
-      alert('You must select at least one product status (Active or Inactive)')
+      setValidationError('You must select at least one product status (Active or Inactive)')
       return
     }
 
-    setStarting(true)
+    // Clear validation error
+    setValidationError(null)
 
     const filters: ProductSyncFilters = {
       includeActive,
@@ -84,11 +91,12 @@ export function SyncFiltersModal({
       categoryIds: selectedCategories
     }
 
+    // Call parent handler - parent will handle errors
     onStartSync(filters)
   }
 
   const handleClose = () => {
-    if (!starting) {
+    if (!isStarting) {
       onOpenChange(false)
     }
   }
@@ -197,19 +205,27 @@ export function SyncFiltersModal({
           </div>
         </div>
 
+        {/* Error Alert - from parent (API errors) or local (validation) */}
+        {(error || validationError) && (
+          <Alert variant="destructive" className="mt-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error || validationError}</AlertDescription>
+          </Alert>
+        )}
+
         <DialogFooter>
           <Button
             variant="outline"
             onClick={handleClose}
-            disabled={starting}
+            disabled={isStarting}
           >
             Cancel
           </Button>
           <Button
             onClick={handleStartSync}
-            disabled={starting || loadingFilters || !!filterError}
+            disabled={isStarting || loadingFilters || !!filterError}
           >
-            {starting ? (
+            {isStarting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Starting...

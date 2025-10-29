@@ -42,6 +42,7 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
   const [showFiltersModal, setShowFiltersModal] = useState(false)
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
   const [showSyncProgress, setShowSyncProgress] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const loadProducts = async () => {
     if (!marketplace.connectionInfo) return
@@ -70,7 +71,8 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
   const handleSyncClick = async () => {
     if (!marketplace.connectionInfo) return
 
-    // Open filters modal for user to select sync options
+    // Clear previous error and open filters modal
+    setSyncError(null)
     setShowFiltersModal(true)
   }
 
@@ -81,21 +83,19 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
   }
 
   // New async sync function
-  const handleStartAsyncSync = async (filters: ProductSyncFilters) => {
+  const handleStartAsyncSync = (filters: ProductSyncFilters) => {
     if (!marketplace.connectionInfo) return
 
     setSyncing(true)
-    try {
-      console.log('Starting async sync with filters:', filters)
 
-      const response = await productsApi.startAsyncSync({
-        connectionId: marketplace.connectionInfo.connectionId,
-        marketplace: 'shopify',
-        estimatedProducts: stats.totalProducts || 50,
-        batchSize: 50,
-        filters
-      })
-
+    productsApi.startAsyncSync({
+      connectionId: marketplace.connectionInfo.connectionId,
+      marketplace: 'shopify',
+      estimatedProducts: stats.totalProducts || 50,
+      batchSize: 50,
+      filters
+    })
+    .then((response) => {
       console.log('Async sync started:', response)
 
       // Save job to localStorage for persistence
@@ -110,12 +110,22 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
       setCurrentJobId(response.jobId)
       setShowFiltersModal(false)
       setShowSyncProgress(true)
-    } catch (error) {
-      console.error('Error starting async sync:', error)
-      alert('Error al iniciar la sincronización. Por favor, intenta nuevamente.')
-    } finally {
       setSyncing(false)
-    }
+    })
+    .catch((error: any) => {
+      console.error('Error starting async sync:', error)
+      setSyncing(false)
+
+      let errorMessage: string
+      if (error.response?.status === 409) {
+        errorMessage = 'A sync is already in progress for this connection. Please wait for it to complete before starting another sync.'
+      } else {
+        errorMessage = error.response?.data?.message || 'Failed to start synchronization. Please try again or contact support if the problem persists.'
+      }
+
+      // Set error to be displayed in modal
+      setSyncError(errorMessage)
+    })
   }
 
   const handleSyncComplete = () => {
@@ -220,9 +230,13 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
               <Package className="w-5 h-5" />
               <CardTitle>Product Management</CardTitle>
             </div>
-            <Button onClick={handleSyncClick} disabled={syncing}>
+            <Button
+              onClick={handleSyncClick}
+              disabled={syncing || currentJobId !== null}
+              title={currentJobId ? 'Sync already in progress' : ''}
+            >
               <RotateCcw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync Products'}
+              {syncing ? 'Starting...' : currentJobId ? 'Syncing...' : 'Sync Products'}
             </Button>
           </div>
         </CardHeader>
@@ -340,9 +354,13 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
             <p className="text-muted-foreground mb-4">
               Start by syncing your products from Shopify to see them here.
             </p>
-            <Button onClick={handleSyncClick} disabled={syncing}>
+            <Button
+              onClick={handleSyncClick}
+              disabled={syncing || currentJobId !== null}
+              title={currentJobId ? 'Sync already in progress' : ''}
+            >
               <RotateCcw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync Products Now'}
+              {syncing ? 'Starting...' : currentJobId ? 'Syncing...' : 'Sync Products Now'}
             </Button>
           </CardContent>
         </Card>
@@ -366,6 +384,8 @@ export function ConnectedShopifyDetail({ marketplace, onBack }: ConnectedShopify
           connectionId={marketplace.connectionInfo.connectionId}
           marketplace="shopify"
           onStartSync={handleStartAsyncSync}
+          error={syncError}
+          isStarting={syncing}
         />
       )}
 
