@@ -10,8 +10,9 @@ import syncRoutes from './sync';
 import historyRoutes from './history';
 import ProductHistoryService from '../services/ProductHistoryService';
 import { VtexService, VtexCompleteProduct } from '@/marketplaces/services/vtexService';
-import { VtexCredentials } from '@/marketplaces/services/marketplaceService';
-import { ProductSyncFilters, FetchProductsOptions, FetchProductsResult } from '@/common/types/syncFilters';
+import { ShopifyService } from '@/marketplaces/services/shopifyService';
+import { VtexCredentials, ShopifyCredentials } from '@/marketplaces/services/marketplaceService';
+import { ProductSyncFilters, FetchProductsOptions, FetchProductsResult, DEFAULT_SYNC_FILTERS } from '@/common/types/syncFilters';
 import { applyVtexFilters } from '@/common/utils/vtexFilters';
 import MarketplaceCatalogCache from '@/common/models/MarketplaceCatalogCache';
 
@@ -388,8 +389,7 @@ async function syncProductsFromMarketplace(
 ) {
   switch (type) {
     case 'shopify':
-      // Shopify sync doesn't support filters yet, pass undefined
-      return await syncShopifyProducts(credentials, userId, workspaceId, connectionId, force);
+      return await syncShopifyProducts(credentials, userId, workspaceId, connectionId, filters, force);
     case 'vtex':
       return await syncVtexProducts(credentials, userId, workspaceId, connectionId, filters, force);
     default:
@@ -398,31 +398,40 @@ async function syncProductsFromMarketplace(
 }
 
 async function syncShopifyProducts(
-  credentials: any, 
+  credentials: any,
   userId: string,
   workspaceId: string,
-  connectionId: string, 
+  connectionId: string,
+  filters?: ProductSyncFilters,
   force: boolean = false
 ) {
   const { shop_url, access_token } = credentials;
-  
+
   if (!shop_url || !access_token) {
     throw new Error('Shop URL and access token are required for Shopify sync');
   }
 
   // Extract store name from shop_url
   let storeName = shop_url;
-  
+
   // Remove protocol if present
   storeName = storeName.replace(/^https?:\/\//, '');
-  
+
   // Remove trailing slash if present
   storeName = storeName.replace(/\/$/, '');
-  
+
   // Remove .myshopify.com if present
   storeName = storeName.replace(/\.myshopify\.com$/, '');
-  
+
   console.log('Processed shop_url:', shop_url, '-> storeName:', storeName);
+
+  // Use default filters if none provided
+  const appliedFilters = filters || DEFAULT_SYNC_FILTERS;
+  console.log('[Shopify Sync] Filters:', JSON.stringify(appliedFilters, null, 2));
+
+  // Build query filter string for Shopify API
+  const queryString = ShopifyService.buildQueryFilter(appliedFilters);
+  console.log('[Shopify Sync] Query string:', queryString || '(no filters)');
 
   try {
     let hasNextPage = true;
@@ -435,21 +444,14 @@ async function syncShopifyProducts(
     console.log('Starting Shopify sync for user:', userId, 'store:', storeName);
 
     while (hasNextPage) {
-      const response = await queryShopifyGraphQL(apiUrl, access_token, cursor);
+      const response = await queryShopifyGraphQL(apiUrl, access_token, cursor, queryString);
       const products = (response as any).data.products.edges;
-      
-      console.log(`Retrieved ${products.length} products from Shopify`);
-      
-      for (const productEdge of products) {
-        // Log product status for debugging
-        console.log(`Product: ${productEdge.node.title}, Status: ${productEdge.node.status}`);
 
-        // Skip draft products - only sync active products
-        // Shopify status values are: ACTIVE, ARCHIVED, DRAFT
-        if (productEdge.node.status === 'DRAFT' || productEdge.node.status === 'ARCHIVED') {
-          console.log(`Skipping non-active product: ${productEdge.node.title} (Status: ${productEdge.node.status})`);
-          continue;
-        }
+      console.log(`Retrieved ${products.length} products from Shopify`);
+
+      for (const productEdge of products) {
+        // Products are already filtered by API, no need for additional filtering
+        console.log(`Product: ${productEdge.node.title}, Status: ${productEdge.node.status}`);
 
         const syncResult = await saveShopifyProduct(productEdge.node, userId, workspaceId, connectionId);
         totalProducts++;
@@ -462,20 +464,8 @@ async function syncShopifyProducts(
 
       hasNextPage = (response as any).data.products.pageInfo.hasNextPage;
       cursor = (response as any).data.products.pageInfo.endCursor;
-      
+
       console.log(`Synced ${totalProducts} products so far...`);
-    }
-
-    // Clean up any draft products that may have been synced previously
-    const draftCleanup = await Product.deleteMany({
-      workspaceId,
-      storeConnectionId: connectionId,
-      'platforms.platform': 'shopify',
-      'platforms.platformStatus': { $in: ['DRAFT', 'ARCHIVED'] }
-    });
-
-    if (draftCleanup.deletedCount > 0) {
-      console.log(`Cleaned up ${draftCleanup.deletedCount} draft/archived products from database`);
     }
 
     console.log(`Shopify sync completed. Total: ${totalProducts}, New: ${newProducts}, Updated: ${updatedProducts}`);
@@ -486,10 +476,10 @@ async function syncShopifyProducts(
   }
 }
 
-async function queryShopifyGraphQL(apiUrl: string, accessToken: string, cursor: string | null) {
+async function queryShopifyGraphQL(apiUrl: string, accessToken: string, cursor: string | null, queryString?: string) {
   const query = `
-    query GetProducts($first: Int!, $after: String) {
-      products(first: $first, after: $after) {
+    query GetProducts($first: Int!, $after: String, $query: String) {
+      products(first: $first, after: $after, query: $query) {
         edges {
           node {
             id
@@ -536,7 +526,8 @@ async function queryShopifyGraphQL(apiUrl: string, accessToken: string, cursor: 
 
   const variables = {
     first: 50,
-    after: cursor
+    after: cursor,
+    query: queryString || null
   };
 
   const response = await fetch(apiUrl, {

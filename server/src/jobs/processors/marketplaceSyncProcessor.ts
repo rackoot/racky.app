@@ -14,7 +14,8 @@ import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
 import ProductHistoryService from '@/products/services/ProductHistoryService';
 import { VtexService, VtexCompleteProduct } from '@/marketplaces/services/vtexService';
-import { VtexCredentials } from '@/marketplaces/services/marketplaceService';
+import { ShopifyService, ShopifyCompleteProduct } from '@/marketplaces/services/shopifyService';
+import { VtexCredentials, ShopifyCredentials } from '@/marketplaces/services/marketplaceService';
 import { PlatformType } from '@/products/models/Product';
 
 /**
@@ -449,17 +450,26 @@ export class MarketplaceSyncProcessor {
    * Marketplace-specific product list fetchers
    */
   private static async fetchShopifyProducts(
-    credentials: any,
+    credentials: ShopifyCredentials,
     filters?: ProductSyncFilters
   ): Promise<Array<{ externalId: string }>> {
-    // Simulate Shopify API call
-    // In real implementation, this would call Shopify's products API
-    // TODO: Implement filters for Shopify
-    const mockProducts = [];
-    for (let i = 1; i <= 100; i++) {
-      mockProducts.push({ externalId: `shopify_product_${i}` });
+    try {
+      console.log('[Shopify Processor] Fetching product IDs from Shopify...');
+
+      // Use default filters if none provided
+      const appliedFilters = filters || DEFAULT_SYNC_FILTERS;
+      console.log('[Shopify Processor] Filters:', JSON.stringify(appliedFilters, null, 2));
+
+      // Fetch product IDs with API-level filtering (no post-filtering needed!)
+      const productIds = await ShopifyService.fetchProductIds(credentials, appliedFilters);
+
+      console.log(`[Shopify Processor] Total products fetched: ${productIds.length}`);
+      return productIds;
+
+    } catch (error: any) {
+      console.error('[Shopify Processor] Error fetching products:', error.message);
+      throw new Error(`Failed to fetch Shopify products: ${error.message}`);
     }
-    return mockProducts;
   }
 
   private static async fetchVtexProducts(
@@ -578,24 +588,71 @@ export class MarketplaceSyncProcessor {
   /**
    * Marketplace-specific product detail fetchers
    */
-  private static async fetchShopifyProductDetails(productId: string, credentials: any): Promise<any> {
-    // Mock Shopify product details
+  private static async fetchShopifyProductDetails(productId: string, credentials: ShopifyCredentials): Promise<any> {
+    try {
+      console.log(`[Shopify Processor] Fetching details for product ${productId}...`);
+
+      // Fetch complete product data using ShopifyService
+      const completeData = await ShopifyService.fetchCompleteProductData(
+        credentials,
+        productId
+      );
+
+      // Transform to internal product format
+      return MarketplaceSyncProcessor.transformShopifyProductData(completeData);
+
+    } catch (error: any) {
+      console.error(`[Shopify Processor] Error fetching product ${productId}:`, error.message);
+      throw new Error(`Failed to fetch Shopify product ${productId}: ${error.message}`);
+    }
+  }
+
+  /**
+   * Transform Shopify product data to internal format
+   */
+  private static transformShopifyProductData(shopifyProduct: ShopifyCompleteProduct): any {
+    // Calculate total inventory from all variants
+    const totalInventory = shopifyProduct.variants.reduce(
+      (sum, variant) => sum + variant.inventoryQuantity,
+      0
+    );
+
+    // Get primary image
+    const primaryImage = shopifyProduct.images.length > 0
+      ? shopifyProduct.images[0].url
+      : null;
+
+    // Get price from first variant (Shopify products must have at least one variant)
+    const primaryVariant = shopifyProduct.variants[0];
+    const price = primaryVariant ? parseFloat(primaryVariant.price) : 0;
+
     return {
-      id: productId,
-      title: `Shopify Product ${productId}`,
-      description: `Description for ${productId}`,
-      price: Math.random() * 100,
-      currency: 'USD',
-      image: `https://example.com/images/${productId}.jpg`,
-      url: `https://store.myshopify.com/products/${productId}`,
-      handle: productId.toLowerCase().replace(/_/g, '-'),
-      category: 'Electronics',
-      tags: ['shopify', 'product'],
-      variants: [],
+      id: shopifyProduct.id,
+      title: shopifyProduct.title,
+      description: shopifyProduct.description,
+      price: price,
+      currency: 'USD', // Shopify doesn't return currency in this query, assume USD
+      image: primaryImage,
+      url: `https://store.myshopify.com/products/${shopifyProduct.handle}`,
+      handle: shopifyProduct.handle,
+      category: shopifyProduct.productType,
+      tags: shopifyProduct.tags,
+      variants: shopifyProduct.variants.map(variant => ({
+        id: variant.id,
+        title: variant.title,
+        price: parseFloat(variant.price),
+        compareAtPrice: variant.compareAtPrice ? parseFloat(variant.compareAtPrice) : null,
+        sku: variant.sku,
+        inventoryQuantity: variant.inventoryQuantity || 0,
+        taxable: variant.taxable
+      })),
       inventory: {
-        quantity: Math.floor(Math.random() * 100),
-        inStock: true,
+        quantity: totalInventory,
+        inStock: totalInventory > 0
       },
+      isActive: shopifyProduct.status === 'ACTIVE',
+      createdAt: shopifyProduct.createdAt,
+      updatedAt: shopifyProduct.updatedAt
     };
   }
 
