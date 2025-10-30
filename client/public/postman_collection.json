@@ -1,0 +1,1289 @@
+{
+  "info": {
+    "name": "Racky Backend API",
+    "description": "Collection for testing Racky marketplace management platform API endpoints",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "connection_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "marketplace_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "product_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "platform",
+      "value": "shopify",
+      "type": "string"
+    },
+    {
+      "key": "suggestion_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "opportunity_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the API is running"
+      }
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', jsonData.token);",
+                  "    pm.collectionVariables.set('user_id', jsonData._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user account"
+          }
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', jsonData.token);",
+                  "    pm.collectionVariables.set('user_id', jsonData._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with existing user credentials"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Marketplace Management",
+      "item": [
+        {
+          "name": "Get Available Marketplaces",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/marketplaces",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces"]
+            },
+            "description": "Get all available marketplaces with their requirements and documentation URLs"
+          }
+        },
+        {
+          "name": "Get Marketplace Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/marketplaces/status",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "status"]
+            },
+            "description": "Get user's marketplace connection status with documentation URLs"
+          }
+        },
+        {
+          "name": "Test Shopify Connection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"shopify\",\n  \"credentials\": {\n    \"shop_url\": \"test-store.myshopify.com\",\n    \"access_token\": \"shpat_test_token\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/marketplaces/test",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "test"]
+            },
+            "description": "Test Shopify marketplace connection"
+          }
+        },
+        {
+          "name": "Test Amazon Connection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"amazon\",\n  \"credentials\": {\n    \"seller_id\": \"A1234567890\",\n    \"marketplace_id\": \"ATVPDKIKX0DER\",\n    \"access_key\": \"test_access_key\",\n    \"secret_key\": \"test_secret_key\",\n    \"region\": \"us-east-1\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/marketplaces/test",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "test"]
+            },
+            "description": "Test Amazon marketplace connection"
+          }
+        },
+        {
+          "name": "Test WooCommerce Connection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"woocommerce\",\n  \"credentials\": {\n    \"site_url\": \"https://mystore.com\",\n    \"consumer_key\": \"ck_test_key\",\n    \"consumer_secret\": \"cs_test_secret\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/marketplaces/test",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "test"]
+            },
+            "description": "Test WooCommerce marketplace connection"
+          }
+        },
+        {
+          "name": "Connect Marketplace to Store",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeConnectionId\": \"{{connection_id}}\",\n  \"type\": \"amazon\",\n  \"credentials\": {\n    \"seller_id\": \"A1234567890\",\n    \"marketplace_id\": \"ATVPDKIKX0DER\",\n    \"access_key\": \"test_access_key\",\n    \"secret_key\": \"test_secret_key\",\n    \"region\": \"us-east-1\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/marketplaces/connect",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "connect"]
+            },
+            "description": "Connect marketplace to existing store connection"
+          }
+        },
+        {
+          "name": "Create Store with Marketplace",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.data.storeConnection) {",
+                  "        pm.collectionVariables.set('connection_id', jsonData.data.storeConnection._id);",
+                  "        if (jsonData.data.storeConnection.marketplaces && jsonData.data.storeConnection.marketplaces.length > 0) {",
+                  "            pm.collectionVariables.set('marketplace_id', jsonData.data.storeConnection.marketplaces[0]._id);",
+                  "        }",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeName\": \"New Marketplace Store\",\n  \"type\": \"woocommerce\",\n  \"credentials\": {\n    \"site_url\": \"https://newstore.com\",\n    \"consumer_key\": \"ck_new_key\",\n    \"consumer_secret\": \"cs_new_secret\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/marketplaces/create-store",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "create-store"]
+            },
+            "description": "Create new store connection with marketplace"
+          }
+        },
+        {
+          "name": "Test Existing Marketplace Connection",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/marketplaces/{{connection_id}}/{{marketplace_id}}/test",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "{{connection_id}}", "{{marketplace_id}}", "test"]
+            },
+            "description": "Test existing marketplace connection and update sync status"
+          }
+        },
+        {
+          "name": "Toggle Marketplace Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/marketplaces/{{connection_id}}/{{marketplace_id}}/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["marketplaces", "{{connection_id}}", "{{marketplace_id}}", "toggle"]
+            },
+            "description": "Toggle marketplace active/inactive status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Store Connections",
+      "item": [
+        {
+          "name": "Get All Connections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/connections",
+              "host": ["{{base_url}}"],
+              "path": ["connections"]
+            },
+            "description": "Get all store connections for the authenticated user"
+          }
+        },
+        {
+          "name": "Create Store Connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('connection_id', jsonData._id);",
+                  "    if (jsonData.marketplaces && jsonData.marketplaces.length > 0) {",
+                  "        pm.collectionVariables.set('marketplace_id', jsonData.marketplaces[0]._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeName\": \"Test Store\",\n  \"marketplaces\": [\n    {\n      \"type\": \"shopify\",\n      \"credentials\": {\n        \"shop_url\": \"test-store.myshopify.com\",\n        \"access_token\": \"shpat_test_token_123\"\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/connections",
+              "host": ["{{base_url}}"],
+              "path": ["connections"]
+            },
+            "description": "Create a new store connection"
+          }
+        },
+        {
+          "name": "Get Connection by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/connections/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["connections", "{{connection_id}}"]
+            },
+            "description": "Get a specific store connection by ID"
+          }
+        },
+        {
+          "name": "Update Connection",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeName\": \"Updated Test Store\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/connections/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["connections", "{{connection_id}}"]
+            },
+            "description": "Update an existing store connection"
+          }
+        },
+        {
+          "name": "Add Marketplace to Connection",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.marketplaces && jsonData.marketplaces.length > 1) {",
+                  "        pm.collectionVariables.set('marketplace_id', jsonData.marketplaces[jsonData.marketplaces.length - 1]._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"amazon\",\n  \"credentials\": {\n    \"seller_id\": \"A1234567890\",\n    \"marketplace_id\": \"ATVPDKIKX0DER\",\n    \"access_key\": \"test_access_key\",\n    \"secret_key\": \"test_secret_key\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/connections/{{connection_id}}/marketplace",
+              "host": ["{{base_url}}"],
+              "path": ["connections", "{{connection_id}}", "marketplace"]
+            },
+            "description": "Add a new marketplace to an existing connection"
+          }
+        },
+        {
+          "name": "Remove Marketplace from Connection",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/connections/{{connection_id}}/marketplace/{{marketplace_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["connections", "{{connection_id}}", "marketplace", "{{marketplace_id}}"]
+            },
+            "description": "Remove a marketplace from a connection"
+          }
+        },
+        {
+          "name": "Delete Connection",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/connections/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["connections", "{{connection_id}}"]
+            },
+            "description": "Delete a store connection"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products?page=1&limit=20&search=&marketplace=&store={{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit", 
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "marketplace",
+                  "value": ""
+                },
+                {
+                  "key": "store",
+                  "value": "{{connection_id}}"
+                }
+              ]
+            },
+            "description": "Get all products with pagination and filtering"
+          }
+        },
+        {
+          "name": "Get Store Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/store/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "store", "{{connection_id}}"]
+            },
+            "description": "Get products for a specific store connection"
+          }
+        },
+        {
+          "name": "Get Store Product Count",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/store/{{connection_id}}/count",
+              "host": ["{{base_url}}"],
+              "path": ["products", "store", "{{connection_id}}", "count"]
+            },
+            "description": "Check if products exist for a store connection and get count"
+          }
+        },
+        {
+          "name": "Sync Products (Regular)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"force\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "{{connection_id}}"]
+            },
+            "description": "Sync products from marketplace (regular update/create)"
+          }
+        },
+        {
+          "name": "Sync Products (Force Replace)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"force\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/sync/{{connection_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "sync", "{{connection_id}}"]
+            },
+            "description": "Force sync products (delete existing, then download fresh from marketplace)"
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}"]
+            },
+            "description": "Get single product details by ID"
+          }
+        },
+        {
+          "name": "Update Product Description",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated product description with manual changes\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/description",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", "description"]
+            },
+            "description": "Update product description in local database"
+          }
+        },
+        {
+          "name": "Apply Description to Marketplace",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description to apply to marketplace\",\n  \"marketplace\": \"shopify\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/products/{{product_id}}/description/apply-to-marketplace",
+              "host": ["{{base_url}}"],
+              "path": ["products", "{{product_id}}", "description", "apply-to-marketplace"]
+            },
+            "description": "Apply product description to connected marketplace"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Optimizations",
+      "item": [
+        {
+          "name": "Get Description Optimization",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}"]
+            },
+            "description": "Get or generate AI-optimized description for a product on a specific platform"
+          }
+        },
+        {
+          "name": "Regenerate Description Optimization",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization", 
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}"]
+            },
+            "description": "Force regenerate AI-optimized description for a product on a specific platform"
+          }
+        },
+        {
+          "name": "Update Suggestion Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type", 
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\",\n  \"suggestionId\": \"{{suggestion_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}"]
+            },
+            "description": "Accept or reject an AI-generated description suggestion"
+          }
+        },
+        {
+          "name": "Apply Description to Store", 
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"suggestionId\": \"{{suggestion_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/description/{{platform}}/apply",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "description", "{{platform}}", "apply"]
+            },
+            "description": "Apply accepted description to the connected marketplace store"
+          }
+        },
+        {
+          "name": "Get Suggestion History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/optimizations/products/{{product_id}}/suggestions?platform={{platform}}&type=description",
+              "host": ["{{base_url}}"],
+              "path": ["optimizations", "products", "{{product_id}}", "suggestions"],
+              "query": [
+                {
+                  "key": "platform",
+                  "value": "{{platform}}"
+                },
+                {
+                  "key": "type",
+                  "value": "description"
+                }
+              ]
+            },
+            "description": "Get suggestion history for a product"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Opportunities",
+      "item": [
+        {
+          "name": "Get Opportunity Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/categories",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "categories"]
+            },
+            "description": "Get all available opportunity categories"
+          }
+        },
+        {
+          "name": "Get Product Opportunities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}"]
+            },
+            "description": "Get cached opportunities for a specific product"
+          }
+        },
+        {
+          "name": "Get Product Opportunities by Category",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}?category=pricing",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "pricing"
+                }
+              ]
+            },
+            "description": "Get opportunities for a specific product filtered by category"
+          }
+        },
+        {
+          "name": "Generate Product Opportunities",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"forceRefresh\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}/generate",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}", "generate"]
+            },
+            "description": "Generate new AI-powered opportunities for a product"
+          }
+        },
+        {
+          "name": "Generate Product Opportunities (Force Refresh)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"forceRefresh\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}/generate",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}", "generate"]
+            },
+            "description": "Force regenerate AI opportunities for a product (clears cache)"
+          }
+        },
+        {
+          "name": "Update Opportunity Status - Start",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/{{opportunity_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "{{opportunity_id}}", "status"]
+            },
+            "description": "Mark opportunity as in progress"
+          }
+        },
+        {
+          "name": "Update Opportunity Status - Complete",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/{{opportunity_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "{{opportunity_id}}", "status"]
+            },
+            "description": "Mark opportunity as completed"
+          }
+        },
+        {
+          "name": "Update Opportunity Status - Dismiss",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"dismissed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/opportunities/{{opportunity_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "{{opportunity_id}}", "status"]
+            },
+            "description": "Dismiss an opportunity"
+          }
+        },
+        {
+          "name": "Get Opportunity Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/opportunities/products/{{product_id}}/summary",
+              "host": ["{{base_url}}"],
+              "path": ["opportunities", "products", "{{product_id}}", "summary"]
+            },
+            "description": "Get opportunity statistics and summary for a product"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Test Examples",
+      "item": [
+        {
+          "name": "Shopify Connection Example",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeName\": \"Shopify Store Example\",\n  \"marketplaces\": [\n    {\n      \"type\": \"shopify\",\n      \"credentials\": {\n        \"shop_url\": \"example-store.myshopify.com\",\n        \"access_token\": \"shpat_example_token\"\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/connections",
+              "host": ["{{base_url}}"],
+              "path": ["connections"]
+            },
+            "description": "Example of creating a Shopify connection"
+          }
+        },
+        {
+          "name": "Multi-Marketplace Connection Example",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"storeName\": \"Multi-Platform Store\",\n  \"marketplaces\": [\n    {\n      \"type\": \"shopify\",\n      \"credentials\": {\n        \"shop_url\": \"multi-store.myshopify.com\",\n        \"access_token\": \"shpat_multi_token\"\n      }\n    },\n    {\n      \"type\": \"woocommerce\",\n      \"credentials\": {\n        \"site_url\": \"https://multistore.com\",\n        \"consumer_key\": \"ck_example_key\",\n        \"consumer_secret\": \"cs_example_secret\"\n      }\n    },\n    {\n      \"type\": \"mercadolibre\",\n      \"credentials\": {\n        \"client_id\": \"ml_client_id\",\n        \"client_secret\": \"ml_client_secret\",\n        \"access_token\": \"ml_access_token\"\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/connections",
+              "host": ["{{base_url}}"],
+              "path": ["connections"]
+            },
+            "description": "Example of creating a connection with multiple marketplaces"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks (Internal)",
+      "description": "Internal webhook endpoints for external service callbacks (NOT protected by auth)",
+      "item": [
+        {
+          "name": "Video Success Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoId\": \"507f1f77bcf86cd799439011\",\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\",\n  \"localFilename\": \"videos/test_video.mp4\",\n  \"video_url\": \"https://example.com/videos/test.mp4\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/success",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "success"]
+            },
+            "description": "Webhook for external video generation service to notify video completion. Updates AIVideo record status to 'completed' and stores metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "Video Failure Webhook",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoId\": \"507f1f77bcf86cd799439011\",\n  \"error\": \"Video generation failed due to insufficient resources\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/failure",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "failure"]
+            },
+            "description": "Webhook for external video generation service to notify video generation failure. Updates AIVideo record status to 'failed' and stores error message."
+          },
+          "response": []
+        },
+        {
+          "name": "Video Success - Invalid VideoId",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"videoId\": \"invalid-id-format\",\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/success",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "success"]
+            },
+            "description": "Test case: Invalid videoId format (should return 400)"
+          },
+          "response": []
+        },
+        {
+          "name": "Video Success - Missing VideoId",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\",\n  \"localFilename\": \"videos/test.mp4\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:5000/internal/videos/success",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "5000",
+              "path": ["internal", "videos", "success"]
+            },
+            "description": "Test case: Missing required videoId field (should return 400)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
