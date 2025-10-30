@@ -81,6 +81,13 @@ dist
 .cache/
 public
 
+# Exception for Vite public assets
+!client/public/
+client/public/*
+!client/public/postman_collection.json
+!client/public/img/
+!client/public/vite.svg
+
 # Vite build tool
 dist-ssr
 *.local
