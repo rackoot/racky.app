@@ -45,6 +45,9 @@ export const ENDPOINTS = {
     TEST_CONNECTION: (connectionId: string) =>
       `/marketplaces/${connectionId}/test`,
     TOGGLE: (connectionId: string) => `/marketplaces/${connectionId}/toggle`,
+    // Marketplace filters (for sync filtering)
+    CATEGORIES: (connectionId: string) => `/marketplaces/${connectionId}/categories`,
+    BRANDS: (connectionId: string) => `/marketplaces/${connectionId}/brands`,
   },
 
   // Products
@@ -55,7 +58,13 @@ export const ENDPOINTS = {
     STORE_PRODUCTS: (connectionId: string) => `/products/store/${connectionId}`,
     STORE_COUNT: (connectionId: string) =>
       `/products/store/${connectionId}/count`,
+    // Synchronous sync (legacy - deprecated)
     SYNC: (connectionId: string) => `/products/sync/${connectionId}`,
+    // Asynchronous sync (new - recommended)
+    SYNC_START: "/products/sync/start",
+    SYNC_STATUS: (jobId: string) => `/products/sync/status/${jobId}`,
+    SYNC_JOBS: "/products/sync/jobs",
+    SYNC_HEALTH: "/products/sync/health",
   },
 
   // Orders

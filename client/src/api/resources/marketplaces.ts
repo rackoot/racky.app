@@ -8,6 +8,11 @@ import type {
   ConnectMarketplaceRequest,
   MarketplaceCredentials
 } from '../types/marketplace'
+import type {
+  CategoryFilter,
+  BrandFilter,
+  MarketplaceFiltersResponse
+} from '@/types/sync'
 
 export const marketplacesApi = {
   /**
@@ -89,5 +94,49 @@ export const marketplacesApi = {
   async disconnectMarketplace(connectionId: string, deleteProducts: boolean = false): Promise<any> {
     const url = `${ENDPOINTS.CONNECTIONS.DELETE(connectionId)}?deleteProducts=${deleteProducts}`
     return apiDelete<any>(url)
+  },
+
+  // ========================================
+  // MARKETPLACE FILTERS (For Sync)
+  // ========================================
+
+  /**
+   * Get categories/product types for a marketplace connection
+   * Used for filtering products before sync
+   *
+   * @param connectionId - Store connection ID
+   * @param includeCount - Whether to include product counts (cached for 24h)
+   * @returns Array of categories with name, value, and optional productCount
+   */
+  async getCategories(
+    connectionId: string,
+    includeCount: boolean = true
+  ): Promise<CategoryFilter[]> {
+    const url = includeCount
+      ? `${ENDPOINTS.MARKETPLACES.CATEGORIES(connectionId)}?includeCount=true`
+      : ENDPOINTS.MARKETPLACES.CATEGORIES(connectionId)
+
+    const response = await apiGet<MarketplaceFiltersResponse['data']>(url)
+    return response.items as CategoryFilter[]
+  },
+
+  /**
+   * Get brands/vendors for a marketplace connection
+   * Used for filtering products before sync
+   *
+   * @param connectionId - Store connection ID
+   * @param includeCount - Whether to include product counts (cached for 24h)
+   * @returns Array of brands with name, value, and optional productCount
+   */
+  async getBrands(
+    connectionId: string,
+    includeCount: boolean = true
+  ): Promise<BrandFilter[]> {
+    const url = includeCount
+      ? `${ENDPOINTS.MARKETPLACES.BRANDS(connectionId)}?includeCount=true`
+      : ENDPOINTS.MARKETPLACES.BRANDS(connectionId)
+
+    const response = await apiGet<MarketplaceFiltersResponse['data']>(url)
+    return response.items as BrandFilter[]
   },
 }

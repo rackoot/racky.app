@@ -1,6 +1,12 @@
 import { apiGet, apiPost } from '../client'
 import { ENDPOINTS } from '../config'
 import type { Product, ProductsResponse, ProductsQuery } from '../types/product'
+import type {
+  SyncJobRequest,
+  SyncJobResponse,
+  SyncJobStatusResponse,
+  SyncJobsListResponse
+} from '@/types/sync'
 
 /**
  * Get marketplace-specific product URL
@@ -101,5 +107,58 @@ export const productsApi = {
    */
   async resyncProduct(id: string): Promise<any> {
     return apiPost<any>(`${ENDPOINTS.PRODUCTS.BASE}/${id}/resync`)
+  },
+
+  // ========================================
+  // ASYNC SYNC METHODS (New)
+  // ========================================
+
+  /**
+   * Start asynchronous product sync with filters
+   * Returns a job ID for tracking progress
+   */
+  async startAsyncSync(params: SyncJobRequest): Promise<SyncJobResponse> {
+    return apiPost<SyncJobResponse>(ENDPOINTS.PRODUCTS.SYNC_START, params)
+  },
+
+  /**
+   * Get status and progress of a sync job
+   */
+  async getSyncStatus(jobId: string): Promise<SyncJobStatusResponse> {
+    return apiGet<SyncJobStatusResponse>(ENDPOINTS.PRODUCTS.SYNC_STATUS(jobId))
+  },
+
+  /**
+   * List all sync jobs for current workspace
+   * Supports filtering by status, marketplace, etc.
+   */
+  async listSyncJobs(query?: {
+    status?: string
+    marketplace?: string
+    page?: number
+    limit?: number
+  }): Promise<SyncJobsListResponse> {
+    const searchParams = new URLSearchParams()
+
+    if (query) {
+      Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== '') {
+          searchParams.append(key, value.toString())
+        }
+      })
+    }
+
+    const url = query && Object.keys(query).length > 0
+      ? `${ENDPOINTS.PRODUCTS.SYNC_JOBS}?${searchParams.toString()}`
+      : ENDPOINTS.PRODUCTS.SYNC_JOBS
+
+    return apiGet<SyncJobsListResponse>(url)
+  },
+
+  /**
+   * Get sync system health and queue statistics
+   */
+  async getSyncHealth(): Promise<any> {
+    return apiGet<any>(ENDPOINTS.PRODUCTS.SYNC_HEALTH)
   },
 }

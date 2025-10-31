@@ -1,0 +1,1543 @@
+{
+  "info": {
+    "name": "Racky API - Clean & Unified",
+    "description": "Clean Postman collection for Racky marketplace management platform.\n\n**Quick Setup Flow:**\n1. Run 'Login' to authenticate\n2. Run 'Setup Flow' folder to configure workspace and connections\n3. Use marketplace filter endpoints to get categories/brands\n4. Use unified async sync endpoints to sync products\n\n**Key Features:**\n- Auto-saves JWT token, workspace ID, and connection IDs\n- Unified async sync endpoint for both VTEX and Shopify\n- Clear filter format examples (VTEX: numeric IDs, Shopify: strings)\n- Real-time job monitoring",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "workspace_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vtex_connection_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "shopify_connection_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "job_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "description": "User authentication endpoints. Run 'Login' to start - it will automatically save your JWT token.",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "description": "Register a new user account. Creates a default workspace automatically."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"tobias.e.loustau@gmail.com\",\n  \"password\": \"Tobi1234\"\n}"
+            },
+            "description": "Login with credentials. **Auto-saves JWT token to {{jwt_token}} variable.**"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login successful\", function() {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "",
+                  "    // Save JWT token",
+                  "    if (response.data && response.data.token) {",
+                  "        pm.collectionVariables.set(\"jwt_token\", response.data.token);",
+                  "        console.log(\"✅ JWT token saved:\", response.data.token.substring(0, 20) + \"...\");",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Setup Flow",
+      "description": "**Run these in order after login to auto-configure your environment:**\n\n1. Get Workspaces → Saves workspace_id\n2. Get VTEX Connection → Saves vtex_connection_id\n3. Get Shopify Connection → Saves shopify_connection_id\n\nAfter running this folder, all variables will be ready for testing!",
+      "item": [
+        {
+          "name": "Get Workspaces",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workspaces",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "workspaces"
+              ]
+            },
+            "description": "Fetch user's workspaces. **Auto-saves first workspace ID to {{workspace_id}}.**"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Get workspaces successful\", function() {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "",
+                  "    // Save first workspace ID",
+                  "    if (response.data && response.data.length > 0) {",
+                  "        const workspaceId = response.data[0]._id;",
+                  "        pm.collectionVariables.set(\"workspace_id\", workspaceId);",
+                  "        console.log(\"✅ Workspace ID saved:\", workspaceId);",
+                  "        console.log(\"   Workspace name:\", response.data[0].name);",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get VTEX Connection",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/connections",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "connections"
+              ]
+            },
+            "description": "Fetch VTEX store connection. **Auto-saves VTEX connection ID to {{vtex_connection_id}}.**"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Get connections successful\", function() {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "",
+                  "    // Find and save VTEX connection",
+                  "    if (response.data && response.data.length > 0) {",
+                  "        const vtexConn = response.data.find(c => c.marketplaceType === 'vtex');",
+                  "        if (vtexConn) {",
+                  "            pm.collectionVariables.set(\"vtex_connection_id\", vtexConn._id);",
+                  "            console.log(\"✅ VTEX Connection ID saved:\", vtexConn._id);",
+                  "            console.log(\"   Store name:\", vtexConn.name);",
+                  "        } else {",
+                  "            console.log(\"⚠️  No VTEX connection found\");",
+                  "        }",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Shopify Connection",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/connections",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "connections"
+              ]
+            },
+            "description": "Fetch Shopify store connection. **Auto-saves Shopify connection ID to {{shopify_connection_id}}.**"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Get connections successful\", function() {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "",
+                  "    // Find and save Shopify connection",
+                  "    if (response.data && response.data.length > 0) {",
+                  "        const shopifyConn = response.data.find(c => c.marketplaceType === 'shopify');",
+                  "        if (shopifyConn) {",
+                  "            pm.collectionVariables.set(\"shopify_connection_id\", shopifyConn._id);",
+                  "            console.log(\"✅ Shopify Connection ID saved:\", shopifyConn._id);",
+                  "            console.log(\"   Store name:\", shopifyConn.name);",
+                  "        } else {",
+                  "            console.log(\"⚠️  No Shopify connection found\");",
+                  "        }",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Store Setup (Optional)",
+      "description": "Optional endpoints to test credentials and create new store connections. Skip if you already have connections configured in Setup Flow.",
+      "item": []
+    },
+    {
+      "name": "4. Marketplace Filters",
+      "description": "Get categories and brands from marketplaces. Use `includeCount=true` to get product counts (cached for 24h).\n\n**Key Difference:**\n- VTEX returns numeric IDs as values\n- Shopify returns string names as values",
+      "item": [
+        {
+          "name": "VTEX Filters",
+          "item": [
+            {
+              "name": "Get VTEX Categories",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{vtex_connection_id}}/categories",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{vtex_connection_id}}",
+                    "categories"
+                  ]
+                },
+                "description": "Get all VTEX categories. Returns basic list without product counts."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get categories successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.marketplace).to.equal(\"vtex\");",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"categories\");",
+                      "    if (response.data.items.length > 0) {",
+                      "        console.log(\"   Example:\", response.data.items[0].name, \"(ID:\", response.data.items[0].value + \")\");",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get VTEX Categories (with count)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{vtex_connection_id}}/categories?includeCount=true",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{vtex_connection_id}}",
+                    "categories?includeCount=true"
+                  ]
+                },
+                "description": "Get VTEX categories WITH product counts. **Cached for 24 hours.** Use these IDs for filtered sync."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get categories with count successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.includeCount).to.be.true;",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"categories with products\");",
+                      "    console.log(\"   Cache source:\", response.data.source);",
+                      "    if (response.data.items.length > 0) {",
+                      "        console.log(\"   Top category:\", response.data.items[0].name,",
+                      "                    \"(\" + response.data.items[0].productCount + \" products)\");",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get VTEX Brands",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{vtex_connection_id}}/brands",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{vtex_connection_id}}",
+                    "brands"
+                  ]
+                },
+                "description": "Get all VTEX brands. Returns basic list without product counts."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get brands successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.marketplace).to.equal(\"vtex\");",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"brands\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get VTEX Brands (with count)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{vtex_connection_id}}/brands?includeCount=true",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{vtex_connection_id}}",
+                    "brands?includeCount=true"
+                  ]
+                },
+                "description": "Get VTEX brands WITH product counts. **Cached for 24 hours.** Use these IDs for filtered sync."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get brands with count successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.includeCount).to.be.true;",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"brands with products\");",
+                      "    console.log(\"   Cache source:\", response.data.source);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Shopify Filters",
+          "item": [
+            {
+              "name": "Get Shopify Categories (Product Types)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{shopify_connection_id}}/categories",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{shopify_connection_id}}",
+                    "categories"
+                  ]
+                },
+                "description": "Get Shopify product types (categories). Returns string names as values."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get categories successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.marketplace).to.equal(\"shopify\");",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"product types\");",
+                      "    if (response.data.items.length > 0) {",
+                      "        console.log(\"   Example:\", response.data.items[0].value,",
+                      "                    \"(\" + response.data.items[0].productCount + \" products)\");",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Shopify Categories (with count)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{shopify_connection_id}}/categories?includeCount=true",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{shopify_connection_id}}",
+                    "categories?includeCount=true"
+                  ]
+                },
+                "description": "Get Shopify product types WITH counts. **Cached for 24 hours.** Use these names for filtered sync."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get categories with count successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.includeCount).to.be.true;",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"product types with products\");",
+                      "    console.log(\"   Cache source:\", response.data.source);",
+                      "    if (response.data.items.length > 0) {",
+                      "        console.log(\"   Top type:\", response.data.items[0].value,",
+                      "                    \"(\" + response.data.items[0].productCount + \" products)\");",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Shopify Brands (Vendors)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{shopify_connection_id}}/brands",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{shopify_connection_id}}",
+                    "brands"
+                  ]
+                },
+                "description": "Get Shopify vendors (brands). Returns string names as values."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get brands successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.marketplace).to.equal(\"shopify\");",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"vendors\");",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get Shopify Brands (with count)",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/marketplaces/{{shopify_connection_id}}/brands?includeCount=true",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "marketplaces",
+                    "{{shopify_connection_id}}",
+                    "brands?includeCount=true"
+                  ]
+                },
+                "description": "Get Shopify vendors WITH counts. **Cached for 24 hours.** Use these names for filtered sync."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get brands with count successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    pm.expect(response.data.includeCount).to.be.true;",
+                      "    console.log(\"✅ Found\", response.data.totalCount, \"vendors with products\");",
+                      "    console.log(\"   Cache source:\", response.data.source);",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Async Product Sync (UNIFIED)",
+      "description": "**Unified async sync endpoint for both VTEX and Shopify.**\n\n**Key Differences:**\n- VTEX: categoryIds and brandIds use numeric strings [\"1\", \"2\"]\n- Shopify: categoryIds and brandIds use string names [\"snowboard\", \"Nike\"]\n\n**All requests use the same endpoint:** POST /products/sync/start",
+      "item": [
+        {
+          "name": "VTEX Sync Examples",
+          "description": "VTEX async sync examples with different filter combinations. Uses numeric IDs for categories and brands.",
+          "item": [
+            {
+              "name": "Start Sync - No Filters",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{vtex_connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 200,\n  \"batchSize\": 75,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false\n  }\n}"
+                },
+                "description": "Sync all active VTEX products without filters."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started! Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Sync - Active Only",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{vtex_connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 150,\n  \"batchSize\": 50,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false\n  }\n}"
+                },
+                "description": "Sync only active VTEX products."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started! Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Sync - Category Filter",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{vtex_connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 50,\n  \"batchSize\": 25,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"categoryIds\": [\n      \"1\",\n      \"3\",\n      \"5\"\n    ]\n  }\n}"
+                },
+                "description": "Sync VTEX products filtered by categories. **Use numeric IDs from 'Get VTEX Categories (with count)' endpoint.**"
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started with category filters!\");",
+                      "        console.log(\"   Categories:\", [\"1\", \"3\", \"5\"]);",
+                      "        console.log(\"   Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Sync - Brand Filter",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{vtex_connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 30,\n  \"batchSize\": 25,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"brandIds\": [\n      \"2000000\",\n      \"2000001\"\n    ]\n  }\n}"
+                },
+                "description": "Sync VTEX products filtered by brands. **Use numeric IDs from 'Get VTEX Brands (with count)' endpoint.**"
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started with brand filters!\");",
+                      "        console.log(\"   Brands:\", [\"2000000\", \"2000001\"]);",
+                      "        console.log(\"   Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Sync - ALL Filters",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{vtex_connection_id}}\",\n  \"marketplace\": \"vtex\",\n  \"estimatedProducts\": 20,\n  \"batchSize\": 20,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"categoryIds\": [\n      \"1\"\n    ],\n    \"brandIds\": [\n      \"2000000\"\n    ]\n  }\n}"
+                },
+                "description": "Sync VTEX products with both category AND brand filters. Products must match ALL criteria."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started with ALL filters!\");",
+                      "        console.log(\"   Categories:\", [\"1\"]);",
+                      "        console.log(\"   Brands:\", [\"2000000\"]);",
+                      "        console.log(\"   Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Shopify Sync Examples",
+          "description": "Shopify async sync examples with different filter combinations. Uses string names for product types (categories) and vendors (brands).",
+          "item": [
+            {
+              "name": "Start Sync - No Filters",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{shopify_connection_id}}\",\n  \"marketplace\": \"shopify\",\n  \"estimatedProducts\": 50,\n  \"batchSize\": 25,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false\n  }\n}"
+                },
+                "description": "Sync all active Shopify products without filters."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started! Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Sync - Vendor Filter (Brand)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{shopify_connection_id}}\",\n  \"marketplace\": \"shopify\",\n  \"estimatedProducts\": 25,\n  \"batchSize\": 25,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"brandIds\": [\n      \"Racky test store\",\n      \"Snowboard Vendor\"\n    ]\n  }\n}"
+                },
+                "description": "Sync Shopify products filtered by vendors (brands). **Use string names from 'Get Shopify Brands (with count)' endpoint.**"
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started with vendor filters!\");",
+                      "        console.log(\"   Vendors:\", [\"Racky test store\", \"Snowboard Vendor\"]);",
+                      "        console.log(\"   Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Sync - Product Type Filter (Category)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{shopify_connection_id}}\",\n  \"marketplace\": \"shopify\",\n  \"estimatedProducts\": 15,\n  \"batchSize\": 15,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"categoryIds\": [\n      \"snowboard\",\n      \"accessories\"\n    ]\n  }\n}"
+                },
+                "description": "Sync Shopify products filtered by product types (categories). **Use string names from 'Get Shopify Categories (with count)' endpoint.**"
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started with product type filters!\");",
+                      "        console.log(\"   Product Types:\", [\"snowboard\", \"accessories\"]);",
+                      "        console.log(\"   Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Start Sync - ALL Filters",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "start"
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"connectionId\": \"{{shopify_connection_id}}\",\n  \"marketplace\": \"shopify\",\n  \"estimatedProducts\": 10,\n  \"batchSize\": 10,\n  \"filters\": {\n    \"includeActive\": true,\n    \"includeInactive\": false,\n    \"categoryIds\": [\n      \"snowboard\"\n    ],\n    \"brandIds\": [\n      \"Snowboard Vendor\"\n    ]\n  }\n}"
+                },
+                "description": "Sync Shopify products with both product type AND vendor filters. Products must match ALL criteria."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Sync started successfully\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data && response.data.jobId) {",
+                      "        pm.collectionVariables.set(\"job_id\", response.data.jobId);",
+                      "        console.log(\"✅ Sync job started with ALL filters!\");",
+                      "        console.log(\"   Product Type:\", [\"snowboard\"]);",
+                      "        console.log(\"   Vendor:\", [\"Snowboard Vendor\"]);",
+                      "        console.log(\"   Job ID:\", response.data.jobId);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Monitor Sync Jobs",
+          "description": "Endpoints to monitor async sync job progress and health.",
+          "item": [
+            {
+              "name": "Get Job Status & Progress",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/status/{{job_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "status",
+                    "{{job_id}}"
+                  ]
+                },
+                "description": "Get real-time status and progress of a specific sync job. Job ID is auto-saved from 'Start Sync' requests."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get job status successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data) {",
+                      "        console.log(\"📊 Job Status:\", response.data.status);",
+                      "        console.log(\"   Progress:\", response.data.progress + \"%\");",
+                      "        console.log(\"   Products processed:\", response.data.productsProcessed);",
+                      "        console.log(\"   Total batches:\", response.data.totalBatches);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get All My Sync Jobs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/jobs",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "jobs"
+                  ]
+                },
+                "description": "Get list of all sync jobs for current workspace. Supports filtering by status, marketplace, etc."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get sync jobs successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    console.log(\"📋 Total jobs found:\", response.data.totalCount);",
+                      "    if (response.data.jobs && response.data.jobs.length > 0) {",
+                      "        console.log(\"   Latest job:\", response.data.jobs[0].jobId);",
+                      "        console.log(\"   Status:\", response.data.jobs[0].status);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Get System Health",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{jwt_token}}"
+                  },
+                  {
+                    "key": "x-workspace-id",
+                    "value": "{{workspace_id}}"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/products/sync/health",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "products",
+                    "sync",
+                    "health"
+                  ]
+                },
+                "description": "Get queue health and system statistics."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Get system health successful\", function() {",
+                      "    pm.response.to.have.status(200);",
+                      "    const response = pm.response.json();",
+                      "    pm.expect(response.success).to.be.true;",
+                      "    if (response.data) {",
+                      "        console.log(\"🏥 Queue Health:\", response.data.queueHealth);",
+                      "        console.log(\"   Active jobs:\", response.data.activeJobs || 0);",
+                      "        console.log(\"   Pending jobs:\", response.data.pendingJobs || 0);",
+                      "    }",
+                      "});"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Products",
+      "description": "View synced products from database.",
+      "item": [
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products"
+              ]
+            },
+            "description": "Get all synced products for current workspace."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Get products successful\", function() {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    console.log(\"📦 Total products:\", response.data.totalCount || response.data.length);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Products by Marketplace",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "x-workspace-id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/products?marketplace=vtex",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "products?marketplace=vtex"
+              ]
+            },
+            "description": "Get products filtered by marketplace (vtex, shopify, etc.)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Get products by marketplace successful\", function() {",
+                  "    pm.response.to.have.status(200);",
+                  "    const response = pm.response.json();",
+                  "    pm.expect(response.success).to.be.true;",
+                  "    console.log(\"📦 VTEX products:\", response.data.totalCount || response.data.length);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
