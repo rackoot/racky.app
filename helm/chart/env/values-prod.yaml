@@ -21,4 +21,4 @@ mongodb:
   host: customer-panel-prod.2uuzuli.mongodb.net
 
 stripe:
-  public_key: "pk_test_51RMALBC0dRh4ObHWRwnAsXU5dxQUXLtjNSDO6xy6LA5vgVES6P3qPKqpnAQbFB9WUwxh4BgqBO4OtPaZHizoDMV6001MXHKYu0"
+  public_key: "pk_live_51MJP0zFwwa3TZj14oIJ3IYTWce9BbA9LIbVB19YEPisD3Ia77n9SiVOjwhtSDlRtXDbmqENPaTnjBW3VtK8nien300goi4cuSg"
