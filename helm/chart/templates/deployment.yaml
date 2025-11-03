@@ -20,6 +20,7 @@ spec:
       labels:
         app: racky-app
     spec:
+      {{- if eq .Values.environment "prod" }}
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -30,6 +31,7 @@ spec:
                 values:
                 - racky-app
             topologyKey: "kubernetes.io/hostname"
+      {{-- end }}
       containers:
       - name: backend
         image: "{{ .Values.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com/rackoot/racky.app.backend:{{ .Values.app_version }}"
