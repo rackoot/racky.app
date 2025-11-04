@@ -41,8 +41,8 @@ export class MarketplaceSyncProcessor {
     console.log(`🔍 Filters:`, JSON.stringify(filters, null, 2));
 
     try {
-      // Update job progress
-      await job.progress(10);
+      // Update job progress to 5% - starting
+      await job.progress(5);
 
       // Get store connection details
       const connection = await StoreConnection.findOne({
@@ -59,10 +59,38 @@ export class MarketplaceSyncProcessor {
         throw new Error(`Marketplace ${marketplace} not found or inactive`);
       }
 
-      await job.progress(20);
+      await job.progress(10);
+
+      // Get early estimate of product count
+      console.log(`📊 Getting estimated product count from ${marketplace}...`);
+      let estimatedTotal = 0;
+
+      try {
+        if (marketplace.toLowerCase() === 'vtex') {
+          estimatedTotal = await VtexService.getEstimatedProductCount(connection.credentials as VtexCredentials);
+        } else if (marketplace.toLowerCase() === 'shopify') {
+          estimatedTotal = await ShopifyService.getEstimatedProductCount(connection.credentials as ShopifyCredentials, filters);
+        }
+
+        console.log(`📈 Estimated ${estimatedTotal} products to sync`);
+
+        // Store estimated count in parent job metadata
+        await Job.findByIdAndUpdate(job.id, {
+          $set: {
+            'metadata.estimatedTotal': estimatedTotal,
+            'metadata.syncedProducts': 0,
+            'metadata.totalProducts': 0  // Will be updated when we know exact count
+          }
+        });
+      } catch (error) {
+        console.warn(`⚠️ Could not get estimate:`, error);
+        // Continue without estimate
+      }
+
+      await job.progress(15);
 
       // Fetch product list from marketplace
-      console.log(`📊 Fetching product list from ${marketplace}...`);
+      console.log(`📊 Fetching complete product list from ${marketplace}...`);
       const productList = await MarketplaceSyncProcessor.fetchMarketplaceProducts(
         marketplace,
         connection.credentials,
@@ -72,7 +100,17 @@ export class MarketplaceSyncProcessor {
       const totalProducts = productList.length;
       console.log(`📦 Found ${totalProducts} products to sync`);
 
-      await job.progress(30);
+      // Update parent job with exact total and change status to processing_batches
+      await Job.findByIdAndUpdate(job.id, {
+        $set: {
+          'metadata.totalProducts': totalProducts,
+          'metadata.syncedProducts': 0,
+          status: 'processing_batches',
+          progress: 0  // Reset to 0 now that we're starting actual product sync
+        }
+      });
+
+      await job.progress(20);
 
       // Calculate batches
       const batchSize = MarketplaceSyncProcessor.BATCH_SIZE;
@@ -80,7 +118,7 @@ export class MarketplaceSyncProcessor {
 
       // Create batch jobs
       const batchJobs: Promise<any>[] = [];
-      
+
       for (let batchNumber = 0; batchNumber < totalBatches; batchNumber++) {
         const startIndex = batchNumber * batchSize;
         const endIndex = Math.min(startIndex + batchSize, totalProducts);
@@ -116,8 +154,6 @@ export class MarketplaceSyncProcessor {
 
       // Wait for all batch jobs to be created
       await Promise.all(batchJobs);
-      
-      await job.progress(100);
 
       const result = {
         success: true,
@@ -126,7 +162,9 @@ export class MarketplaceSyncProcessor {
         message: `Created ${totalBatches} batch jobs for ${totalProducts} products`,
       };
 
-      console.log(`✅ Marketplace sync job completed: ${result.message}`);
+      console.log(`✅ Marketplace sync job created batches: ${result.message}`);
+      console.log(`⏳ Parent job will remain in 'processing_batches' until all products are synced`);
+
       return result;
 
     } catch (error) {
@@ -211,6 +249,31 @@ export class MarketplaceSyncProcessor {
           results.push({ externalId: productId, status: 'success' });
           processedCount++;
 
+          // Update parent job progress (atomic increment)
+          try {
+            const parentJobId = job.data.parentJobId;
+            if (parentJobId) {
+              // Atomically increment syncedProducts counter
+              await Job.findByIdAndUpdate(parentJobId, {
+                $inc: { 'metadata.syncedProducts': 1 }
+              });
+
+              // Update parent job progress based on synced count
+              const parentJob = await Job.findById(parentJobId);
+              if (parentJob && parentJob.metadata) {
+                const { syncedProducts = 0, totalProducts = 1 } = parentJob.metadata;
+                const progress = Math.min(100, Math.round((syncedProducts / totalProducts) * 100));
+
+                await Job.findByIdAndUpdate(parentJobId, {
+                  $set: { progress }
+                });
+              }
+            }
+          } catch (error) {
+            console.warn(`⚠️ Failed to update parent job progress:`, error);
+            // Don't fail the batch job if parent update fails
+          }
+
         } catch (error) {
           console.error(`❌ Failed to process product ${productId}:`, error);
           
@@ -256,6 +319,39 @@ export class MarketplaceSyncProcessor {
       };
 
       console.log(`✅ Batch ${batchNumber}/${totalBatches} completed: ${processedCount} success, ${failedCount} failed`);
+
+      // Check if this is the last batch and mark parent job as completed
+      try {
+        const parentJobId = job.data.parentJobId;
+        if (parentJobId) {
+          // Find all child jobs for this parent
+          const allChildJobs = await Job.find({ parentJobId });
+          const completedChildJobs = allChildJobs.filter(child =>
+            child.status === 'completed' || child.status === 'failed'
+          );
+
+          console.log(`📊 Parent job progress: ${completedChildJobs.length}/${allChildJobs.length} batches completed`);
+
+          // If all batches are complete, mark parent as completed
+          if (completedChildJobs.length === allChildJobs.length) {
+            const parentJob = await Job.findById(parentJobId);
+            if (parentJob && parentJob.status === 'processing_batches') {
+              await Job.findByIdAndUpdate(parentJobId, {
+                $set: {
+                  status: 'completed',
+                  progress: 100,
+                  completedAt: new Date()
+                }
+              });
+              console.log(`✅ All batches completed! Parent job ${parentJobId} marked as completed`);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ Failed to check/update parent job completion:`, error);
+        // Don't fail the batch job if parent update fails
+      }
+
       return result;
 
     } catch (error) {

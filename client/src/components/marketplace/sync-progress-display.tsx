@@ -40,7 +40,7 @@ export function SyncProgressDisplay({
         const response = await productsApi.getSyncStatus(jobId)
         setStatus(response)
 
-        // Stop polling if completed or failed
+        // Stop polling if completed or failed (but not processing_batches)
         if (response.status === 'completed' || response.status === 'failed') {
           setPolling(false)
 
@@ -109,6 +109,7 @@ export function SyncProgressDisplay({
       case 'pending':
         return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
       case 'processing':
+      case 'processing_batches':
         return <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
       case 'completed':
         return <CheckCircle2 className="h-5 w-5 text-green-500" />
@@ -124,6 +125,8 @@ export function SyncProgressDisplay({
       case 'pending':
         return 'Starting synchronization...'
       case 'processing':
+        return 'Preparing product list...'
+      case 'processing_batches':
         return 'Synchronizing products...'
       case 'completed':
         return 'Synchronization completed!'
@@ -141,6 +144,7 @@ export function SyncProgressDisplay({
       case 'failed':
         return 'text-red-600 dark:text-red-400'
       case 'processing':
+      case 'processing_batches':
         return 'text-blue-600 dark:text-blue-400'
       default:
         return 'text-gray-600 dark:text-gray-400'
@@ -181,7 +185,7 @@ export function SyncProgressDisplay({
 
       <CardContent className="space-y-4">
         {/* Progress Bar */}
-        {(jobStatus === 'pending' || jobStatus === 'processing') && (
+        {(jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'processing_batches') && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Progress</span>
@@ -191,17 +195,20 @@ export function SyncProgressDisplay({
           </div>
         )}
 
-        {/* Progress Statistics - Real Data Only */}
+        {/* Product Count Display */}
         {status.progress && (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Current Progress</p>
+              <p className="text-xs text-muted-foreground">Products Synced</p>
               <p className="text-2xl font-bold">
-                {status.progress.current}
+                {status.progress.syncedProducts || 0}
                 <span className="text-sm text-muted-foreground font-normal ml-1">
-                  / {status.progress.total}
+                  / {status.progress.totalProducts || status.progress.estimatedTotal || '?'}
                 </span>
               </p>
+              {status.progress.estimatedTotal > 0 && !status.progress.totalProducts && (
+                <p className="text-xs text-muted-foreground italic">~{status.progress.estimatedTotal} estimated</p>
+              )}
             </div>
 
             <div className="space-y-1">

@@ -26,7 +26,7 @@ export interface SyncJobResponse {
   createdAt: string
 }
 
-export type SyncJobStatus = 'pending' | 'processing' | 'completed' | 'failed'
+export type SyncJobStatus = 'pending' | 'processing' | 'processing_batches' | 'completed' | 'failed'
 
 export interface SyncJobStatusResponse {
   jobId: string
@@ -35,6 +35,10 @@ export interface SyncJobStatusResponse {
     current: number
     total: number
     percentage: number
+    // Product-based progress tracking
+    estimatedTotal?: number      // Early estimate from first API call
+    totalProducts?: number        // Exact count after fetching all IDs
+    syncedProducts?: number       // Number of products synced so far
   }
   eta?: string
   createdAt: string

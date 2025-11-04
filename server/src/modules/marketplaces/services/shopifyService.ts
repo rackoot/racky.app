@@ -105,6 +105,95 @@ export class ShopifyService {
   }
 
   /**
+   * Get estimated total product count from Shopify
+   * Makes a minimal API call to get count estimate
+   *
+   * Note: Shopify GraphQL doesn't provide exact counts, so we estimate from first page
+   *
+   * @param credentials Shopify credentials
+   * @param filters Optional filters to apply
+   * @returns Estimated total product count (rough estimate)
+   */
+  static async getEstimatedProductCount(
+    credentials: ShopifyCredentials,
+    filters?: ProductSyncFilters
+  ): Promise<number> {
+    try {
+      const { shop_url, access_token } = credentials;
+
+      if (!shop_url || !access_token) {
+        throw new Error('Shop URL and access token are required for Shopify');
+      }
+
+      // Extract store name from shop_url
+      let storeName = shop_url
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '')
+        .replace(/\.myshopify\.com$/, '');
+
+      const apiUrl = `https://${storeName}.myshopify.com/admin/api/2023-10/graphql.json`;
+
+      // Build query filter string
+      const queryFilter = this.buildQueryFilter(filters);
+
+      // GraphQL query to get first page
+      const query = `
+        query GetProducts($first: Int!, $query: String) {
+          products(first: $first, query: $query) {
+            edges {
+              node {
+                id
+              }
+            }
+            pageInfo {
+              hasNextPage
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        first: 50, // Get first page
+        query: queryFilter || null
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': access_token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query, variables })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Shopify API request failed: ${response.statusText}`);
+      }
+
+      const data: any = await response.json();
+
+      if (data.errors) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+      }
+
+      const firstPageCount = data.data.products.edges.length;
+      const hasNextPage = data.data.products.pageInfo.hasNextPage;
+
+      // Estimate: if there's a next page, assume at least 2x first page
+      // Otherwise, return exact count from first page
+      const estimate = hasNextPage ? firstPageCount * 2 : firstPageCount;
+
+      console.log(`[Shopify Service] Estimated product count: ~${estimate} (First page: ${firstPageCount}, Has more: ${hasNextPage})`);
+
+      return estimate;
+
+    } catch (error: any) {
+      console.error('[Shopify Service] Error getting estimated product count:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Fetch product IDs from Shopify with API-level filtering
    *
    * Uses GraphQL query parameter to filter products at the API level,

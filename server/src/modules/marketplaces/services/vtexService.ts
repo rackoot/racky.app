@@ -412,6 +412,26 @@ export class VtexService {
   }
 
   /**
+   * Get estimated total product count from VTEX
+   * Makes a minimal API call to get pagination headers
+   *
+   * @param credentials VTEX account credentials
+   * @returns Estimated total product count
+   */
+  static async getEstimatedProductCount(
+    credentials: VtexCredentials
+  ): Promise<number> {
+    try {
+      // Make a minimal API call (just fetch 1 product) to get total count from headers
+      const response = await this.fetchProductAndSkuIds(credentials, 1, 1);
+      return response.range?.total || 0;
+    } catch (error: any) {
+      console.error('[VTEX Service] Error getting estimated product count:', error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Fetch paginated list of product and SKU IDs
    *
    * API Endpoint: GET /api/catalog_system/pvt/products/GetProductAndSkuIds

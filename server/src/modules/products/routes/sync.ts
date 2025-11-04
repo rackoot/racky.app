@@ -192,23 +192,25 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       workspaceId: req.workspace!._id.toString()
     });
 
-    // Calculate overall progress from child jobs
-    let overallProgress = job.progress;
-    if (childJobs.length > 0) {
-      const totalProgress = childJobs.reduce((sum, child) => sum + child.progress, 0);
-      overallProgress = Math.round(totalProgress / childJobs.length);
-    }
+    // Extract metadata for product counts
+    const metadata = job.metadata || {};
+    const estimatedTotal = metadata.estimatedTotal || 0;
+    const totalProducts = metadata.totalProducts || 0;
+    const syncedProducts = metadata.syncedProducts || 0;
+
+    // Use job.progress directly (now product-based)
+    const overallProgress = job.progress;
 
     // Calculate ETA based on progress
     let eta = 'Calculating...';
     if (overallProgress > 0 && job.startedAt) {
       const remainingProgress = 100 - overallProgress;
       const timeElapsed = Date.now() - job.startedAt.getTime();
-      
+
       if (timeElapsed > 0) {
         const timePerPercent = timeElapsed / overallProgress;
         const remainingTime = (remainingProgress * timePerPercent) / 1000; // Convert to seconds
-        
+
         if (remainingTime > 3600) {
           eta = `${Math.ceil(remainingTime / 3600)} hours remaining`;
         } else if (remainingTime > 60) {
@@ -219,11 +221,15 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       }
     }
 
-    // Format progress data
+    // Format progress data with product counts
     const progressData = {
       current: overallProgress,
       total: 100,
       percentage: overallProgress,
+      // Product-based progress information
+      estimatedTotal,           // Early estimate from first API call
+      totalProducts,            // Exact count after fetching all IDs
+      syncedProducts,           // Number of products synced so far
     };
 
     res.json({
