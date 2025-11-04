@@ -63,16 +63,22 @@ export class MarketplaceSyncProcessor {
 
       // Get early estimate of product count
       console.log(`📊 Getting estimated product count from ${marketplace}...`);
-      let estimatedTotal = 0;
+      let estimatedTotal: number | null = 0;
 
       try {
         if (marketplace.toLowerCase() === 'vtex') {
-          estimatedTotal = await VtexService.getEstimatedProductCount(connection.credentials as VtexCredentials);
+          // VTEX API doesn't support filter-aware estimates
+          // Filters are applied post-fetch after getting complete product data
+          // Skip early estimate to avoid showing misleading numbers
+          console.log('[VTEX] Skipping early estimate - filters applied post-fetch');
+          estimatedTotal = null; // Will show "Scanning catalog..." in UI
         } else if (marketplace.toLowerCase() === 'shopify') {
           estimatedTotal = await ShopifyService.getEstimatedProductCount(connection.credentials as ShopifyCredentials, filters);
         }
 
-        console.log(`📈 Estimated ${estimatedTotal} products to sync`);
+        if (estimatedTotal) {
+          console.log(`📈 Estimated ${estimatedTotal} products to sync`);
+        }
 
         // Store estimated count in parent job metadata
         await Job.findOneAndUpdate(
@@ -81,7 +87,8 @@ export class MarketplaceSyncProcessor {
             $set: {
               'metadata.estimatedTotal': estimatedTotal,
               'metadata.syncedProducts': 0,
-              'metadata.totalProducts': 0  // Will be updated when we know exact count
+              'metadata.totalProducts': 0,  // Will be updated when we know exact count
+              'metadata.phase': 'scanning'  // Indicate we're scanning/filtering
             }
           }
         );
@@ -97,19 +104,23 @@ export class MarketplaceSyncProcessor {
       const productList = await MarketplaceSyncProcessor.fetchMarketplaceProducts(
         marketplace,
         connection.credentials,
-        filters
+        filters,
+        workspaceId,
+        userId,
+        connectionId
       );
 
       const totalProducts = productList.length;
       console.log(`📦 Found ${totalProducts} products to sync`);
 
-      // Update parent job with exact total and change status to processing_batches
+      // Update parent job with exact total and change status/phase to syncing
       await Job.findOneAndUpdate(
         { jobId: job.id!.toString() },
         {
           $set: {
             'metadata.totalProducts': totalProducts,
             'metadata.syncedProducts': 0,
+            'metadata.phase': 'syncing',  // Changed from scanning to syncing
             status: 'processing_batches',
             progress: 0  // Reset to 0 now that we're starting actual product sync
           }
@@ -223,13 +234,77 @@ export class MarketplaceSyncProcessor {
       // Process products in this batch
       for (let i = 0; i < productIds.length; i++) {
         const productId = productIds[i];
-        
+
         try {
           // Update progress
           const progressPercentage = Math.round((i / productIds.length) * 100);
           await job.progress(progressPercentage);
 
-          // Fetch product details from marketplace
+          let savedProduct;
+
+          // For VTEX, check if draft product already exists (created during scanning phase)
+          if (marketplace.toLowerCase() === 'vtex') {
+            const existingDraft = await Product.findOne({
+              workspaceId,
+              userId,
+              storeConnectionId: connectionId,
+              marketplace: 'vtex',
+              externalId: productId,
+              status: 'DRAFT'
+            });
+
+            if (existingDraft) {
+              // Draft exists - just update status to ACTIVE (data already complete)
+              console.log(`[VTEX Processor] Activating draft product ${productId}`);
+              existingDraft.status = 'ACTIVE';
+              existingDraft.lastSyncedAt = new Date();
+              savedProduct = await existingDraft.save();
+
+              results.push({ externalId: productId, status: 'success' });
+              processedCount++;
+
+              // Create history entry
+              await ProductHistoryService.createSyncHistory({
+                workspaceId,
+                userId,
+                productId: savedProduct._id.toString(),
+                storeConnectionId: connectionId,
+                actionType: 'SYNC_FROM_MARKETPLACE',
+                marketplace,
+                syncDirection: 'FROM_MARKETPLACE',
+                jobId: job.id!.toString(),
+                batchId: `batch_${batchNumber}`
+              });
+
+              // Update parent job progress (atomic increment)
+              try {
+                const parentJobId = job.data.parentJobId;
+                if (parentJobId) {
+                  await Job.findOneAndUpdate(
+                    { jobId: parentJobId },
+                    { $inc: { 'metadata.syncedProducts': 1 } }
+                  );
+
+                  const parentJob = await Job.findOne({ jobId: parentJobId });
+                  if (parentJob && parentJob.metadata) {
+                    const { syncedProducts = 0, totalProducts = 1 } = parentJob.metadata;
+                    const progress = Math.min(100, Math.round((syncedProducts / totalProducts) * 100));
+
+                    await Job.findOneAndUpdate(
+                      { jobId: parentJobId },
+                      { $set: { progress } }
+                    );
+                  }
+                }
+              } catch (error) {
+                console.error('Error updating parent job progress:', error);
+              }
+
+              continue; // Skip to next product - no need to fetch data again
+            }
+          }
+
+          // Fetch product details from marketplace (for non-VTEX or if draft doesn't exist)
           const productData = await MarketplaceSyncProcessor.fetchProductDetails(
             marketplace,
             productId,
@@ -249,7 +324,7 @@ export class MarketplaceSyncProcessor {
           }
 
           // Save or update product in database
-          const savedProduct = await MarketplaceSyncProcessor.saveProduct(userId, workspaceId, connectionId, marketplace, productData);
+          savedProduct = await MarketplaceSyncProcessor.saveProduct(userId, workspaceId, connectionId, marketplace, productData);
 
           // Create history entry for successful sync
           await ProductHistoryService.createSyncHistory({
@@ -424,7 +499,10 @@ export class MarketplaceSyncProcessor {
   private static async fetchMarketplaceProducts(
     marketplace: string,
     credentials: any,
-    filters?: any
+    filters?: any,
+    workspaceId?: string,
+    userId?: string,
+    connectionId?: string
   ): Promise<Array<{ externalId: string }>> {
     // This would call the actual marketplace APIs
     // For now, we'll simulate with the existing marketplace service
@@ -433,7 +511,7 @@ export class MarketplaceSyncProcessor {
         case 'shopify':
           return await MarketplaceSyncProcessor.fetchShopifyProducts(credentials, filters);
         case 'vtex':
-          return await MarketplaceSyncProcessor.fetchVtexProducts(credentials, filters);
+          return await MarketplaceSyncProcessor.fetchVtexProducts(credentials, filters, workspaceId, userId, connectionId);
         case 'woocommerce':
           return await MarketplaceSyncProcessor.fetchWooCommerceProducts(credentials, filters);
         case 'mercadolibre':
@@ -716,7 +794,10 @@ export class MarketplaceSyncProcessor {
 
   private static async fetchVtexProducts(
     credentials: VtexCredentials,
-    filters?: ProductSyncFilters
+    filters?: ProductSyncFilters,
+    workspaceId?: string,
+    userId?: string,
+    connectionId?: string
   ): Promise<Array<{ externalId: string }>> {
     try {
       console.log('[VTEX Processor] Fetching product IDs from VTEX...');
@@ -771,6 +852,61 @@ export class MarketplaceSyncProcessor {
 
         // Apply filters to this batch
         const filteredProducts = applyVtexFilters(completeProducts, appliedFilters);
+
+        // Create draft products immediately if workspace/user/connection provided
+        if (workspaceId && userId && connectionId) {
+          for (const vtexProduct of filteredProducts) {
+            try {
+              const { product, sku, pricing, inventory } = vtexProduct;
+
+              // Create draft product with all available data
+              await Product.create({
+                workspaceId,
+                userId,
+                storeConnectionId: connectionId,
+                title: product.Name || sku.ProductName,
+                description: product.Description || product.DescriptionShort || '',
+                price: MarketplaceSyncProcessor.calculateVtexPrice(pricing),
+                compareAtPrice: pricing?.listPrice || undefined,
+                currency: 'BRL',
+                sku: sku.AlternateIds?.RefId || product.RefId || '',
+                inventory: MarketplaceSyncProcessor.calculateVtexInventory(inventory),
+                vendor: sku.BrandName || '',
+                productType: product.CategoryId?.toString() || '',
+                images: MarketplaceSyncProcessor.extractVtexImages(sku),
+                variants: [{
+                  id: sku.Id.toString(),
+                  title: sku.NameComplete || sku.SkuName,
+                  sku: sku.AlternateIds?.RefId || product.RefId || '',
+                  price: MarketplaceSyncProcessor.calculateVtexPrice(pricing),
+                  compareAtPrice: pricing?.listPrice || undefined,
+                  inventory: MarketplaceSyncProcessor.calculateVtexInventory(inventory),
+                  barcode: sku.AlternateIds?.Ean || undefined,
+                  weight: sku.RealDimension?.realWeight || sku.Dimension?.weight || undefined,
+                  isActive: sku.IsActive
+                }],
+                platforms: [{
+                  platform: 'vtex' as PlatformType,
+                  platformId: product.Id.toString(),
+                  platformSku: sku.Id.toString(),
+                  platformPrice: MarketplaceSyncProcessor.calculateVtexPrice(pricing),
+                  platformInventory: MarketplaceSyncProcessor.calculateVtexInventory(inventory),
+                  platformStatus: product.IsActive && sku.IsActive ? 'active' : 'draft',
+                  lastSyncAt: new Date()
+                }],
+                status: 'DRAFT', // Mark as draft during scanning phase
+                marketplace: 'vtex',
+                externalId: product.Id.toString(),
+                lastSyncedAt: new Date()
+              });
+
+              console.log(`[VTEX Processor] Created draft product ${product.Id}`);
+            } catch (error: any) {
+              console.error(`[VTEX Processor] Failed to create draft for ${vtexProduct.product.Id}:`, error.message);
+              // Continue with other products
+            }
+          }
+        }
 
         // Extract product IDs from filtered products
         const productIds = filteredProducts.map(item => ({
@@ -1035,6 +1171,50 @@ export class MarketplaceSyncProcessor {
         slug: product.LinkId
       }
     };
+  }
+
+  /**
+   * Helper: Calculate VTEX price from pricing data
+   */
+  private static calculateVtexPrice(pricing: any): number {
+    if (!pricing) return 0;
+
+    if (pricing.fixedPrices && pricing.fixedPrices.length > 0) {
+      return pricing.fixedPrices[0].value;
+    }
+    return pricing.basePrice || 0;
+  }
+
+  /**
+   * Helper: Calculate VTEX inventory from balance data
+   */
+  private static calculateVtexInventory(inventory: any): number {
+    if (!inventory || !inventory.balance) return 0;
+
+    return inventory.balance.reduce((total: number, warehouse: any) => {
+      if (warehouse.hasUnlimitedQuantity) return 999999;
+      return total + (warehouse.availableQuantity || warehouse.totalQuantity || 0);
+    }, 0);
+  }
+
+  /**
+   * Helper: Extract VTEX images
+   */
+  private static extractVtexImages(sku: any): any[] {
+    const images = (sku.Images?.map((img: any) => ({
+      url: img.ImageUrl,
+      altText: img.ImageName || ''
+    })) || []).filter((img: any) => img.url);
+
+    // Fallback to single ImageUrl
+    if (images.length === 0 && sku.ImageUrl) {
+      images.push({
+        url: sku.ImageUrl,
+        altText: sku.NameComplete || ''
+      });
+    }
+
+    return images;
   }
 
   /**
