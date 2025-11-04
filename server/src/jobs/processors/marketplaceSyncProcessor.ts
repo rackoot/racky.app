@@ -236,6 +236,18 @@ export class MarketplaceSyncProcessor {
             connection.credentials
           );
 
+          // Check if product data is valid (null means product has no SKUs or other issues)
+          if (!productData) {
+            console.warn(`⚠️ Skipping product ${productId}: No SKUs or invalid product data`);
+            results.push({
+              externalId: productId,
+              status: 'failed',
+              error: 'Product has no SKUs or invalid data'
+            });
+            failedCount++;
+            continue; // Skip to next product
+          }
+
           // Save or update product in database
           const savedProduct = await MarketplaceSyncProcessor.saveProduct(userId, workspaceId, connectionId, marketplace, productData);
 
@@ -355,6 +367,21 @@ export class MarketplaceSyncProcessor {
                 }
               );
               console.log(`✅ All batches completed! Parent job ${parentJobId} marked as completed`);
+
+              // Update StoreConnection lastSync date
+              const connectionId = job.data.connectionId;
+              if (connectionId) {
+                await StoreConnection.findByIdAndUpdate(
+                  connectionId,
+                  {
+                    $set: {
+                      lastSync: new Date(),
+                      syncStatus: 'completed'
+                    }
+                  }
+                );
+                console.log(`✅ Updated lastSync for connection ${connectionId}`);
+              }
             }
           }
         }
@@ -367,6 +394,26 @@ export class MarketplaceSyncProcessor {
 
     } catch (error) {
       console.error(`❌ Product batch processing failed:`, error);
+
+      // Update lastSync even on failure to track last attempt
+      try {
+        const connectionId = job.data.connectionId;
+        if (connectionId) {
+          await StoreConnection.findByIdAndUpdate(
+            connectionId,
+            {
+              $set: {
+                lastSync: new Date(),
+                syncStatus: 'failed'
+              }
+            }
+          );
+          console.log(`⚠️ Updated lastSync for failed connection ${connectionId}`);
+        }
+      } catch (updateError) {
+        console.warn('Failed to update lastSync on error:', updateError);
+      }
+
       throw error;
     }
   }
@@ -407,7 +454,7 @@ export class MarketplaceSyncProcessor {
     marketplace: string,
     productId: string,
     credentials: any
-  ): Promise<any> {
+  ): Promise<any | null> {
     // This would fetch detailed product information
     // For now, we'll use existing marketplace service calls
     try {
@@ -861,7 +908,7 @@ export class MarketplaceSyncProcessor {
     };
   }
 
-  private static async fetchVtexProductDetails(productId: string, credentials: VtexCredentials): Promise<any> {
+  private static async fetchVtexProductDetails(productId: string, credentials: VtexCredentials): Promise<any | null> {
     try {
       console.log(`[VTEX Processor] Fetching details for product ${productId}...`);
 
@@ -875,7 +922,8 @@ export class MarketplaceSyncProcessor {
       const productData = responseData.find(item => item.productId.toString() === productId);
 
       if (!productData || !productData.skuIds || productData.skuIds.length === 0) {
-        throw new Error(`Product ${productId} has no SKUs`);
+        console.warn(`[VTEX Processor] Product ${productId} has no SKUs, skipping`);
+        return null; // Return null instead of throwing
       }
 
       // Use the first SKU

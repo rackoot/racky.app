@@ -138,7 +138,7 @@ export function ConnectedMarketplaceDetail({
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                Last Synchronization: {formatDate(connectionInfo.lastSync)}
+                Last Synchronization: {connectionInfo.lastSync ? formatDate(connectionInfo.lastSync) : 'Never synced'}
               </span>
               <Badge 
                 variant="secondary" 
