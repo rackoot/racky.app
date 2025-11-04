@@ -75,13 +75,16 @@ export class MarketplaceSyncProcessor {
         console.log(`📈 Estimated ${estimatedTotal} products to sync`);
 
         // Store estimated count in parent job metadata
-        await Job.findByIdAndUpdate(job.id, {
-          $set: {
-            'metadata.estimatedTotal': estimatedTotal,
-            'metadata.syncedProducts': 0,
-            'metadata.totalProducts': 0  // Will be updated when we know exact count
+        await Job.findOneAndUpdate(
+          { jobId: job.id!.toString() },
+          {
+            $set: {
+              'metadata.estimatedTotal': estimatedTotal,
+              'metadata.syncedProducts': 0,
+              'metadata.totalProducts': 0  // Will be updated when we know exact count
+            }
           }
-        });
+        );
       } catch (error) {
         console.warn(`⚠️ Could not get estimate:`, error);
         // Continue without estimate
@@ -101,14 +104,17 @@ export class MarketplaceSyncProcessor {
       console.log(`📦 Found ${totalProducts} products to sync`);
 
       // Update parent job with exact total and change status to processing_batches
-      await Job.findByIdAndUpdate(job.id, {
-        $set: {
-          'metadata.totalProducts': totalProducts,
-          'metadata.syncedProducts': 0,
-          status: 'processing_batches',
-          progress: 0  // Reset to 0 now that we're starting actual product sync
+      await Job.findOneAndUpdate(
+        { jobId: job.id!.toString() },
+        {
+          $set: {
+            'metadata.totalProducts': totalProducts,
+            'metadata.syncedProducts': 0,
+            status: 'processing_batches',
+            progress: 0  // Reset to 0 now that we're starting actual product sync
+          }
         }
-      });
+      );
 
       await job.progress(20);
 
@@ -254,19 +260,21 @@ export class MarketplaceSyncProcessor {
             const parentJobId = job.data.parentJobId;
             if (parentJobId) {
               // Atomically increment syncedProducts counter
-              await Job.findByIdAndUpdate(parentJobId, {
-                $inc: { 'metadata.syncedProducts': 1 }
-              });
+              await Job.findOneAndUpdate(
+                { jobId: parentJobId },
+                { $inc: { 'metadata.syncedProducts': 1 } }
+              );
 
               // Update parent job progress based on synced count
-              const parentJob = await Job.findById(parentJobId);
+              const parentJob = await Job.findOne({ jobId: parentJobId });
               if (parentJob && parentJob.metadata) {
                 const { syncedProducts = 0, totalProducts = 1 } = parentJob.metadata;
                 const progress = Math.min(100, Math.round((syncedProducts / totalProducts) * 100));
 
-                await Job.findByIdAndUpdate(parentJobId, {
-                  $set: { progress }
-                });
+                await Job.findOneAndUpdate(
+                  { jobId: parentJobId },
+                  { $set: { progress } }
+                );
               }
             }
           } catch (error) {
@@ -334,15 +342,18 @@ export class MarketplaceSyncProcessor {
 
           // If all batches are complete, mark parent as completed
           if (completedChildJobs.length === allChildJobs.length) {
-            const parentJob = await Job.findById(parentJobId);
+            const parentJob = await Job.findOne({ jobId: parentJobId });
             if (parentJob && parentJob.status === 'processing_batches') {
-              await Job.findByIdAndUpdate(parentJobId, {
-                $set: {
-                  status: 'completed',
-                  progress: 100,
-                  completedAt: new Date()
+              await Job.findOneAndUpdate(
+                { jobId: parentJobId },
+                {
+                  $set: {
+                    status: 'completed',
+                    progress: 100,
+                    completedAt: new Date()
+                  }
                 }
-              });
+              );
               console.log(`✅ All batches completed! Parent job ${parentJobId} marked as completed`);
             }
           }
