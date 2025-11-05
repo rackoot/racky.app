@@ -253,7 +253,7 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
 
 /**
  * POST /api/videos/bulk-generate
- * Generate videos for multiple products (simulated - no external API call)
+ * Generate videos for multiple products
  */
 router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -275,16 +275,19 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
       })
     }
 
-    // COMMENTED OUT: External API check - we're simulating
-    // if (!rckDescriptionService.isConfigured()) {
-    //   return res.status(503).json({
-    //     success: false,
-    //     message: 'RCK Description Server is not configured'
-    //   })
-    // }
+    // Check if RCK Description Server is configured
+    if (!rckDescriptionService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'RCK Description Server is not configured'
+      })
+    }
 
-    // Import Product model to fetch product details
+    // Import required models
     const Product = require('../../products/models/Product').default
+    const { AIVideo } = require('../models/AIVideo')
+    const Usage = require('../../subscriptions/models/Usage').default
+    const { getEnv } = require('../../../common/config/env')
 
     // Fetch all products
     const products = await Product.find({
@@ -300,41 +303,121 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
       })
     }
 
-    // COMMENTED OUT: External API call - we're just simulating
-    // const videoRequests = products.map((product: any) => ({
-    //   id_product: product._id.toString(),
-    //   title: product.title,
-    //   img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
-    //   user_id: userId,
-    //   sku: product.handle || product.sku || product.externalId || '',
-    //   template_name: templateName
-    // }))
-    // const result = await rckDescriptionService.bulkGenerateVideos(videoRequests)
+    // Check video generation limits
+    const currentUsage = await Usage.getCurrentMonthUsage(workspaceId)
+    if (currentUsage) {
+      const videoLimit = currentUsage.monthlyLimits.videoGenerations
+      const videoCount = currentUsage.videoGenerations
+      const videosNeeded = products.length
 
-    // Add new video entry to each product with processing status (simulated)
-    for (const productId of productIds) {
-      await Product.updateOne(
-        { _id: productId, userId, workspaceId },
-        {
-          $push: {
-            videos: {
-              templateId,
-              templateName,
-              status: 'processing', // Start with processing status
-              createdAt: new Date()
-            }
-          }
+      if (videoCount + videosNeeded > videoLimit) {
+        return res.status(403).json({
+          success: false,
+          message: `Video generation limit exceeded. You need ${videosNeeded} videos but only have ${videoLimit - videoCount} remaining out of ${videoLimit} for this billing period.`
+        })
+      }
+    }
+
+    // Create AIVideo records for each product BEFORE calling external API
+    const videoRecords = await Promise.all(
+      products.map(async (product: any) => {
+        const video = await AIVideo.create({
+          userId,
+          workspaceId,
+          productId: product._id,
+          template: templateName,
+          metadata: {
+            templateId
+          },
+          status: 'generating',
+          generatedDate: new Date()
+        })
+        return {
+          video,
+          product
         }
+      })
+    )
+
+    // Increment video generation usage
+    await Usage.incrementWorkspaceUsage(workspaceId, 'videoGenerations', products.length)
+
+    // Get environment configuration for callback URL
+    const env = getEnv()
+    const callbackUrl = `${env.SERVER_URL}/internal/videos/success`
+
+    // Prepare video requests with videoId for external API
+    // Convert MongoDB ObjectId to integer for external API compatibility
+    const objectIdToInt = (objectId: string): number => {
+      // Take first 8 characters of ObjectId hex and convert to integer
+      // This gives us a unique integer for each product
+      return parseInt(objectId.substring(0, 8), 16)
+    }
+
+    const videoRequests = videoRecords.map(({ video, product }) => ({
+      id_product: objectIdToInt(product._id.toString()),
+      title: product.title,
+      img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+      user_id: userId,
+      sku: product.sku || product._id.toString(),
+      template_name: templateName,
+      videoId: video._id.toString() // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
+    }))
+
+    // Call external video generation API
+    try {
+      const result = await rckDescriptionService.bulkGenerateVideos(videoRequests)
+
+      console.log('[Bulk Video Generation] External API response:', {
+        productCount: products.length,
+        response: result
+      })
+
+      // Check if the request was successful
+      if (!result.success) {
+        throw new Error(result.message || 'Video generation failed')
+      }
+
+      // Update each video with external job IDs if provided
+      // The API returns job_ids array - one per product
+      const jobIds = result.job_ids || []
+      await Promise.all(
+        videoRecords.map(({ video }, index) => {
+          const externalJobId = jobIds[index] || `batch_job_${Date.now()}_${index}`
+          return AIVideo.findByIdAndUpdate(video._id, {
+            $set: {
+              'metadata.externalJobId': externalJobId,
+              'metadata.queuedAt': new Date()
+            }
+          })
+        })
       )
+    } catch (error) {
+      // If external API call fails, mark all videos as failed
+      console.error('[Bulk Video Generation] External API error:', error)
+
+      await Promise.all(
+        videoRecords.map(({ video }) =>
+          AIVideo.findByIdAndUpdate(video._id, {
+            $set: {
+              status: 'failed',
+              error: error instanceof Error ? error.message : 'Failed to start video generation'
+            }
+          })
+        )
+      )
+
+      throw error
     }
 
     res.json({
       success: true,
-      message: `Video will process for ${products.length} product(s), we'll let you know when they're ready!`,
+      message: `Video generation started for ${products.length} product(s). We'll notify you when they're ready!`,
       data: {
         productCount: products.length,
         templateId,
-        templateName
+        templateName,
+        videoIds: videoRecords.map(({ video }) => video._id.toString())
       }
     })
   } catch (error: any) {

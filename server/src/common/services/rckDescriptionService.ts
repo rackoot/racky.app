@@ -53,7 +53,7 @@ class RCKDescriptionService {
           url: error.config?.url,
           status: error.response?.status,
           message: error.message,
-          data: error.response?.data,
+          data: JSON.stringify(error.response?.data, null, 2), // Full error details
         });
         return Promise.reject(this.handleError(error));
       }
@@ -153,18 +153,18 @@ class RCKDescriptionService {
    * @returns Generated video data
    */
   async generateVideo(params: {
-    id_product: number | string;
+    id_product: number; // Must be integer as per API spec
     title: string;
     img_url: string;
     user_id: string;
     sku: string;
     template_name: string;
-    video_id: string; // AIVideo MongoDB _id for webhook callback
-    callback_url: string; // Webhook URL to call when video is ready
+    videoId: string; // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
   }): Promise<any> {
-    console.log('[RCK Description Service] Generating video for product:', params.id_product, 'with videoId:', params.video_id);
+    console.log('[RCK Description Service] Generating video for product:', params.id_product, 'with videoId:', params.videoId);
 
-    const response = await this.client.post('/api/v1/videos/generate', params);
+    // External API expects array with single item for single video generation
+    const response = await this.client.post('/api/v1/create-images-batch', [params]);
 
     return response.data;
   }
@@ -215,16 +215,19 @@ class RCKDescriptionService {
    * @returns Bulk generation job data
    */
   async bulkGenerateVideos(products: Array<{
-    id_product: number | string;
+    id_product: number; // Must be integer as per API spec
     title: string;
     img_url: string;
     user_id: string;
     sku: string;
     template_name: string;
+    videoId: string; // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
   }>): Promise<any> {
     console.log('[RCK Description Service] Bulk generating videos for products:', products.length);
+    console.log('[RCK Description Service] Request payload:', JSON.stringify(products, null, 2));
 
-    const response = await this.client.post('/api/v1/videos/bulk', { products });
+    // External API expects array directly, not wrapped in { products: [...] }
+    const response = await this.client.post('/api/v1/create-images-batch', products);
 
     return response.data;
   }

@@ -1,6 +1,5 @@
 import { apiGet, apiPost, apiPut, apiDelete } from '../client'
-
-export type VideoTemplate = 'product_showcase' | 'human_usage' | 'store_display' | 'lifestyle' | 'technical_demo' | 'unboxing'
+import apiClient from '../client'
 
 export interface AIVideo {
   _id: string
@@ -15,11 +14,12 @@ export interface AIVideo {
     price?: number
     currency?: string
   }
-  template: VideoTemplate
+  template: string // Template name from external RCK Description Server
   customInstructions?: string
   generatedDate: string
   status: 'pending' | 'generating' | 'completed' | 'failed'
   metadata: {
+    templateId?: string // Template UUID from external service
     title?: string // Will come from external service
     description?: string // Will come from external service
     duration?: number
@@ -31,6 +31,8 @@ export interface AIVideo {
     generationTime?: number
     aiModel?: string
     externalJobId?: string
+    youtubeVideoId?: string // YouTube video ID from external service
+    localFilename?: string // File path on external server
     [key: string]: any
   }
   error?: string
@@ -60,13 +62,13 @@ export interface VideosResponse {
 
 export interface CreateVideoDTO {
   productId: string
-  template: VideoTemplate
+  template: string
   customInstructions?: string
   metadata?: Record<string, any>
 }
 
 export interface UpdateVideoDTO {
-  template?: VideoTemplate
+  template?: string
   customInstructions?: string
   status?: 'pending' | 'generating' | 'completed' | 'failed'
   metadata?: Record<string, any>
@@ -189,11 +191,13 @@ export const videosApi = {
       templateName: string
     }
   }> {
-    return apiPost(VIDEOS_ENDPOINTS.GENERATE_FOR_PRODUCT, {
+    // Use apiClient directly to get the full response including success and message
+    const response = await apiClient.post(VIDEOS_ENDPOINTS.GENERATE_FOR_PRODUCT, {
       productId,
       templateId,
       templateName
     })
+    return response.data
   },
 
   /**
@@ -208,10 +212,12 @@ export const videosApi = {
       templateName: string
     }
   }> {
-    return apiPost(VIDEOS_ENDPOINTS.BULK_GENERATE, {
+    // Use apiClient directly to get the full response including success and message
+    const response = await apiClient.post(VIDEOS_ENDPOINTS.BULK_GENERATE, {
       productIds,
       templateId,
       templateName
     })
+    return response.data
   }
 }

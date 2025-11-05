@@ -4,11 +4,12 @@ export interface IAIVideo extends Document {
   userId: mongoose.Types.ObjectId
   workspaceId: mongoose.Types.ObjectId
   productId: mongoose.Types.ObjectId
-  template: 'product_showcase' | 'human_usage' | 'store_display' | 'lifestyle' | 'technical_demo' | 'unboxing'
+  template: string // Template name from external RCK Description Server
   customInstructions?: string
   generatedDate: Date
   status: 'pending' | 'generating' | 'completed' | 'failed'
   metadata: {
+    templateId?: string // Template UUID from external service
     title?: string // Will come from external service
     description?: string // Will come from external service
     duration?: number
@@ -50,9 +51,9 @@ const aiVideoSchema = new Schema<IAIVideo>({
   },
   template: {
     type: String,
-    enum: ['product_showcase', 'human_usage', 'store_display', 'lifestyle', 'technical_demo', 'unboxing'],
     required: true,
-    index: true
+    index: true,
+    trim: true
   },
   customInstructions: {
     type: String,
