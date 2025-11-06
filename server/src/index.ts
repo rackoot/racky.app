@@ -31,6 +31,8 @@ import demoRoutes from "@/demo/routes/demo";
 import ordersRoutes from "@/orders/routes/orders";
 import customersRoutes from "@/customers/routes/customers";
 import workspaceRoutes from "./modules/workspaces/routes/workspaces";
+import videoRoutes from "./modules/videos/routes/videos";
+import internalVideoRoutes from "./modules/videos/routes/internal";
 import { initializeNotificationScheduler } from "@/notifications/services/notificationScheduler";
 import { protect, requireWorkspace } from "@/common/middleware/auth";
 import { stripeWebhookHandler } from "@/subscriptions/routes/billing";
@@ -92,7 +94,6 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Internal routes (NOT PROTECTED - for external service webhooks)
-const internalVideoRoutes = require('./modules/videos/routes/internal').default;
 app.use("/internal", internalVideoRoutes);
 
 // Routes that don't require workspace context
@@ -112,7 +113,7 @@ app.use("/api/customers", protect, requireWorkspace, customersRoutes);
 app.use("/api/dashboard", protect, requireWorkspace, dashboardRoutes);
 app.use("/api/optimizations", protect, requireWorkspace, optimizationRoutes);
 app.use("/api/opportunities", protect, requireWorkspace, opportunityRoutes);
-app.use("/api/videos", protect, requireWorkspace, require('./modules/videos/routes/videos').default);
+app.use("/api/videos", protect, requireWorkspace, videoRoutes);
 
 app.use("/api/subscription", protect, subscriptionRoutes);
 app.use("/api/usage", protect, usageRoutes);
