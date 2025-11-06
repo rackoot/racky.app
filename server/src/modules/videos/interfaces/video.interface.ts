@@ -1,16 +1,14 @@
 import { Types } from 'mongoose'
 
-export type VideoTemplate = 'product_showcase' | 'human_usage' | 'store_display' | 'lifestyle' | 'technical_demo' | 'unboxing'
-
 export interface CreateVideoDTO {
   productId: string
-  template: VideoTemplate
+  template: string // Template name from external RCK Description Server
   customInstructions?: string
   metadata?: Record<string, any>
 }
 
 export interface UpdateVideoDTO {
-  template?: VideoTemplate
+  template?: string
   customInstructions?: string
   status?: 'pending' | 'generating' | 'completed' | 'failed'
   metadata?: Record<string, any>
@@ -40,14 +38,17 @@ export interface VideoResponse {
     price?: number
     currency?: string
   }
-  template: VideoTemplate
+  template: string // Template name from external RCK Description Server
   customInstructions: string
   generatedDate: Date
   status: 'pending' | 'generating' | 'completed' | 'failed'
   metadata: Record<string, any> & {
+    templateId?: string // Template UUID from external service
     title?: string // Will come from external service
     description?: string // Will come from external service
     externalJobId?: string
+    youtubeVideoId?: string // YouTube video ID from external service
+    localFilename?: string // File path on external server
   }
   error?: string
   createdAt: Date

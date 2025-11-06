@@ -30,6 +30,7 @@ export function SyncProgressDisplay({
   const [startTime] = useState(Date.now())
   const [elapsedTime, setElapsedTime] = useState(0)
   const [polling, setPolling] = useState(true)
+  const [canceling, setCanceling] = useState(false)
 
   // Poll for status every 5 seconds
   useEffect(() => {
@@ -40,8 +41,8 @@ export function SyncProgressDisplay({
         const response = await productsApi.getSyncStatus(jobId)
         setStatus(response)
 
-        // Stop polling if completed or failed
-        if (response.status === 'completed' || response.status === 'failed') {
+        // Stop polling if completed, failed, or cancelled
+        if (response.status === 'completed' || response.status === 'failed' || response.status === 'cancelled') {
           setPolling(false)
 
           if (response.status === 'completed') {
@@ -66,6 +67,15 @@ export function SyncProgressDisplay({
             setError(errorMsg)
             if (onError) {
               onError(errorMsg)
+            }
+          } else if (response.status === 'cancelled') {
+            // Clear from localStorage on cancellation
+            clearSyncJob(connectionId)
+
+            const cancelMsg = 'Synchronization cancelled by user'
+            setError(cancelMsg)
+            if (onError) {
+              onError(cancelMsg)
             }
           }
         }
@@ -104,31 +114,61 @@ export function SyncProgressDisplay({
     return `${seconds}s`
   }
 
+  const handleCancelSync = async () => {
+    if (!jobId) return
+
+    setCanceling(true)
+    try {
+      await productsApi.cancelSync(jobId)
+      setPolling(false)
+      clearSyncJob(connectionId)
+
+      // Refresh the page to show updated state
+      setTimeout(() => {
+        window.location.reload()
+      }, 1000)
+    } catch (err) {
+      console.error('Error canceling sync:', err)
+      setError(err instanceof Error ? err.message : 'Failed to cancel sync')
+      setCanceling(false)
+    }
+  }
+
   const getStatusIcon = (jobStatus?: SyncJobStatus) => {
     switch (jobStatus) {
       case 'pending':
         return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
       case 'processing':
+      case 'processing_batches':
         return <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
       case 'completed':
         return <CheckCircle2 className="h-5 w-5 text-green-500" />
       case 'failed':
         return <XCircle className="h-5 w-5 text-red-500" />
+      case 'cancelled':
+        return <XCircle className="h-5 w-5 text-orange-500" />
       default:
         return <Loader2 className="h-5 w-5 animate-spin text-gray-500" />
     }
   }
 
   const getStatusText = (jobStatus?: SyncJobStatus) => {
+    // Check phase from progress metadata
+    const phase = status?.progress?.phase;
+
     switch (jobStatus) {
       case 'pending':
         return 'Starting synchronization...'
       case 'processing':
+        return phase === 'scanning' ? 'Scanning catalog and applying filters...' : 'Preparing product list...'
+      case 'processing_batches':
         return 'Synchronizing products...'
       case 'completed':
         return 'Synchronization completed!'
       case 'failed':
         return 'Synchronization error'
+      case 'cancelled':
+        return 'Synchronization cancelled'
       default:
         return 'Loading...'
     }
@@ -140,7 +180,10 @@ export function SyncProgressDisplay({
         return 'text-green-600 dark:text-green-400'
       case 'failed':
         return 'text-red-600 dark:text-red-400'
+      case 'cancelled':
+        return 'text-orange-600 dark:text-orange-400'
       case 'processing':
+      case 'processing_batches':
         return 'text-blue-600 dark:text-blue-400'
       default:
         return 'text-gray-600 dark:text-gray-400'
@@ -181,7 +224,7 @@ export function SyncProgressDisplay({
 
       <CardContent className="space-y-4">
         {/* Progress Bar */}
-        {(jobStatus === 'pending' || jobStatus === 'processing') && (
+        {(jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'processing_batches') && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Progress</span>
@@ -191,17 +234,31 @@ export function SyncProgressDisplay({
           </div>
         )}
 
-        {/* Progress Statistics - Real Data Only */}
+        {/* Product Count Display */}
         {status.progress && (
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Current Progress</p>
-              <p className="text-2xl font-bold">
-                {status.progress.current}
-                <span className="text-sm text-muted-foreground font-normal ml-1">
-                  / {status.progress.total}
-                </span>
+              <p className="text-xs text-muted-foreground">
+                {status.progress.totalProducts > 0 ? 'Products Synced' : 'Catalog Status'}
               </p>
+              <p className="text-2xl font-bold">
+                {status.progress.totalProducts > 0 ? (
+                  <>
+                    {status.progress.syncedProducts || 0}
+                    <span className="text-sm text-muted-foreground font-normal ml-1">
+                      / {status.progress.totalProducts}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-lg">Scanning...</span>
+                )}
+              </p>
+              {status.progress.estimatedTotal && status.progress.estimatedTotal > 0 && !status.progress.totalProducts && (
+                <p className="text-xs text-muted-foreground italic">~{status.progress.estimatedTotal} estimated</p>
+              )}
+              {!status.progress.estimatedTotal && !status.progress.totalProducts && status.progress.phase === 'scanning' && (
+                <p className="text-xs text-muted-foreground italic">Applying filters...</p>
+              )}
             </div>
 
             <div className="space-y-1">
@@ -254,6 +311,29 @@ export function SyncProgressDisplay({
         )}
 
         {/* Action Buttons */}
+        {(jobStatus === 'pending' || jobStatus === 'processing' || jobStatus === 'processing_batches') && (
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancelSync}
+              disabled={canceling}
+            >
+              {canceling ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Canceling...
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Cancel Sync
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
         {jobStatus === 'completed' && (
           <div className="flex justify-end pt-2">
             <Button
@@ -267,6 +347,18 @@ export function SyncProgressDisplay({
         )}
 
         {jobStatus === 'failed' && (
+          <div className="flex justify-end pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.location.reload()}
+            >
+              Close
+            </Button>
+          </div>
+        )}
+
+        {jobStatus === 'cancelled' && (
           <div className="flex justify-end pt-2">
             <Button
               variant="outline"

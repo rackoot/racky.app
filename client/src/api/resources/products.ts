@@ -161,4 +161,11 @@ export const productsApi = {
   async getSyncHealth(): Promise<any> {
     return apiGet<any>(ENDPOINTS.PRODUCTS.SYNC_HEALTH)
   },
+
+  /**
+   * Cancel a sync job
+   */
+  async cancelSync(jobId: string): Promise<{ success: boolean; message: string }> {
+    return apiPost<{ success: boolean; message: string }>(`${ENDPOINTS.PRODUCTS.BASE}/sync/cancel/${jobId}`, {})
+  },
 }

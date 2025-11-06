@@ -85,6 +85,9 @@ export function Products() {
     status: searchParams.get('status') || ''
   }))
 
+  // Hide syncing products toggle
+  const [hideSyncingProducts, setHideSyncingProducts] = useState(false)
+
   const loadProducts = async () => {
     setLoading(true)
     setError("")
@@ -389,6 +392,21 @@ export function Products() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Hide Syncing Products Toggle */}
+          <div className="flex items-center space-x-2 mt-4">
+            <Checkbox
+              id="hide-syncing"
+              checked={hideSyncingProducts}
+              onCheckedChange={(checked) => setHideSyncingProducts(checked as boolean)}
+            />
+            <label
+              htmlFor="hide-syncing"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              Hide syncing products
+            </label>
+          </div>
         </CardContent>
       </Card>
 
@@ -499,16 +517,18 @@ export function Products() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {products.map((product) => {
-                    const isDisconnected = !product.isMarketplaceConnected;
-                    const productId = product._id || product.id;
+                  {products
+                    .filter(product => !hideSyncingProducts || product.status.toLowerCase() !== 'draft')
+                    .map((product) => {
+                      const isDisconnected = !product.isMarketplaceConnected;
+                      const productId = product._id || product.id;
 
-                    // Get latest video status
-                    const latestVideo = product.videos && product.videos.length > 0
-                      ? product.videos[product.videos.length - 1]
-                      : null;
+                      // Get latest video status
+                      const latestVideo = product.videos && product.videos.length > 0
+                        ? product.videos[product.videos.length - 1]
+                        : null;
 
-                    return (
+                      return (
                       <TableRow
                         key={productId}
                         className={isDisconnected ? "opacity-50" : ""}
@@ -568,9 +588,16 @@ export function Products() {
                         </span>
                       </TableCell> */}
                       <TableCell>
-                        <Badge variant={product.status.toLowerCase() === 'active' ? 'default' : 'secondary'}>
-                          {product.status}
-                        </Badge>
+                        {product.status.toLowerCase() === 'draft' ? (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Syncing...
+                          </Badge>
+                        ) : (
+                          <Badge variant={product.status.toLowerCase() === 'active' ? 'default' : 'secondary'}>
+                            {product.status}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {latestVideo ? (

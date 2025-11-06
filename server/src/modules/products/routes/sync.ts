@@ -192,23 +192,26 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       workspaceId: req.workspace!._id.toString()
     });
 
-    // Calculate overall progress from child jobs
-    let overallProgress = job.progress;
-    if (childJobs.length > 0) {
-      const totalProgress = childJobs.reduce((sum, child) => sum + child.progress, 0);
-      overallProgress = Math.round(totalProgress / childJobs.length);
-    }
+    // Extract metadata for product counts and phase
+    const metadata = job.metadata || {};
+    const estimatedTotal = metadata.estimatedTotal !== undefined ? metadata.estimatedTotal : 0;
+    const totalProducts = metadata.totalProducts || 0;
+    const syncedProducts = metadata.syncedProducts || 0;
+    const phase = metadata.phase || undefined;
+
+    // Use job.progress directly (now product-based)
+    const overallProgress = job.progress;
 
     // Calculate ETA based on progress
     let eta = 'Calculating...';
     if (overallProgress > 0 && job.startedAt) {
       const remainingProgress = 100 - overallProgress;
       const timeElapsed = Date.now() - job.startedAt.getTime();
-      
+
       if (timeElapsed > 0) {
         const timePerPercent = timeElapsed / overallProgress;
         const remainingTime = (remainingProgress * timePerPercent) / 1000; // Convert to seconds
-        
+
         if (remainingTime > 3600) {
           eta = `${Math.ceil(remainingTime / 3600)} hours remaining`;
         } else if (remainingTime > 60) {
@@ -219,11 +222,16 @@ router.get('/status/:jobId', async (req: AuthenticatedRequest, res: Response) =>
       }
     }
 
-    // Format progress data
+    // Format progress data with product counts
     const progressData = {
       current: overallProgress,
       total: 100,
       percentage: overallProgress,
+      // Product-based progress information
+      estimatedTotal,           // Early estimate from first API call (null for VTEX)
+      totalProducts,            // Exact count after fetching all IDs
+      syncedProducts,           // Number of products synced so far
+      phase,                    // Sync phase: 'scanning' or 'syncing'
     };
 
     res.json({
@@ -360,6 +368,97 @@ router.get('/jobs', async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get sync jobs',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/products/sync/cancel/:jobId
+ * Cancel a sync job
+ */
+router.post('/cancel/:jobId', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { jobId } = req.params;
+
+    if (!jobId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Job ID is required'
+      });
+    }
+
+    // Get job from MongoDB with workspace validation
+    const job = await Job.findOne({
+      jobId,
+      workspaceId: req.workspace!._id.toString()
+    });
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
+    }
+
+    // Check if job is already completed or failed
+    if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel job with status: ${job.status}`
+      });
+    }
+
+    // Update job status to cancelled
+    job.status = 'cancelled';
+    job.completedAt = new Date();
+    job.lastError = 'Job cancelled by user';
+    await job.save();
+
+    // Cancel all child jobs (batches)
+    await Job.updateMany(
+      {
+        parentJobId: jobId,
+        workspaceId: req.workspace!._id.toString(),
+        status: { $in: ['queued', 'processing'] }
+      },
+      {
+        $set: {
+          status: 'cancelled',
+          completedAt: new Date(),
+          lastError: 'Parent job cancelled by user'
+        }
+      }
+    );
+
+    // Create history entry for cancellation
+    await JobHistory.create({
+      jobId: job.jobId,
+      jobType: job.jobType,
+      status: 'cancelled',
+      workspaceId: job.workspaceId,
+      userId: job.userId,
+      data: job.data,
+      progress: job.progress,
+      metadata: job.metadata,
+      completedAt: new Date(),
+      error: 'Job cancelled by user'
+    });
+
+    res.json({
+      success: true,
+      message: 'Sync job cancelled successfully',
+      data: {
+        jobId: job.jobId,
+        status: 'cancelled'
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Error cancelling sync job:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cancel sync job',
       error: error.message
     });
   }

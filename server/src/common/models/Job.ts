@@ -14,7 +14,7 @@ export interface IJob extends Document {
   
   // Job data and status
   data: Record<string, any>; // Job-specific data
-  status: 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  status: 'queued' | 'processing' | 'processing_batches' | 'completed' | 'failed' | 'cancelled';
   progress: number;        // 0-100
   
   // Timing
@@ -48,6 +48,10 @@ export interface IJob extends Document {
   markFailed(error: string): Promise<this>;
   updateProgress(progress: number, message?: string): Promise<this>;
   incrementAttempts(): Promise<this>;
+
+  // Product sync tracking methods
+  incrementSyncedProducts(count?: number): Promise<void>;
+  updateProductSyncProgress(): Promise<void>;
 }
 
 const JobSchema = new Schema<IJob>({
@@ -88,7 +92,7 @@ const JobSchema = new Schema<IJob>({
   status: {
     type: String,
     required: true,
-    enum: ['queued', 'processing', 'completed', 'failed', 'cancelled'],
+    enum: ['queued', 'processing', 'processing_batches', 'completed', 'failed', 'cancelled'],
     default: 'queued',
     index: true
   },
@@ -192,6 +196,36 @@ JobSchema.methods.updateProgress = function(progress: number) {
 JobSchema.methods.incrementAttempts = function() {
   this.attempts += 1;
   return this.save();
+};
+
+// Product sync tracking methods
+JobSchema.methods.incrementSyncedProducts = async function(count: number = 1) {
+  // Atomic increment of syncedProducts counter
+  const Model = this.constructor as any;
+  await Model.findByIdAndUpdate(
+    this._id,
+    {
+      $inc: { 'metadata.syncedProducts': count }
+    }
+  );
+};
+
+JobSchema.methods.updateProductSyncProgress = async function() {
+  // Reload metadata to get latest syncedProducts count
+  const Model = this.constructor as any;
+  const updated = await Model.findById(this._id);
+
+  if (updated && updated.metadata) {
+    const { syncedProducts = 0, totalProducts = 1 } = updated.metadata;
+    const progress = Math.min(100, Math.round((syncedProducts / totalProducts) * 100));
+
+    await Model.findByIdAndUpdate(
+      this._id,
+      {
+        $set: { progress }
+      }
+    );
+  }
 };
 
 // Static methods

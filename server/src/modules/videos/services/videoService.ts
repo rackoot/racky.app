@@ -233,21 +233,22 @@ export class VideoService {
       throw new Error('Product not found')
     }
 
-    // Get environment configuration
-    const env = getEnv()
-    const callbackUrl = `${env.SERVER_URL}/internal/videos/success`
-
     try {
+      // Convert MongoDB ObjectId to integer for external API compatibility
+      const objectIdToInt = (objectId: string): number => {
+        // Take first 8 characters of ObjectId hex and convert to integer
+        return parseInt(objectId.substring(0, 8), 16)
+      }
+
       // Call external video generation API
       const response = await rckDescriptionService.generateVideo({
-        id_product: product._id.toString(),
+        id_product: objectIdToInt(product._id.toString()),
         title: product.title,
         img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
         user_id: userId,
         sku: product.sku || product._id.toString(),
         template_name: video.template,
-        video_id: videoId, // AIVideo MongoDB _id for webhook callback
-        callback_url: callbackUrl // Webhook URL to call when video is ready
+        videoId: videoId // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
       })
 
       // Update video with external job ID for tracking (if provided by external API)
