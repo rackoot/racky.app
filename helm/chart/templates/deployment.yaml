@@ -79,7 +79,7 @@ spec:
             name: racky-app-secrets
         - configMapRef:
             name: racky-app-env
-        {{ if eq .Vakues.environment "prod" }}
+        {{ if eq .Values.environment "prod" }}
         resources:
           limits:
             cpu: 1000m
