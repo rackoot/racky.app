@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useSearchParams } from "react-router-dom"
 import { useWorkspace } from "@/components/workspace/workspace-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -82,12 +82,21 @@ export function ProductDetail() {
   const { currentWorkspace } = useWorkspace()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [product, setProduct] = useState<ProductDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [activeTab, setActiveTab] = useState("details")
   const [resyncing, setResyncing] = useState(false)
   const [resyncDialogOpen, setResyncDialogOpen] = useState(false)
+
+  // Handle tab query parameter
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['details', 'optimization', 'video', 'history'].includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (id && currentWorkspace) {

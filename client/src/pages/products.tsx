@@ -602,27 +602,38 @@ export function Products() {
                       <TableCell>
                         {latestVideo ? (
                           latestVideo.status === 'completed' && latestVideo.videoUrl ? (
-                            <a
-                              href={latestVideo.videoUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline flex items-center gap-1"
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-700 border-green-300 cursor-pointer hover:bg-green-100"
+                              onClick={() => navigate(`/products/${productId}?tab=video`)}
                             >
-                              <Video className="w-4 h-4" />
-                              View Video
-                            </a>
+                              <Video className="w-3 h-3 mr-1" />
+                              Video Ready
+                            </Badge>
                           ) : latestVideo.status === 'processing' ? (
-                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+                            <Badge
+                              variant="outline"
+                              className="bg-purple-50 text-purple-700 border-purple-300 cursor-pointer hover:bg-purple-100"
+                              onClick={() => navigate(`/products/${productId}?tab=video`)}
+                            >
                               <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                               Processing...
                             </Badge>
                           ) : latestVideo.status === 'pending' ? (
-                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                            <Badge
+                              variant="outline"
+                              className="bg-yellow-50 text-yellow-700 border-yellow-300 cursor-pointer hover:bg-yellow-100"
+                              onClick={() => navigate(`/products/${productId}?tab=video`)}
+                            >
                               <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                               Pending...
                             </Badge>
                           ) : latestVideo.status === 'failed' ? (
-                            <Badge variant="destructive">
+                            <Badge
+                              variant="destructive"
+                              className="cursor-pointer hover:bg-red-700"
+                              onClick={() => navigate(`/products/${productId}?tab=video`)}
+                            >
                               <AlertCircle className="w-3 h-3 mr-1" />
                               Failed
                             </Badge>
