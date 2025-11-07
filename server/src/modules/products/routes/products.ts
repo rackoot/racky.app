@@ -169,8 +169,6 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
           workspaceId: req.workspace!._id
         }).sort({ createdAt: -1 });
 
-        console.log(`[Products List] Found ${aiVideos.length} AI videos for ${productIds.length} products`);
-
         // Create a map of productId -> latest video
         const videoMap = new Map();
         aiVideos.forEach(video => {
@@ -186,7 +184,6 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
               createdAt: video.createdAt,
               completedAt: video.metadata?.completedAt || video.updatedAt
             };
-            console.log(`[Products List] Video for product ${productIdStr}: status=${videoData.status}, url=${videoData.videoUrl}`);
             videoMap.set(productIdStr, videoData);
           }
         });
@@ -1205,10 +1202,6 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
           workspaceId: req.workspace!._id
         }).sort({ createdAt: -1 });
 
-        console.log(`[Product Detail] Product ${product._id} - Found AIVideo:`, latestAIVideo ? 'YES' : 'NO');
-        if (latestAIVideo) {
-          console.log(`[Product Detail] Video status: ${latestAIVideo.status}, URL: ${latestAIVideo.metadata?.videoUrl}`);
-        }
 
         // Build AI-generated videos array from AIVideo collection
         let aiGeneratedVideos = [];
