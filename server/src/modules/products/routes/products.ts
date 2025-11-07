@@ -15,7 +15,7 @@ import { VtexCredentials, ShopifyCredentials } from '@/marketplaces/services/mar
 import { ProductSyncFilters, FetchProductsOptions, FetchProductsResult, DEFAULT_SYNC_FILTERS } from '@/common/types/syncFilters';
 import { applyVtexFilters } from '@/common/utils/vtexFilters';
 import MarketplaceCatalogCache from '@/common/models/MarketplaceCatalogCache';
-import { AIVideo } from '@/videos/models/AIVideo';
+import { AIVideo } from '../../videos/models/AIVideo';
 
 const router = express.Router();
 
