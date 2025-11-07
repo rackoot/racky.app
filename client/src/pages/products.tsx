@@ -523,9 +523,9 @@ export function Products() {
                       const isDisconnected = !product.isMarketplaceConnected;
                       const productId = product._id || product.id;
 
-                      // Get latest video status
-                      const latestVideo = product.videos && product.videos.length > 0
-                        ? product.videos[product.videos.length - 1]
+                      // Get latest AI-generated video (not marketplace videos)
+                      const latestVideo = product.aiGeneratedVideos && product.aiGeneratedVideos.length > 0
+                        ? product.aiGeneratedVideos[product.aiGeneratedVideos.length - 1]
                         : null;
 
                       return (

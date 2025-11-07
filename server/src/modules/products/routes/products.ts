@@ -169,12 +169,14 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
           workspaceId: req.workspace!._id
         }).sort({ createdAt: -1 });
 
+        console.log(`[Products List] Found ${aiVideos.length} AI videos for ${productIds.length} products`);
+
         // Create a map of productId -> latest video
         const videoMap = new Map();
         aiVideos.forEach(video => {
           const productIdStr = video.productId.toString();
           if (!videoMap.has(productIdStr)) {
-            videoMap.set(productIdStr, {
+            const videoData = {
               templateId: video.metadata?.templateId || video.template,
               templateName: video.template,
               status: video.status,
@@ -183,7 +185,9 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
               error: video.error,
               createdAt: video.createdAt,
               completedAt: video.metadata?.completedAt || video.updatedAt
-            });
+            };
+            console.log(`[Products List] Video for product ${productIdStr}: status=${videoData.status}, url=${videoData.videoUrl}`);
+            videoMap.set(productIdStr, videoData);
           }
         });
 
@@ -192,11 +196,8 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
           const productObj = product.toObject ? product.toObject() : product;
           const productIdStr = productObj._id.toString();
 
-          // Get latest video from AIVideo collection OR from Product.videos array
-          let latestVideo = videoMap.get(productIdStr);
-          if (!latestVideo && productObj.videos && productObj.videos.length > 0) {
-            latestVideo = productObj.videos[productObj.videos.length - 1];
-          }
+          // Get latest AI-generated video from AIVideo collection
+          const latestAIVideo = videoMap.get(productIdStr);
 
           return {
             ...productObj,
@@ -204,7 +205,9 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
             _id: productObj._id.toString(),
             isMarketplaceConnected: productObj.storeConnectionId?.isActive || false,
             marketplaceUrl: productObj.marketplaceUrl || generateMarketplaceUrl(productObj),
-            videos: latestVideo ? [latestVideo] : []
+            // Keep marketplace videos in product.videos (for Details tab if needed)
+            // Add AI-generated videos separately for Video tab
+            aiGeneratedVideos: latestAIVideo ? [latestAIVideo] : []
           };
         });
 
@@ -1202,10 +1205,15 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
           workspaceId: req.workspace!._id
         }).sort({ createdAt: -1 });
 
-        // Build videos array from AIVideo collection OR fallback to Product.videos
-        let videos = [];
+        console.log(`[Product Detail] Product ${product._id} - Found AIVideo:`, latestAIVideo ? 'YES' : 'NO');
         if (latestAIVideo) {
-          videos = [{
+          console.log(`[Product Detail] Video status: ${latestAIVideo.status}, URL: ${latestAIVideo.metadata?.videoUrl}`);
+        }
+
+        // Build AI-generated videos array from AIVideo collection
+        let aiGeneratedVideos = [];
+        if (latestAIVideo) {
+          aiGeneratedVideos = [{
             templateId: latestAIVideo.metadata?.templateId || latestAIVideo.template,
             templateName: latestAIVideo.template,
             status: latestAIVideo.status,
@@ -1215,8 +1223,6 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
             createdAt: latestAIVideo.createdAt,
             completedAt: latestAIVideo.metadata?.completedAt || latestAIVideo.updatedAt
           }];
-        } else if (product.videos && product.videos.length > 0) {
-          videos = product.videos;
         }
 
         // Enhanced product object with additional fields for detail view
@@ -1226,7 +1232,9 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
           variants: product.variants || [],
           tags: product.tags || [],
           images: product.images || [],
-          videos: videos
+          // Keep marketplace videos in product.videos (for Details tab if needed)
+          // Add AI-generated videos separately for Video tab
+          aiGeneratedVideos: aiGeneratedVideos
         };
 
         res.json({

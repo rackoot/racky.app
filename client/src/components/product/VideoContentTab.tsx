@@ -24,9 +24,9 @@ export function VideoContentTab({ product }: VideoContentTabProps) {
   const hasImages = product.images && product.images.length > 0
   const [showTemplateModal, setShowTemplateModal] = useState(false)
 
-  // Get latest video
-  const latestVideo = product.videos && product.videos.length > 0
-    ? product.videos[product.videos.length - 1]
+  // Get latest AI-generated video (not marketplace videos from product.videos)
+  const latestVideo = product.aiGeneratedVideos && product.aiGeneratedVideos.length > 0
+    ? product.aiGeneratedVideos[product.aiGeneratedVideos.length - 1]
     : null
 
   const handleGenerateVideo = async () => {

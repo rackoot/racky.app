@@ -49,7 +49,8 @@ export interface Product {
     weight?: number
     weightUnit?: string
   }>
-  videos?: ProductVideo[]
+  videos?: ProductVideo[] // Marketplace videos (uploaded to VTEX, Shopify, etc.)
+  aiGeneratedVideos?: ProductVideo[] // AI-generated videos from AIVideo collection
   hasAIDescription?: boolean
   aiDescriptionStatus?: 'pending' | 'accepted' | 'rejected' | null
 }

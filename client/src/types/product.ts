@@ -68,7 +68,8 @@ export interface ProductDetail {
   createdAt: string;
   updatedAt: string;
   cachedDescriptions?: CachedDescription[];
-  videos?: ProductVideo[];
+  videos?: ProductVideo[]; // Marketplace videos (uploaded to VTEX, Shopify, etc.)
+  aiGeneratedVideos?: ProductVideo[]; // AI-generated videos from AIVideo collection
   storeConnectionId?: {
     _id: string;
     storeName: string;
