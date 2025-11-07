@@ -15,6 +15,7 @@ import { VtexCredentials, ShopifyCredentials } from '@/marketplaces/services/mar
 import { ProductSyncFilters, FetchProductsOptions, FetchProductsResult, DEFAULT_SYNC_FILTERS } from '@/common/types/syncFilters';
 import { applyVtexFilters } from '@/common/utils/vtexFilters';
 import MarketplaceCatalogCache from '@/common/models/MarketplaceCatalogCache';
+import { AIVideo } from '@/videos/models/AIVideo';
 
 const router = express.Router();
 
@@ -159,15 +160,51 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
         const totalPages = Math.ceil(totalCount / parseInt(limit));
 
+        // Get product IDs for fetching AIVideo data
+        const productIds = products.map(p => p._id);
+
+        // Fetch latest AIVideo for each product
+        const aiVideos = await AIVideo.find({
+          productId: { $in: productIds },
+          workspaceId: req.workspace!._id
+        }).sort({ createdAt: -1 });
+
+        // Create a map of productId -> latest video
+        const videoMap = new Map();
+        aiVideos.forEach(video => {
+          const productIdStr = video.productId.toString();
+          if (!videoMap.has(productIdStr)) {
+            videoMap.set(productIdStr, {
+              templateId: video.metadata?.templateId || video.template,
+              templateName: video.template,
+              status: video.status,
+              videoUrl: video.metadata?.videoUrl,
+              youtubeUrl: video.metadata?.youtubeVideoId ? `https://www.youtube.com/watch?v=${video.metadata.youtubeVideoId}` : undefined,
+              error: video.error,
+              createdAt: video.createdAt,
+              completedAt: video.metadata?.completedAt || video.updatedAt
+            });
+          }
+        });
+
         // Ensure products have both _id and id fields for frontend compatibility
         const formattedProducts = products.map((product: any) => {
           const productObj = product.toObject ? product.toObject() : product;
+          const productIdStr = productObj._id.toString();
+
+          // Get latest video from AIVideo collection OR from Product.videos array
+          let latestVideo = videoMap.get(productIdStr);
+          if (!latestVideo && productObj.videos && productObj.videos.length > 0) {
+            latestVideo = productObj.videos[productObj.videos.length - 1];
+          }
+
           return {
             ...productObj,
             id: productObj._id.toString(),
             _id: productObj._id.toString(),
             isMarketplaceConnected: productObj.storeConnectionId?.isActive || false,
-            marketplaceUrl: productObj.marketplaceUrl || generateMarketplaceUrl(productObj)
+            marketplaceUrl: productObj.marketplaceUrl || generateMarketplaceUrl(productObj),
+            videos: latestVideo ? [latestVideo] : []
           };
         });
 
@@ -1159,13 +1196,37 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
           }
         };
 
+        // Fetch latest AIVideo for this product
+        const latestAIVideo = await AIVideo.findOne({
+          productId: product._id,
+          workspaceId: req.workspace!._id
+        }).sort({ createdAt: -1 });
+
+        // Build videos array from AIVideo collection OR fallback to Product.videos
+        let videos = [];
+        if (latestAIVideo) {
+          videos = [{
+            templateId: latestAIVideo.metadata?.templateId || latestAIVideo.template,
+            templateName: latestAIVideo.template,
+            status: latestAIVideo.status,
+            videoUrl: latestAIVideo.metadata?.videoUrl,
+            youtubeUrl: latestAIVideo.metadata?.youtubeVideoId ? `https://www.youtube.com/watch?v=${latestAIVideo.metadata.youtubeVideoId}` : undefined,
+            error: latestAIVideo.error,
+            createdAt: latestAIVideo.createdAt,
+            completedAt: latestAIVideo.metadata?.completedAt || latestAIVideo.updatedAt
+          }];
+        } else if (product.videos && product.videos.length > 0) {
+          videos = product.videos;
+        }
+
         // Enhanced product object with additional fields for detail view
         const enhancedProduct = {
           ...product.toObject(),
           platforms: platformData,
           variants: product.variants || [],
           tags: product.tags || [],
-          images: product.images || []
+          images: product.images || [],
+          videos: videos
         };
 
         res.json({

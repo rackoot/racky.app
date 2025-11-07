@@ -10,7 +10,8 @@ import {
   Video,
   Image,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Download
 } from "lucide-react"
 import type { ProductDetail } from "@/types/product"
 import { VideoTemplateModal } from "@/components/videos/video-template-modal"
@@ -58,6 +59,22 @@ export function VideoContentTab({ product }: VideoContentTabProps) {
       alert(`❌ Error: ${error instanceof Error ? error.message : 'Failed to generate video'}`)
     } finally {
       setShowTemplateModal(false)
+    }
+  }
+
+  const handleDownloadVideo = async (videoUrl: string, productTitle: string) => {
+    try {
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement('a')
+      link.href = videoUrl
+      link.download = `${productTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_video.mp4`
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (error) {
+      console.error('Error downloading video:', error)
+      alert('Failed to download video')
     }
   }
 
@@ -121,6 +138,14 @@ export function VideoContentTab({ product }: VideoContentTabProps) {
                             </p>
                           </div>
                           <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDownloadVideo(latestVideo.videoUrl!, product.title)}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              Download
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
