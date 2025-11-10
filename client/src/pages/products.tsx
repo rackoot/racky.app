@@ -610,14 +610,14 @@ export function Products() {
                               <Video className="w-3 h-3 mr-1" />
                               Video Ready
                             </Badge>
-                          ) : latestVideo.status === 'processing' ? (
+                          ) : latestVideo.status === 'generating' ? (
                             <Badge
                               variant="outline"
                               className="bg-purple-50 text-purple-700 border-purple-300 cursor-pointer hover:bg-purple-100"
                               onClick={() => navigate(`/products/${productId}?tab=video`)}
                             >
                               <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              Processing...
+                              Generating...
                             </Badge>
                           ) : latestVideo.status === 'pending' ? (
                             <Badge
@@ -625,7 +625,7 @@ export function Products() {
                               className="bg-yellow-50 text-yellow-700 border-yellow-300 cursor-pointer hover:bg-yellow-100"
                               onClick={() => navigate(`/products/${productId}?tab=video`)}
                             >
-                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              <Clock className="w-3 h-3 mr-1" />
                               Pending...
                             </Badge>
                           ) : latestVideo.status === 'failed' ? (
@@ -637,7 +637,14 @@ export function Products() {
                               <AlertCircle className="w-3 h-3 mr-1" />
                               Failed
                             </Badge>
-                          ) : null
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="bg-gray-50 text-gray-700 border-gray-300"
+                            >
+                              {latestVideo.status || 'Unknown'}
+                            </Badge>
+                          )
                         ) : (
                           <span className="text-sm text-muted-foreground">No video</span>
                         )}
