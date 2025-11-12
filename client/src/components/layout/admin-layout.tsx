@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
-import { Users, BarChart3, Settings, Shield, CreditCard, Activity, Home, Briefcase, BookOpen } from "lucide-react"
+import { Users, BarChart3, Settings, Shield, CreditCard, Activity, Home, Briefcase, BookOpen, Webhook } from "lucide-react"
 import { UserProfile } from "./user-profile"
 import { getCurrentUser } from "@/lib/auth"
 
@@ -35,9 +35,15 @@ const adminNavItems = [
   },
   {
     title: "Subscriptions",
-    href: "/admin/subscriptions", 
+    href: "/admin/subscriptions",
     icon: CreditCard,
     description: "Monitor subscription status and billing"
+  },
+  {
+    title: "Webhooks",
+    href: "/admin/webhooks",
+    icon: Webhook,
+    description: "Manage webhook URLs for video events"
   },
   {
     title: "System",

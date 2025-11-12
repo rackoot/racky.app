@@ -9,6 +9,8 @@ import StoreConnection from '@/stores/models/StoreConnection';
 import Product from '@/products/models/Product';
 import Workspace from '@/workspaces/models/Workspace';
 import { protect, requireSuperAdmin } from '@/common/middleware/auth';
+import webhookService from '../services/webhookService';
+import { CreateWebhookDto, UpdateWebhookDto } from '../interfaces/webhook';
 
 const router = express.Router();
 
@@ -1037,6 +1039,223 @@ router.get('/analytics', async (req: AuthenticatedRequest, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch analytics',
+      error: error.message
+    });
+  }
+});
+
+// ============================================================================
+// WEBHOOK URL MANAGEMENT
+// ============================================================================
+
+// Validation schemas for webhooks
+const createWebhookSchema = Joi.object({
+  name: Joi.string().min(3).max(100).required(),
+  description: Joi.string().max(500).allow('').optional(),
+  url: Joi.string().uri({ scheme: ['http', 'https'] }).required(),
+  isActive: Joi.boolean().optional()
+});
+
+const updateWebhookSchema = Joi.object({
+  name: Joi.string().min(3).max(100).optional(),
+  description: Joi.string().max(500).allow('').optional(),
+  url: Joi.string().uri({ scheme: ['http', 'https'] }).optional(),
+  isActive: Joi.boolean().optional()
+}).min(1); // At least one field must be provided
+
+// GET /api/admin/webhooks - List all webhook URLs
+router.get('/webhooks', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const page = asNumber(req.query.page, 1);
+    const limit = asNumber(req.query.limit, 50);
+
+    const result = await webhookService.getAllWebhooks(page, limit);
+
+    res.json({
+      success: true,
+      data: {
+        webhooks: result.webhooks,
+        pagination: result.pagination
+      }
+    });
+  } catch (error: any) {
+    console.error('Error fetching webhooks:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch webhooks',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/admin/webhooks/:id - Get webhook by ID
+router.get('/webhooks/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const webhook = await webhookService.getWebhookById(id);
+
+    if (!webhook) {
+      return res.status(404).json({
+        success: false,
+        message: 'Webhook not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: webhook
+    });
+  } catch (error: any) {
+    console.error('Error fetching webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch webhook',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/admin/webhooks - Create new webhook URL
+router.post('/webhooks', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    // Validate request body
+    const { error, value } = createWebhookSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        error: error.details[0].message
+      });
+    }
+
+    const webhookData: CreateWebhookDto = value;
+    const webhook = await webhookService.createWebhook(webhookData);
+
+    res.status(201).json({
+      success: true,
+      message: 'Webhook created successfully',
+      data: webhook
+    });
+  } catch (error: any) {
+    console.error('Error creating webhook:', error);
+
+    if (error.message === 'Webhook URL already exists') {
+      return res.status(409).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create webhook',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/admin/webhooks/:id - Update webhook URL
+router.put('/webhooks/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Validate request body
+    const { error, value } = updateWebhookSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        error: error.details[0].message
+      });
+    }
+
+    const updateData: UpdateWebhookDto = value;
+    const webhook = await webhookService.updateWebhook(id, updateData);
+
+    if (!webhook) {
+      return res.status(404).json({
+        success: false,
+        message: 'Webhook not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Webhook updated successfully',
+      data: webhook
+    });
+  } catch (error: any) {
+    console.error('Error updating webhook:', error);
+
+    if (error.message === 'Webhook URL already exists') {
+      return res.status(409).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update webhook',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/admin/webhooks/:id - Delete webhook URL
+router.delete('/webhooks/:id', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const webhook = await webhookService.deleteWebhook(id);
+
+    if (!webhook) {
+      return res.status(404).json({
+        success: false,
+        message: 'Webhook not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Webhook deleted successfully',
+      data: webhook
+    });
+  } catch (error: any) {
+    console.error('Error deleting webhook:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete webhook',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/admin/webhooks/:id/toggle - Toggle webhook active status
+router.put('/webhooks/:id/toggle', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const webhook = await webhookService.toggleWebhookStatus(id);
+
+    if (!webhook) {
+      return res.status(404).json({
+        success: false,
+        message: 'Webhook not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Webhook ${webhook.isActive ? 'activated' : 'deactivated'} successfully`,
+      data: webhook
+    });
+  } catch (error: any) {
+    console.error('Error toggling webhook status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to toggle webhook status',
       error: error.message
     });
   }

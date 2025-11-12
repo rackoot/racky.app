@@ -1,6 +1,6 @@
 # Development Setup Guide
 
-This guide explains how to run the Racky development environment with all services running concurrently.
+This guide explains how to run the Racky development environment using the **hybrid approach**: Docker containers for databases and queues, local processes for backend and frontend.
 
 ## Prerequisites
 
@@ -34,11 +34,16 @@ npm run dev
 This will:
 - ✅ Start MongoDB container (port 27017)
 - ✅ Start RabbitMQ container (port 5672, Management UI: 15672)
-- ✅ Start Backend API (port 5000)
-- ✅ Start Frontend dev server (port 5173)
+- ✅ Start Backend API locally (port 5000)
+- ✅ Start Frontend dev server locally (port 5173)
 - ✅ Display all logs in a unified console with color-coded prefixes
 
-### 3. Stop All Services
+**Why this approach?**
+- Fast hot reload for backend and frontend code changes
+- Isolated databases/queues in Docker for consistency
+- Best developer experience with immediate feedback
+
+### 3. Stop Development Environment
 
 Press `Ctrl+C` in the terminal where `npm run dev` is running.
 
@@ -46,24 +51,48 @@ The script will automatically:
 - Stop the Backend and Frontend processes
 - Keep MongoDB and RabbitMQ containers running (for faster subsequent starts)
 
-To fully stop and remove Docker containers:
+To fully stop Docker containers:
 
 ```bash
-npm run docker:down
+npm run dev:stop
 ```
+
+To clean up everything (containers + volumes):
+
+```bash
+npm run dev:clean
+```
+
+This will prompt you to:
+- Remove data volumes (MongoDB, RabbitMQ)
+- Remove node_modules folders
 
 ## Available Scripts
 
-### Root Level Scripts
+### Main Development Scripts
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | 🚀 Start all services (MongoDB, RabbitMQ, Backend, Frontend) |
-| `npm run dev:simple` | Alternative dev start without Docker logs |
+| `npm run dev` | 🚀 **PRIMARY**: Start all services (recommended) |
+| `npm run dev:stop` | ⏸️ Stop Docker containers (preserves data) |
+| `npm run dev:clean` | 🧹 Complete cleanup (removes containers, volumes, optionally node_modules) |
+
+### Docker Management Scripts
+
+| Script | Description |
+|--------|-------------|
 | `npm run docker:up` | Start only Docker services (MongoDB + RabbitMQ) |
-| `npm run docker:down` | Stop and remove Docker containers |
+| `npm run docker:down` | Stop Docker containers |
 | `npm run docker:logs` | View Docker container logs |
 | `npm run docker:restart` | Restart Docker containers |
+| `npm run docker:full` | Start ALL services in Docker (including backend/frontend) |
+| `npm run docker:full:build` | Build and start full Docker setup |
+| `npm run docker:full:down` | Stop full Docker setup |
+
+### Project Management Scripts
+
+| Script | Description |
+|--------|-------------|
 | `npm run install:all` | Install dependencies for all projects |
 | `npm run build` | Build both backend and frontend |
 | `npm run typecheck` | Run TypeScript type checking on both projects |
@@ -112,6 +141,28 @@ The development script provides color-coded logs:
 - 🟣 **FRONTEND**: Frontend dev server logs (magenta)
 - 📦 **Docker logs**: MongoDB and RabbitMQ container logs
 
+## Development Approaches
+
+### Hybrid Development (Recommended - Default)
+
+**Command**: `npm run dev`
+
+- MongoDB & RabbitMQ in Docker containers
+- Backend & Frontend run locally
+- **Best for**: Daily development, fast hot reload
+
+### Full Docker Development
+
+**Command**: `npm run docker:full`
+
+- ALL services in Docker containers (MongoDB, RabbitMQ, Backend, Frontend)
+- **Best for**: Testing containerized setup, CI/CD simulation
+
+**When to use**:
+- Testing Docker configuration
+- Simulating production-like environment
+- Debugging container-specific issues
+
 ## Troubleshooting
 
 ### Docker not running
@@ -153,13 +204,33 @@ If you see errors like "Port 5000 already in use" or "Port 5173 already in use":
 To completely reset your development environment:
 
 ```bash
-# Stop all containers
+# Interactive cleanup with prompts
+npm run dev:clean
+
+# Or manual steps:
 npm run docker:down
-
-# Remove all volumes (⚠️ This deletes all data!)
 docker volume rm racky.app_mongodb_dev_data racky.app_rabbitmq_dev_data
+npm run dev
+```
 
-# Start fresh
+### Backend compilation errors
+
+If you see TypeScript errors in the backend:
+
+```bash
+cd server
+npm run typecheck  # Check for type errors
+npm run validate   # Run full validation
+```
+
+### Frontend not loading
+
+If the frontend shows a blank page:
+
+```bash
+cd client
+rm -rf node_modules .vite
+npm install
 npm run dev
 ```
 
@@ -190,17 +261,42 @@ npm run dev
 
 5. **End of day**:
    - Press `Ctrl+C` to stop dev servers
-   - Optionally run `npm run docker:down` to stop Docker containers
+   - Optionally run `npm run dev:stop` to stop Docker containers
+
+6. **Weekly cleanup** (optional):
+   ```bash
+   npm run dev:clean  # Full cleanup to free disk space
+   ```
 
 ## Environment Variables
 
-The project uses multiple environment files:
+The project uses a simplified environment variable structure:
 
-- **`.env`**: Root level environment variables for Docker ports
-- **`.env.docker`**: Environment variables for Docker Compose services
-- **`server/.env`**: Backend-specific environment variables (JWT secrets, API keys, etc.)
+### **`.env`** (Root - Infrastructure Config)
+- Docker service ports (MongoDB, RabbitMQ, Backend, Frontend)
+- RabbitMQ credentials
+- Application URLs
 
-Make sure to create these files based on the `.env.example` templates.
+### **`server/.env`** (Backend - Secrets & API Keys)
+- MongoDB connection URI
+- JWT secrets
+- Stripe API keys
+- OpenAI API key
+- RabbitMQ connection URL
+
+### **`client/.env.development`** (Frontend - Client Config)
+- API URLs
+- Stripe publishable key
+- Development flags
+
+**First time setup**:
+1. Copy example files if they don't exist:
+   ```bash
+   cp .env.example .env
+   cp server/.env.example server/.env
+   cp client/.env.example client/.env.development
+   ```
+2. Update with your actual API keys and secrets
 
 ## Additional Resources
 
@@ -209,9 +305,30 @@ Make sure to create these files based on the `.env.example` templates.
 - **Postman Collection**: `/server/postman_collection.json`
 - **Entity Relationship Diagram**: `/server/ER_DIAGRAM.md`
 
+## Architecture Notes
+
+### Why Hybrid Development?
+
+The project uses a hybrid approach by default because:
+
+1. **Fast Development Loop**: Local processes restart faster than containers
+2. **Better Debugging**: Native debugger support in IDEs
+3. **Hot Module Replacement**: Vite and nodemon work best locally
+4. **Reduced CPU/Memory**: Fewer Docker containers = better laptop performance
+5. **Isolated Data Layer**: Docker for databases ensures consistency across team
+
+### When to Use Full Docker
+
+Use `npm run docker:full` when:
+- Testing the complete containerized application
+- Debugging Docker-specific issues
+- Simulating production environment
+- Running CI/CD pipeline locally
+
 ## Need Help?
 
 - Check the main `README.md` for project overview
 - Review `CLAUDE.md` for development guidelines
 - Check Docker container status: `docker ps`
 - View container logs: `docker logs <container-name>`
+- Clean slate: `npm run dev:clean` and start fresh
