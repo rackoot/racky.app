@@ -1,3 +1,17 @@
+# =============================================================================
+# DOCKER COMPOSE - FULL CONTAINERIZATION
+# =============================================================================
+# This compose file runs ALL services in Docker containers (including backend
+# and frontend). Use this for:
+# - Testing the complete containerized application
+# - Production-like environment testing
+# - CI/CD pipelines
+#
+# For local development, use docker-compose.dev.yml instead (via npm run dev)
+# which runs only MongoDB/RabbitMQ in containers and backend/frontend locally.
+#
+# Usage: docker compose -f docker-compose.full.yml up
+# =============================================================================
 
 services:
   # MongoDB Database
@@ -51,11 +65,11 @@ services:
       - mongodb
       - rabbitmq
     env_file:
-      - .env.docker
+      - server/.env
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017/racky
+      - MONGODB_URI=mongodb://mongodb:27017/${MONGODB_DATABASE}
       - PORT=5000
-      - RABBITMQ_URL=amqp://racky:racky123@rabbitmq:5672/racky
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/${RABBITMQ_VHOST}
       - USE_RABBITMQ=true
       - STRIPE_SKIP_WEBHOOK_VERIFICATION=true
       - RCK_DESCRIPTION_SERVER_URL=https://dev-description-server.racky.ai
@@ -80,7 +94,7 @@ services:
     depends_on:
       - backend
     env_file:
-      - .env.docker
+      - client/.env.development
     environment:
       - VITE_BACKEND_URL=http://backend:5000
       - DOCKER_ENV=true

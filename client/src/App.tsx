@@ -29,6 +29,7 @@ import { AdminUsers } from '@/pages/admin/users'
 import { AdminWorkspaces } from '@/pages/admin/workspaces'
 import { AdminSubscriptions } from '@/pages/admin/subscriptions'
 import { AdminAnalytics } from '@/pages/admin/analytics'
+import { AdminWebhooks } from '@/pages/admin/webhooks'
 import { ApiDocsPage } from '@/pages/admin/api-docs'
 import Workspaces from '@/pages/workspaces'
 import AIOpportunitiesPage from '@/pages/ai-optimization/opportunities'
@@ -388,6 +389,18 @@ function App() {
               <RequireSuperAdmin>
                 <AdminLayout>
                   <AdminSubscriptions />
+                </AdminLayout>
+              </RequireSuperAdmin>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/webhooks"
+          element={
+            <ProtectedRoute>
+              <RequireSuperAdmin>
+                <AdminLayout>
+                  <AdminWebhooks />
                 </AdminLayout>
               </RequireSuperAdmin>
             </ProtectedRoute>

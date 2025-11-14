@@ -260,6 +260,16 @@ erDiagram
         Date updatedAt "Auto timestamp"
     }
 
+    WebhookUrl {
+        ObjectId _id PK
+        String name UK "Required, trimmed, min 3 chars, max 100 chars"
+        String description "Optional, max 500 chars"
+        String url UK "Required, trimmed, unique, HTTP/HTTPS only"
+        Boolean isActive "Default true"
+        Date createdAt "Auto timestamp"
+        Date updatedAt "Auto timestamp"
+    }
+
     %% Relationships
     User ||--o{ Workspace : "owns (1:N)"
     User ||--o{ WorkspaceUser : "belongs to (1:N)"
@@ -295,6 +305,7 @@ erDiagram
     %% GeneralSuggestion: workspaceId + isActive + expiresAt
     %% OpportunityCategory: id (unique)
     %% AIVideo: userId + workspaceId + status (compound), workspaceId + createdAt, productId + createdAt, userId, workspaceId, productId
+    %% WebhookUrl: url (unique), isActive, createdAt
 ```
 
 ## Descripción de las Entidades
@@ -561,11 +572,11 @@ La base de datos ha sido **rediseñada** para soportar múltiples workspaces por
 
 ## Última Actualización
 
-**Fecha**: 2025-09-24
-**Entidades incluidas**: 13 (incluyendo nueva entidad AIVideo)
-**Relaciones mapeadas**: 16+ (incluyendo relaciones de AIVideo con User, Workspace y Product)
-**Índices documentados**: 35+ (incluyendo índices optimizados para AIVideo)
-**Campos totales**: 180+ (incluyendo campos de AIVideo y metadata flexible)
+**Fecha**: 2025-01-11
+**Entidades incluidas**: 14 (incluyendo nueva entidad WebhookUrl)
+**Relaciones mapeadas**: 16+
+**Índices documentados**: 36+ (incluyendo índices optimizados para WebhookUrl)
+**Campos totales**: 187+ (incluyendo campos de WebhookUrl)
 
 ---
 

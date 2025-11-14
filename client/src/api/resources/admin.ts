@@ -1,4 +1,4 @@
-import { apiGet, apiPut, apiDelete } from '../client'
+import { apiGet, apiPut, apiDelete, apiPost } from '../client'
 import { ENDPOINTS } from '../config'
 import type {
   AdminUser,
@@ -7,6 +7,12 @@ import type {
   UpdateUserRoleRequest
 } from '../types/admin'
 import type { PaginationParams } from '../types/common'
+import type {
+  WebhookUrl,
+  CreateWebhookDto,
+  UpdateWebhookDto,
+  WebhooksListResponse
+} from '../types/webhook'
 
 export interface AdminUsersQuery extends PaginationParams {
   search?: string
@@ -97,8 +103,59 @@ export const adminApi = {
         searchParams.append(key, value.toString())
       }
     })
-    
+
     const url = `${ENDPOINTS.ADMIN.SUBSCRIPTIONS}?${searchParams.toString()}`
     return apiGet<any>(url)
+  },
+
+  // ============================================================================
+  // WEBHOOK URL MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Get all webhook URLs with pagination (SUPERADMIN only)
+   */
+  async getWebhooks(page: number = 1, limit: number = 50): Promise<WebhooksListResponse> {
+    const searchParams = new URLSearchParams()
+    searchParams.append('page', page.toString())
+    searchParams.append('limit', limit.toString())
+
+    const url = `${ENDPOINTS.ADMIN.WEBHOOKS}?${searchParams.toString()}`
+    return apiGet<WebhooksListResponse>(url)
+  },
+
+  /**
+   * Get webhook by ID (SUPERADMIN only)
+   */
+  async getWebhook(webhookId: string): Promise<WebhookUrl> {
+    return apiGet<WebhookUrl>(ENDPOINTS.ADMIN.WEBHOOK(webhookId))
+  },
+
+  /**
+   * Create new webhook URL (SUPERADMIN only)
+   */
+  async createWebhook(data: CreateWebhookDto): Promise<WebhookUrl> {
+    return apiPost<WebhookUrl>(ENDPOINTS.ADMIN.WEBHOOKS, data)
+  },
+
+  /**
+   * Update webhook URL (SUPERADMIN only)
+   */
+  async updateWebhook(webhookId: string, data: UpdateWebhookDto): Promise<WebhookUrl> {
+    return apiPut<WebhookUrl>(ENDPOINTS.ADMIN.WEBHOOK(webhookId), data)
+  },
+
+  /**
+   * Delete webhook URL (SUPERADMIN only)
+   */
+  async deleteWebhook(webhookId: string): Promise<void> {
+    return apiDelete<void>(ENDPOINTS.ADMIN.WEBHOOK(webhookId))
+  },
+
+  /**
+   * Toggle webhook active status (SUPERADMIN only)
+   */
+  async toggleWebhookStatus(webhookId: string): Promise<WebhookUrl> {
+    return apiPut<WebhookUrl>(ENDPOINTS.ADMIN.WEBHOOK_TOGGLE(webhookId), {})
   },
 }

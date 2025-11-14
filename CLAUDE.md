@@ -2,6 +2,45 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🚀 Quick Start for Development
+
+**SINGLE COMMAND to start development:**
+```bash
+npm run dev
+```
+
+This starts MongoDB, RabbitMQ (Docker), Backend, and Frontend (local) with hot reload enabled.
+
+**Other useful commands:**
+- `npm run dev:stop` - Stop Docker containers
+- `npm run dev:clean` - Complete cleanup (interactive)
+- `npm run validate` - Run TypeScript checks
+
+**See [DEV_SETUP.md](DEV_SETUP.md) for complete documentation.**
+
+## ⚠️ Important: Development Environment Changes (Jan 2025)
+
+The project has been **consolidated to use a single development method**:
+
+### What Changed:
+- ✅ **`.env`** (Root) - Infrastructure config (ports, RabbitMQ credentials)
+- ✅ **`server/.env`** - Backend secrets (JWT, Stripe, OpenAI, MongoDB URI)
+- ✅ **`client/.env.development`** - Frontend config (API URLs, Stripe public key)
+- ❌ **`.env.docker`** - **DEPRECATED** (removed, variables migrated to above files)
+- ❌ **`dev-local.sh`** - **REMOVED** (redundant, use `npm run dev`)
+- 📝 **`docker-compose.yml`** - **RENAMED** to `docker-compose.full.yml` (for full containerization testing)
+- ✅ **`docker-compose.dev.yml`** - Primary development compose file (MongoDB + RabbitMQ only)
+
+### Development Approach:
+- **Hybrid Development (Default)**: Docker for databases/queues, local processes for backend/frontend
+- **Full Docker (Optional)**: `npm run docker:full` for testing complete containerization
+
+This simplification provides:
+- Single source of truth for environment variables
+- Clear separation: infrastructure (.env) vs secrets (server/.env) vs frontend (client/.env.development)
+- One primary command to start development (`npm run dev`)
+- Better cleanup with `npm run dev:clean`
+
 ## Project Overview
 
 Racky is a **multi-tenant SaaS marketplace management platform** that allows users to connect and manage multiple e-commerce marketplaces from a single interface. The application consists of:

@@ -153,6 +153,9 @@ export const ENDPOINTS = {
     USER_ROLE: (id: string) => `/admin/users/${id}/role`,
     ANALYTICS: "/admin/analytics",
     SUBSCRIPTIONS: "/admin/subscriptions",
+    WEBHOOKS: "/admin/webhooks",
+    WEBHOOK: (id: string) => `/admin/webhooks/${id}`,
+    WEBHOOK_TOGGLE: (id: string) => `/admin/webhooks/${id}/toggle`,
   },
 
   // Demo
