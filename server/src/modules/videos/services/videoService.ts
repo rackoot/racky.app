@@ -244,11 +244,14 @@ export class VideoService {
       const response = await rckDescriptionService.generateVideo({
         id_product: objectIdToInt(product._id.toString()),
         title: product.title,
-        img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+        img_urls: product.images && product.images.length > 0
+          ? product.images.map((img: any) => img.url)
+          : [],
         user_id: userId,
         sku: product.sku || product._id.toString(),
         template_name: video.template,
-        videoId: videoId // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
+        videoId: videoId, // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
+        aspect_ratio: '9:16' // Default aspect ratio for this legacy endpoint
       })
 
       // Update video with external job ID for tracking (if provided by external API)

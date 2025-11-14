@@ -18,6 +18,7 @@ export interface IAIVideo extends Document {
     fileSize?: number
     videoUrl?: string
     thumbnailUrl?: string
+    imgS3Url?: string // S3 URL for video thumbnail/cover image
     generationTime?: number
     aiModel?: string
     externalJobId?: string // Track external API job

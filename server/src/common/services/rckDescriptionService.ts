@@ -155,11 +155,12 @@ class RCKDescriptionService {
   async generateVideo(params: {
     id_product: number; // Must be integer as per API spec
     title: string;
-    img_url: string;
+    img_urls: string[]; // Array of image URLs
     user_id: string;
     sku: string;
     template_name: string;
     videoId: string; // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
+    aspect_ratio: string; // Aspect ratio (9:16, 16:9, 1:1)
   }): Promise<any> {
     console.log('[RCK Description Service] Generating video for product:', params.id_product, 'with videoId:', params.videoId);
 
@@ -217,11 +218,12 @@ class RCKDescriptionService {
   async bulkGenerateVideos(products: Array<{
     id_product: number; // Must be integer as per API spec
     title: string;
-    img_url: string;
+    img_urls: string[]; // Array of image URLs
     user_id: string;
     sku: string;
     template_name: string;
     videoId: string; // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
+    aspect_ratio: string; // Aspect ratio (9:16, 16:9, 1:1)
   }>): Promise<any> {
     console.log('[RCK Description Service] Bulk generating videos for products:', products.length);
     console.log('[RCK Description Service] Request payload:', JSON.stringify(products, null, 2));

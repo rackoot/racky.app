@@ -60,6 +60,11 @@
       "key": "opportunity_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "workspace_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -1168,6 +1173,104 @@
       ]
     },
     {
+      "name": "Video Generation",
+      "description": "AI-powered video generation endpoints for products",
+      "item": [
+        {
+          "name": "Generate Video for Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-ID",
+                "value": "{{workspace_id}}",
+                "type": "string"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{product_id}}\",\n  \"templateId\": \"uuid-template-123\",\n  \"templateName\": \"Product Showcase\",\n  \"aspect_ratio\": \"9:16\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/videos/generate-for-product",
+              "host": ["{{base_url}}"],
+              "path": ["videos", "generate-for-product"]
+            },
+            "description": "Generate AI video for a single product. Currently simulated - does not call external API.\n\nRequired fields:\n- productId: MongoDB ObjectId of the product\n- templateId: UUID of the video template\n- templateName: Display name of the template\n- aspect_ratio: Video format (9:16, 16:9, or 1:1)"
+          }
+        },
+        {
+          "name": "Bulk Generate Videos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-ID",
+                "value": "{{workspace_id}}",
+                "type": "string"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productIds\": [\n    \"{{product_id}}\",\n    \"507f1f77bcf86cd799439012\"\n  ],\n  \"templateId\": \"uuid-template-123\",\n  \"templateName\": \"Product Showcase\",\n  \"aspect_ratio\": \"16:9\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/videos/bulk-generate",
+              "host": ["{{base_url}}"],
+              "path": ["videos", "bulk-generate"]
+            },
+            "description": "Generate AI videos for multiple products simultaneously. Calls external RCK Description Server.\n\nRequired fields:\n- productIds: Array of product MongoDB ObjectIds\n- templateId: UUID of the video template\n- templateName: Display name of the template\n- aspect_ratio: Video format (9:16 = vertical, 16:9 = horizontal, 1:1 = square)\n\nExternal API receives:\n- id_product: Integer from ObjectId\n- title: Product title\n- img_urls: Array of ALL product image URLs\n- user_id: User MongoDB ObjectId\n- sku: Product SKU\n- template_name: Template name\n- videoId: AIVideo MongoDB _id for callbacks\n- aspect_ratio: Video format"
+          }
+        },
+        {
+          "name": "Get Video Templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-ID",
+                "value": "{{workspace_id}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/videos/templates",
+              "host": ["{{base_url}}"],
+              "path": ["videos", "templates"]
+            },
+            "description": "Fetch available video templates from RCK Description Server"
+          }
+        },
+        {
+          "name": "Get Video Usage Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-ID",
+                "value": "{{workspace_id}}",
+                "type": "string"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/videos/usage/stats",
+              "host": ["{{base_url}}"],
+              "path": ["videos", "usage", "stats"]
+            },
+            "description": "Get current workspace's video generation usage statistics for the billing period"
+          }
+        }
+      ]
+    },
+    {
       "name": "Webhooks (Internal)",
       "description": "Internal webhook endpoints for external service callbacks (NOT protected by auth)",
       "item": [
@@ -1186,7 +1289,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"videoId\": \"507f1f77bcf86cd799439011\",\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\",\n  \"localFilename\": \"videos/test_video.mp4\",\n  \"video_url\": \"https://example.com/videos/test.mp4\"\n}"
+              "raw": "{\n  \"videoId\": \"507f1f77bcf86cd799439011\",\n  \"youtubeVideoId\": \"dQw4w9WgXcQ\",\n  \"localFilename\": \"videos/test_video.mp4\",\n  \"video_url\": \"https://example.com/videos/test.mp4\",\n  \"img_s3_url\": \"https://s3.amazonaws.com/bucket/video-thumbnail.jpg\"\n}"
             },
             "url": {
               "raw": "http://localhost:5000/internal/videos/success",

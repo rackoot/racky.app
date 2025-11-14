@@ -833,6 +833,217 @@ Get opportunity summary statistics for a product.
 - Categories include both general improvements and marketplace-specific suggestions
 - Expired opportunities are automatically cleaned up
 
+## Video Generation Endpoints
+
+All video generation endpoints require authentication and workspace context.
+
+### Generate Video for Single Product
+
+#### POST /videos/generate-for-product
+Generate an AI-powered video for a single product using a selected template.
+
+**Request Body:**
+```json
+{
+  "productId": "507f1f77bcf86cd799439011",
+  "templateId": "uuid-template-123",
+  "templateName": "Product Showcase",
+  "aspect_ratio": "9:16"
+}
+```
+
+**Field Descriptions:**
+- `productId` - **Required**. MongoDB ObjectId of the product
+- `templateId` - **Required**. UUID of the video template from external service
+- `templateName` - **Required**. Display name of the template (e.g., "Product Showcase")
+- `aspect_ratio` - **Required**. Video format: `"9:16"` (vertical), `"16:9"` (horizontal), or `"1:1"` (square)
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Video will process, we'll let you know when it's ready!",
+  "data": {
+    "productId": "507f1f77bcf86cd799439011",
+    "productTitle": "Product Name",
+    "templateId": "uuid-template-123",
+    "templateName": "Product Showcase"
+  }
+}
+```
+
+**Error Responses:**
+- `400` - Missing required fields (productId, templateId, templateName, aspect_ratio)
+- `404` - Product not found
+- `500` - Server error
+
+**Notes:**
+- Currently simulated (does not call external API)
+- Creates video entry with 'processing' status
+- Product must belong to authenticated user and workspace
+
+---
+
+### Bulk Generate Videos
+
+#### POST /videos/bulk-generate
+Generate AI-powered videos for multiple products simultaneously.
+
+**Request Body:**
+```json
+{
+  "productIds": [
+    "507f1f77bcf86cd799439011",
+    "507f1f77bcf86cd799439012"
+  ],
+  "templateId": "uuid-template-123",
+  "templateName": "Product Showcase",
+  "aspect_ratio": "16:9"
+}
+```
+
+**Field Descriptions:**
+- `productIds` - **Required**. Array of product MongoDB ObjectIds
+- `templateId` - **Required**. UUID of the video template from external service
+- `templateName` - **Required**. Display name of the template
+- `aspect_ratio` - **Required**. Video format: `"9:16"`, `"16:9"`, or `"1:1"`
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Video generation started for 2 product(s). We'll notify you when they're ready!",
+  "data": {
+    "productCount": 2,
+    "templateId": "uuid-template-123",
+    "templateName": "Product Showcase",
+    "videoIds": [
+      "65a1b2c3d4e5f6789abcdef0",
+      "65a1b2c3d4e5f6789abcdef1"
+    ]
+  }
+}
+```
+
+**External API Request (RCK Description Server):**
+
+This endpoint sends the following payload to the external video generation service (`POST /api/v1/create-images-batch`):
+
+```json
+[
+  {
+    "id_product": 134744072,
+    "title": "Product Name",
+    "img_urls": [
+      "https://cdn.example.com/image1.jpg",
+      "https://cdn.example.com/image2.jpg",
+      "https://cdn.example.com/image3.jpg"
+    ],
+    "user_id": "507f1f77bcf86cd799439011",
+    "sku": "PRODUCT-SKU-001",
+    "template_name": "Product Showcase",
+    "videoId": "65a1b2c3d4e5f6789abcdef0",
+    "aspect_ratio": "16:9"
+  }
+]
+```
+
+**External API Field Descriptions:**
+- `id_product` - Integer converted from MongoDB ObjectId (first 8 hex chars)
+- `title` - Product title from database
+- `img_urls` - **Array** of all product image URLs (changed from single `img_url`)
+- `user_id` - MongoDB ObjectId of the user as string
+- `sku` - Product SKU or MongoDB _id as fallback
+- `template_name` - Template display name
+- `videoId` - AIVideo MongoDB _id for webhook callbacks
+- `aspect_ratio` - Video format specification
+
+**Error Responses:**
+- `400` - Missing or invalid productIds, templateId, templateName, or aspect_ratio
+- `403` - Video generation limit exceeded for workspace
+- `404` - No products found for given IDs
+- `503` - RCK Description Server not configured
+- `500` - Server error or external API failure
+
+**Behavior:**
+1. Validates all required parameters including aspect_ratio
+2. Checks workspace video generation limits
+3. Creates AIVideo records with 'generating' status
+4. Increments workspace usage counter
+5. Sends batch request to external API with **all product images**
+6. Updates videos with external job IDs
+7. External service calls webhooks on completion/failure
+
+**Important Notes:**
+- Requires RCK Description Server configuration (`RCK_DESCRIPTION_SERVER_URL`)
+- Enforces subscription-based usage limits
+- Creates AIVideo records before calling external API
+- Now sends **all product images** instead of just the first image
+- Aspect ratio is required and must be one of: `9:16`, `16:9`, or `1:1`
+- If external API fails, all videos are marked as 'failed'
+- Supports webhook callbacks for status updates
+
+---
+
+### Get Video Templates
+
+#### GET /videos/templates
+Fetch available video templates from the external RCK Description Server.
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Templates fetched successfully",
+  "templates": [
+    {
+      "id": "uuid-template-123",
+      "title": "Product Showcase",
+      "name_file_video": "showcase_template.mp4",
+      "name_file_background_image": "showcase_bg.jpg",
+      "description": "Classic product presentation with rotating views",
+      "url_video": "https://www.youtube.com/watch?v=example"
+    }
+  ],
+  "error": null
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "message": "Failed to fetch templates",
+  "templates": [],
+  "error": "RCK Description Server connection failed"
+}
+```
+
+---
+
+### Get Video Usage Statistics
+
+#### GET /videos/usage/stats
+Get current workspace's video generation usage statistics for the billing period.
+
+**Response (200):**
+```json
+{
+  "used": 15,
+  "limit": 50,
+  "remaining": 35,
+  "percentage": 30
+}
+```
+
+**Field Descriptions:**
+- `used` - Number of videos generated this billing period
+- `limit` - Maximum videos allowed per billing period
+- `remaining` - Videos remaining in quota
+- `percentage` - Usage percentage (0-100)
+
+---
+
 ## Admin Endpoints
 
 **Note:** All admin endpoints require SUPERADMIN role and are protected by authentication middleware.
@@ -1243,7 +1454,8 @@ Webhook endpoint for external video generation service to notify video completio
   "videoId": "507f1f77bcf86cd799439011",
   "youtubeVideoId": "dQw4w9WgXcQ",
   "localFilename": "videos/test_video.mp4",
-  "video_url": "https://example.com/videos/test.mp4"
+  "video_url": "https://example.com/videos/test.mp4",
+  "img_s3_url": "https://s3.amazonaws.com/bucket/video-thumbnail.jpg"
 }
 ```
 
@@ -1252,6 +1464,7 @@ Webhook endpoint for external video generation service to notify video completio
 - `youtubeVideoId` - Optional. YouTube video ID for the generated video
 - `localFilename` - Optional. File path on external server where video is stored
 - `video_url` - Optional. Direct URL to access the generated video
+- `img_s3_url` - Optional. S3 URL for video thumbnail/cover image
 
 **Response (200):**
 ```json
@@ -1263,6 +1476,7 @@ Webhook endpoint for external video generation service to notify video completio
     "youtubeVideoId": "dQw4w9WgXcQ",
     "localFilename": "videos/test_video.mp4",
     "videoUrl": "https://example.com/videos/test.mp4",
+    "imgS3Url": "https://s3.amazonaws.com/bucket/video-thumbnail.jpg",
     "productId": "507f1f77bcf86cd799439012"
   }
 }
@@ -1293,9 +1507,10 @@ Webhook endpoint for external video generation service to notify video completio
 
 **Behavior:**
 - Updates the AIVideo record status to `completed`
-- Stores YouTube video ID, local filename, and video URL in metadata
+- Stores YouTube video ID, local filename, video URL, and S3 image URL in metadata
 - Also updates Product.videos array for dual storage compatibility
 - Idempotent - can be called multiple times safely
+- The `img_s3_url` is displayed in the UI alongside the video in a 2-column layout
 
 #### POST /internal/videos/failure
 Webhook endpoint for external video generation service to notify video generation failure.

@@ -40,6 +40,7 @@ export interface ProductVideo {
   status: 'processing' | 'pending' | 'completed' | 'failed';
   videoUrl?: string;
   youtubeUrl?: string;
+  imgS3Url?: string; // S3 URL for video thumbnail/cover image
   error?: string;
   createdAt: string;
   completedAt?: string;

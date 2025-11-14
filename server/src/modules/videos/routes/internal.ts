@@ -13,6 +13,7 @@ const videoSuccessSchema = Joi.object({
   youtubeVideoId: Joi.string().optional().allow(null, ''),
   localFilename: Joi.string().optional().allow(null, ''),
   video_url: Joi.string().optional().allow(null, ''),
+  img_s3_url: Joi.string().optional().allow(null, ''),
   id_product: Joi.string().optional() // Backward compatibility
 })
 
@@ -35,6 +36,7 @@ const videoFailureSchema = Joi.object({
  * - youtubeVideoId: YouTube video ID (optional)
  * - localFilename: File path on external server (optional)
  * - video_url: Direct video URL (optional)
+ * - img_s3_url: S3 URL for video thumbnail/cover image (optional)
  * - id_product: Product ID for backward compatibility (optional)
  */
 router.post('/videos/success', async (req: Request, res: Response) => {
@@ -48,7 +50,7 @@ router.post('/videos/success', async (req: Request, res: Response) => {
       })
     }
 
-    const { videoId, youtubeVideoId, localFilename, video_url, id_product } = value
+    const { videoId, youtubeVideoId, localFilename, video_url, img_s3_url, id_product } = value
 
     // Validate videoId is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(videoId)) {
@@ -62,7 +64,8 @@ router.post('/videos/success', async (req: Request, res: Response) => {
       videoId,
       youtubeVideoId,
       localFilename,
-      video_url
+      video_url,
+      img_s3_url
     })
 
     // Import models
@@ -87,6 +90,7 @@ router.post('/videos/success', async (req: Request, res: Response) => {
       youtubeVideoId,
       localFilename,
       videoUrl: video_url || video.metadata?.videoUrl,
+      imgS3Url: img_s3_url || video.metadata?.imgS3Url,
       completedAt: new Date()
     }
     await video.save()
@@ -105,6 +109,7 @@ router.post('/videos/success', async (req: Request, res: Response) => {
         videos[pendingVideoIndex].status = 'completed'
         videos[pendingVideoIndex].videoUrl = video_url
         videos[pendingVideoIndex].youtubeUrl = youtubeVideoId ? `https://www.youtube.com/watch?v=${youtubeVideoId}` : undefined
+        videos[pendingVideoIndex].imgS3Url = img_s3_url
         videos[pendingVideoIndex].completedAt = new Date()
         product.videos = videos
         await product.save()
@@ -120,6 +125,7 @@ router.post('/videos/success', async (req: Request, res: Response) => {
         youtubeVideoId,
         localFilename,
         videoUrl: video_url,
+        imgS3Url: img_s3_url,
         productId: video.productId.toString()
       }
     })

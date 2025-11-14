@@ -171,7 +171,7 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
   try {
     const userId = String(req.user!._id)
     const workspaceId = String(req.workspace!._id)
-    const { productId, templateId, templateName } = req.body
+    const { productId, templateId, templateName, aspect_ratio } = req.body
 
     if (!productId) {
       return res.status(400).json({
@@ -184,6 +184,13 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({
         success: false,
         message: 'Template ID and name are required'
+      })
+    }
+
+    if (!aspect_ratio) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aspect ratio is required'
       })
     }
 
@@ -259,7 +266,7 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
   try {
     const userId = String(req.user!._id)
     const workspaceId = String(req.workspace!._id)
-    const { productIds, templateId, templateName } = req.body
+    const { productIds, templateId, templateName, aspect_ratio } = req.body
 
     if (!productIds || !Array.isArray(productIds) || productIds.length === 0) {
       return res.status(400).json({
@@ -272,6 +279,13 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
       return res.status(400).json({
         success: false,
         message: 'Template ID and name are required'
+      })
+    }
+
+    if (!aspect_ratio) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aspect ratio is required'
       })
     }
 
@@ -357,11 +371,14 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
     const videoRequests = videoRecords.map(({ video, product }) => ({
       id_product: objectIdToInt(product._id.toString()),
       title: product.title,
-      img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
+      img_urls: product.images && product.images.length > 0
+        ? product.images.map((img: any) => img.url)
+        : [],
       user_id: userId,
       sku: product.sku || product._id.toString(),
       template_name: templateName,
-      videoId: video._id.toString() // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
+      videoId: video._id.toString(), // AIVideo MongoDB _id for webhook callback (camelCase as per API spec)
+      aspect_ratio
     }))
 
     // Call external video generation API

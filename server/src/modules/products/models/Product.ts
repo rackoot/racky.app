@@ -25,6 +25,7 @@ export interface IProductVideo {
   status: VideoStatus;
   videoUrl?: string;
   youtubeUrl?: string;
+  imgS3Url?: string; // S3 URL for video thumbnail/cover image
   error?: string;
   createdAt: Date;
   completedAt?: Date;
@@ -156,6 +157,7 @@ const ProductVideoSchema = new Schema<IProductVideo>({
   },
   videoUrl: { type: String },
   youtubeUrl: { type: String },
+  imgS3Url: { type: String },
   error: { type: String },
   createdAt: { type: Date, default: Date.now },
   completedAt: { type: Date },

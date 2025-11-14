@@ -122,15 +122,35 @@ export function VideoContentTab({ product }: VideoContentTabProps) {
                   <CardContent>
                     {latestVideo.status === 'completed' && latestVideo.videoUrl ? (
                       <div className="space-y-4">
-                        <div className="aspect-video rounded-lg overflow-hidden bg-black">
-                          <video
-                            controls
-                            className="w-full h-full"
-                            src={latestVideo.videoUrl}
-                          >
-                            Your browser does not support the video tag.
-                          </video>
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Video Column */}
+                          <div className="aspect-video rounded-lg overflow-hidden bg-black">
+                            <video
+                              controls
+                              className="w-full h-full"
+                              src={latestVideo.videoUrl}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+
+                          {/* Image Column */}
+                          <div className="aspect-video rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                            {latestVideo.imgS3Url ? (
+                              <img
+                                src={latestVideo.imgS3Url}
+                                alt="Video thumbnail"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="text-center text-muted-foreground p-4">
+                                <Image className="w-12 h-12 mx-auto mb-2" />
+                                <p className="text-sm">No thumbnail available</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
+
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-blue-900">Template: {latestVideo.templateName}</p>
