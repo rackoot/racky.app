@@ -171,7 +171,7 @@ export function Products() {
     setShowVideoTemplateModal(true)
   }
 
-  const handleVideoTemplateSelected = async (templateId: string, templateName: string) => {
+  const handleVideoTemplateSelected = async (templateId: string, templateName: string, aspectRatio: string) => {
     try {
       setBulkActionInProgress(true)
 
@@ -179,11 +179,12 @@ export function Products() {
       console.log('Creating videos for products with template:', {
         templateId,
         templateName,
+        aspectRatio,
         productIds,
         productCount: productIds.length
       })
 
-      const result = await videosApi.bulkGenerateVideos(productIds, templateId, templateName)
+      const result = await videosApi.bulkGenerateVideos(productIds, templateId, templateName, aspectRatio)
 
       console.log('Bulk video generation result:', result)
 

@@ -24,7 +24,7 @@ interface VideoTemplateModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   productCount: number
-  onCreateVideo: (templateId: string, templateName: string) => void | Promise<void>
+  onCreateVideo: (templateId: string, templateName: string, aspectRatio: string) => void | Promise<void>
 }
 
 // Default fallback video URL
@@ -53,6 +53,7 @@ export function VideoTemplateModal({
   onCreateVideo,
 }: VideoTemplateModalProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('9:16')
   const [templates, setTemplates] = useState<VideoTemplateResponse[]>([])
   const [loadingTemplates, setLoadingTemplates] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -98,9 +99,10 @@ export function VideoTemplateModal({
       if (selectedTemplate) {
         setGeneratingVideo(true)
         try {
-          await onCreateVideo(selectedTemplateId, selectedTemplate.title)
+          await onCreateVideo(selectedTemplateId, selectedTemplate.title, selectedAspectRatio)
           // Reset state
           setSelectedTemplateId('')
+          setSelectedAspectRatio('9:16')
           onOpenChange(false)
         } finally {
           setGeneratingVideo(false)
@@ -111,6 +113,7 @@ export function VideoTemplateModal({
 
   const handleClose = () => {
     setSelectedTemplateId('')
+    setSelectedAspectRatio('9:16')
     setError(null)
     onOpenChange(false)
   }
@@ -170,6 +173,20 @@ export function VideoTemplateModal({
                         {template.title}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="aspect-ratio-select">Video Format</Label>
+                <Select value={selectedAspectRatio} onValueChange={setSelectedAspectRatio}>
+                  <SelectTrigger id="aspect-ratio-select">
+                    <SelectValue placeholder="Select aspect ratio..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="9:16">9:16 (Vertical - Stories/Reels)</SelectItem>
+                    <SelectItem value="16:9">16:9 (Horizontal - YouTube/TV)</SelectItem>
+                    <SelectItem value="1:1">1:1 (Square - Instagram/Facebook)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

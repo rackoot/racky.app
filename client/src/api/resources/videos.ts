@@ -181,7 +181,7 @@ export const videosApi = {
   /**
    * Generate video for a single product
    */
-  async generateVideoForProduct(productId: string, templateId: string, templateName: string): Promise<{
+  async generateVideoForProduct(productId: string, templateId: string, templateName: string, aspectRatio: string): Promise<{
     success: boolean
     message: string
     data: {
@@ -195,7 +195,8 @@ export const videosApi = {
     const response = await apiClient.post(VIDEOS_ENDPOINTS.GENERATE_FOR_PRODUCT, {
       productId,
       templateId,
-      templateName
+      templateName,
+      aspect_ratio: aspectRatio
     })
     return response.data
   },
@@ -203,7 +204,7 @@ export const videosApi = {
   /**
    * Generate videos for multiple products (bulk)
    */
-  async bulkGenerateVideos(productIds: string[], templateId: string, templateName: string): Promise<{
+  async bulkGenerateVideos(productIds: string[], templateId: string, templateName: string, aspectRatio: string): Promise<{
     success: boolean
     message: string
     data: {
@@ -216,7 +217,8 @@ export const videosApi = {
     const response = await apiClient.post(VIDEOS_ENDPOINTS.BULK_GENERATE, {
       productIds,
       templateId,
-      templateName
+      templateName,
+      aspect_ratio: aspectRatio
     })
     return response.data
   }

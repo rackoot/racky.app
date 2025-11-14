@@ -33,17 +33,18 @@ export function VideoContentTab({ product }: VideoContentTabProps) {
     setShowTemplateModal(true)
   }
 
-  const handleTemplateSelected = async (templateId: string, templateName: string) => {
+  const handleTemplateSelected = async (templateId: string, templateName: string, aspectRatio: string) => {
     try {
       console.log('Generating video for product with template:', {
         productId: product._id,
         productTitle: product.title,
         templateId,
-        templateName
+        templateName,
+        aspectRatio
       })
 
       const { videosApi } = await import('@/api')
-      const result = await videosApi.generateVideoForProduct(product._id, templateId, templateName)
+      const result = await videosApi.generateVideoForProduct(product._id, templateId, templateName, aspectRatio)
 
       console.log('Video generation result:', result)
 
