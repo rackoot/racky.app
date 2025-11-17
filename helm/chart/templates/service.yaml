@@ -6,9 +6,14 @@ metadata:
 spec:
   externalTrafficPolicy: Cluster
   ports:
-  - port: 5173
+  - name: frontend
+    port: 5173
     protocol: TCP
     targetPort: 5173
+  - name: backend
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
   selector:
     app: racky-app
   sessionAffinity: None
