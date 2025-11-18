@@ -85,15 +85,18 @@ router.get('/usage/stats', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const workspaceId = String(req.workspace!._id)
 
+    // Get plan limits from workspace
+    const workspacePlan = await (req.workspace as any).getCurrentPlan()
+    const videoLimit = workspacePlan?.limits?.videoGenerations || 30
+
     const currentUsage = await Usage.getCurrentMonthUsage(workspaceId)
+    const videoCount = currentUsage?.videoGenerations || 0
 
     const stats = {
-      used: currentUsage?.videoGenerations || 0,
-      limit: currentUsage?.monthlyLimits?.videoGenerations || 30,
-      remaining: Math.max(0, (currentUsage?.monthlyLimits?.videoGenerations || 30) - (currentUsage?.videoGenerations || 0)),
-      percentage: currentUsage?.monthlyLimits?.videoGenerations
-        ? Math.round(((currentUsage?.videoGenerations || 0) / currentUsage.monthlyLimits.videoGenerations) * 100)
-        : 0
+      used: videoCount,
+      limit: videoLimit,
+      remaining: Math.max(0, videoLimit - videoCount),
+      percentage: videoLimit > 0 ? Math.round((videoCount / videoLimit) * 100) : 0
     }
 
     res.json({
@@ -317,19 +320,25 @@ router.post('/bulk-generate', async (req: AuthenticatedRequest, res: Response) =
       })
     }
 
-    // Check video generation limits
-    const currentUsage = await Usage.getCurrentMonthUsage(workspaceId)
-    if (currentUsage) {
-      const videoLimit = currentUsage.monthlyLimits.videoGenerations
-      const videoCount = currentUsage.videoGenerations
-      const videosNeeded = products.length
+    // Check video generation limits from workspace plan
+    const workspacePlan = await (req.workspace as any).getCurrentPlan()
+    if (!workspacePlan) {
+      return res.status(402).json({
+        success: false,
+        message: 'Active subscription required to generate videos'
+      })
+    }
 
-      if (videoCount + videosNeeded > videoLimit) {
-        return res.status(403).json({
-          success: false,
-          message: `Video generation limit exceeded. You need ${videosNeeded} videos but only have ${videoLimit - videoCount} remaining out of ${videoLimit} for this billing period.`
-        })
-      }
+    const videoLimit = workspacePlan.limits.videoGenerations
+    const currentUsage = await Usage.getCurrentMonthUsage(workspaceId)
+    const videoCount = currentUsage?.videoGenerations || 0
+    const videosNeeded = products.length
+
+    if (videoCount + videosNeeded > videoLimit) {
+      return res.status(403).json({
+        success: false,
+        message: `Video generation limit exceeded. You need ${videosNeeded} videos but only have ${videoLimit - videoCount} remaining out of ${videoLimit} for this billing period.`
+      })
     }
 
     // Create AIVideo records for each product BEFORE calling external API

@@ -158,6 +158,27 @@ usageSchema.statics.incrementWorkspaceUsage = async function(workspaceId: string
     billingPeriodStart: startOfMonth
   };
 
+  // Fetch workspace plan limits if creating a new usage record
+  let planLimits = null;
+  const existingUsage = await this.findOne(filter);
+  if (!existingUsage) {
+    // Dynamic import to avoid circular dependency
+    const Workspace = mongoose.model('Workspace');
+    const workspace = await Workspace.findById(workspaceId);
+    if (workspace) {
+      const plan = await (workspace as any).getCurrentPlan();
+      if (plan && plan.limits) {
+        planLimits = {
+          apiCalls: plan.limits.apiCallsPerMonth || 1000,
+          productSyncs: plan.limits.maxProducts || 100,
+          storeConnections: plan.limits.maxStores || 1,
+          storageGB: 1,
+          videoGenerations: plan.limits.videoGenerations || 30
+        };
+      }
+    }
+  }
+
   // Map metric names to schema fields
   const metricMap: { [key: string]: string } = {
     'api_call': 'apiCalls',
@@ -213,6 +234,11 @@ usageSchema.statics.incrementWorkspaceUsage = async function(workspaceId: string
     bulkOperations: 0,
     videoGenerations: 0
   };
+
+  // Add monthlyLimits from plan if available
+  if (planLimits) {
+    setOnInsert.monthlyLimits = planLimits;
+  }
 
   // Remove the field being incremented from setOnInsert to avoid conflict
   delete setOnInsert[schemaField];

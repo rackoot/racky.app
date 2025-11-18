@@ -14,6 +14,7 @@ export interface IPlanLimits {
   maxMarketplaces: number;
   maxSyncFrequency: number; // In hours
   apiCallsPerMonth: number;
+  videoGenerations: number; // Monthly video generation limit
 }
 
 // Interface for Plan document
@@ -122,6 +123,10 @@ const planSchema = new Schema<IPlan>({
       required: true
     },
     apiCallsPerMonth: {
+      type: Number,
+      required: true
+    },
+    videoGenerations: {
       type: Number,
       required: true
     }

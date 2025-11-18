@@ -71,6 +71,10 @@ const planSchema = new Schema(
         type: Number,
         required: true,
       },
+      videoGenerations: {
+        type: Number,
+        required: true,
+      },
     },
     // Features
     features: [
@@ -139,6 +143,7 @@ const createPlans = async () => {
           maxMarketplaces: 2,
           maxSyncFrequency: 24,
           apiCallsPerMonth: 5000,
+          videoGenerations: 30, // 30 videos per month for Junior contributors
         },
         features: [
           {
@@ -186,6 +191,7 @@ const createPlans = async () => {
           maxMarketplaces: 5,
           maxSyncFrequency: 12,
           apiCallsPerMonth: 25000,
+          videoGenerations: 100, // 100 videos per month for Senior contributors
         },
         features: [
           {
