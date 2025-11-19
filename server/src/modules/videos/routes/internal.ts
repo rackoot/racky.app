@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import mongoose from 'mongoose'
 import Joi from 'joi'
+import { webhookLogger } from '../middleware/webhookLogger'
 
 const router = Router()
 
@@ -39,7 +40,7 @@ const videoFailureSchema = Joi.object({
  * - img_s3_url: S3 URL for video thumbnail/cover image (optional)
  * - id_product: Product ID for backward compatibility (optional)
  */
-router.post('/videos/success', async (req: Request, res: Response) => {
+router.post('/videos/success', webhookLogger, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const { error, value } = videoSuccessSchema.validate(req.body)
@@ -148,7 +149,7 @@ router.post('/videos/success', async (req: Request, res: Response) => {
  * - error: Error message (optional)
  * - id_product: Product ID for backward compatibility (optional)
  */
-router.post('/videos/failure', async (req: Request, res: Response) => {
+router.post('/videos/failure', webhookLogger, async (req: Request, res: Response) => {
   try {
     // Validate request body
     const { error: validationError, value } = videoFailureSchema.validate(req.body)

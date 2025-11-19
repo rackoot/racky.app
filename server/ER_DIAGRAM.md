@@ -270,6 +270,13 @@ erDiagram
         Date updatedAt "Auto timestamp"
     }
 
+    WebhookEvent {
+        ObjectId _id PK
+        String endpoint "Required, webhook endpoint path, indexed"
+        Mixed payload "Required, complete webhook payload (request body)"
+        Date createdAt "Auto timestamp, indexed"
+    }
+
     %% Relationships
     User ||--o{ Workspace : "owns (1:N)"
     User ||--o{ WorkspaceUser : "belongs to (1:N)"
@@ -306,6 +313,7 @@ erDiagram
     %% OpportunityCategory: id (unique)
     %% AIVideo: userId + workspaceId + status (compound), workspaceId + createdAt, productId + createdAt, userId, workspaceId, productId
     %% WebhookUrl: url (unique), isActive, createdAt
+    %% WebhookEvent: endpoint, createdAt
 ```
 
 ## Descripción de las Entidades
@@ -466,6 +474,17 @@ erDiagram
 - **Relaciones**: Pertenece a User (N:1), Workspace (N:1) y Product (N:1)
 - **Índices**: userId + workspaceId + status (compuesto), workspaceId + createdAt, productId + createdAt, userId, workspaceId, productId
 
+#### WebhookEvent (Nueva)
+- **Propósito**: Registro de auditoría de todos los eventos de webhook entrantes para debugging y análisis
+- **Características**:
+  - Almacenamiento simple: endpoint + payload completo + timestamp
+  - Registro automático mediante middleware en rutas internas
+  - Consulta solo para SUPERADMIN
+  - Logging silencioso que no interrumpe el flujo del webhook
+  - Útil para debugging de integraciones y análisis histórico
+- **Casos de uso**: Auditoría de webhooks de generación de videos, troubleshooting de problemas de integración, análisis de tasas de éxito/fallo
+- **Índices**: endpoint (para filtrado), createdAt (para ordenamiento temporal)
+
 ## Principales Relaciones
 
 1. **User** → Entidad central con relaciones 1:N hacia todas las entidades principales (aislamiento multi-tenant)
@@ -572,11 +591,11 @@ La base de datos ha sido **rediseñada** para soportar múltiples workspaces por
 
 ## Última Actualización
 
-**Fecha**: 2025-01-11
-**Entidades incluidas**: 14 (incluyendo nueva entidad WebhookUrl)
+**Fecha**: 2025-01-17
+**Entidades incluidas**: 15 (incluyendo nueva entidad WebhookEvent para auditoría de webhooks)
 **Relaciones mapeadas**: 16+
-**Índices documentados**: 36+ (incluyendo índices optimizados para WebhookUrl)
-**Campos totales**: 187+ (incluyendo campos de WebhookUrl)
+**Índices documentados**: 38+ (incluyendo índices optimizados para WebhookEvent)
+**Campos totales**: 190+ (incluyendo campos de WebhookEvent)
 
 ---
 

@@ -168,7 +168,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
 /**
  * POST /api/videos/generate-for-product
- * Generate video for a single product (simulated - no external API call)
+ * Generate video for a single product
  */
 router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -197,16 +197,19 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
       })
     }
 
-    // COMMENTED OUT: External API check - we're simulating
-    // if (!rckDescriptionService.isConfigured()) {
-    //   return res.status(503).json({
-    //     success: false,
-    //     message: 'RCK Description Server is not configured'
-    //   })
-    // }
+    // Check if RCK Description Server is configured
+    if (!rckDescriptionService.isConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'RCK Description Server is not configured'
+      })
+    }
 
-    // Import Product model to fetch product details
+    // Import required models
     const Product = require('../../products/models/Product').default
+    const { AIVideo } = require('../models/AIVideo')
+    const Usage = require('../../subscriptions/models/Usage').default
+    const { getEnv } = require('../../../common/config/env')
 
     // Fetch product
     const product = await Product.findOne({
@@ -222,34 +225,112 @@ router.post('/generate-for-product', async (req: AuthenticatedRequest, res: Resp
       })
     }
 
-    // COMMENTED OUT: External API call - we're just simulating
-    // const videoRequest = {
-    //   id_product: product._id.toString(),
-    //   title: product.title,
-    //   img_url: product.images && product.images.length > 0 ? product.images[0].url : '',
-    //   user_id: userId,
-    //   sku: product.handle || product.sku || product.externalId || '',
-    //   template_name: templateName
-    // }
-    // const result = await rckDescriptionService.generateVideo(videoRequest)
+    // Check video generation limits from workspace plan
+    const workspacePlan = await (req.workspace as any).getCurrentPlan()
+    if (!workspacePlan) {
+      return res.status(402).json({
+        success: false,
+        message: 'Active subscription required to generate videos'
+      })
+    }
 
-    // Add new video entry with processing status (simulated)
-    product.videos.push({
-      templateId,
-      templateName,
-      status: 'processing', // Start with processing status
-      createdAt: new Date()
-    } as any)
-    await product.save()
+    const videoLimit = workspacePlan.limits.videoGenerations
+    const currentUsage = await Usage.getCurrentMonthUsage(workspaceId)
+    const videoCount = currentUsage?.videoGenerations || 0
+
+    if (videoCount + 1 > videoLimit) {
+      return res.status(403).json({
+        success: false,
+        message: `Video generation limit exceeded. You have ${videoLimit - videoCount} remaining out of ${videoLimit} for this billing period.`
+      })
+    }
+
+    // Create AIVideo record BEFORE calling external API
+    const video = await AIVideo.create({
+      userId,
+      workspaceId,
+      productId: product._id,
+      template: templateName,
+      metadata: {
+        templateId,
+        aspect_ratio
+      },
+      status: 'generating',
+      generatedDate: new Date()
+    })
+
+    // Increment video generation usage
+    await Usage.incrementWorkspaceUsage(workspaceId, 'videoGenerations', 1)
+
+    // Get environment configuration for callback URL
+    const env = getEnv()
+    const callbackUrl = `${env.SERVER_URL}/internal/videos/success`
+
+    // Convert MongoDB ObjectId to integer for external API compatibility
+    const objectIdToInt = (objectId: string): number => {
+      return parseInt(objectId.substring(0, 8), 16)
+    }
+
+    // Prepare video request for external API
+    const videoRequest = [{
+      id_product: objectIdToInt(product._id.toString()),
+      title: product.title,
+      img_urls: product.images && product.images.length > 0
+        ? product.images.map((img: any) => img.url)
+        : [],
+      user_id: userId,
+      sku: product.sku || product._id.toString(),
+      template_name: templateName,
+      videoId: video._id.toString(),
+      aspect_ratio
+    }]
+
+    // Call external video generation API
+    try {
+      const result = await rckDescriptionService.bulkGenerateVideos(videoRequest)
+
+      console.log('[Single Video Generation] External API response:', {
+        productId: product._id,
+        response: result
+      })
+
+      // Check if the request was successful
+      if (!result.success) {
+        throw new Error(result.message || 'Video generation failed')
+      }
+
+      // Update video with external job ID if provided
+      const jobIds = result.job_ids || []
+      const externalJobId = jobIds[0] || `single_job_${Date.now()}`
+      await AIVideo.findByIdAndUpdate(video._id, {
+        $set: {
+          'metadata.externalJobId': externalJobId,
+          'metadata.queuedAt': new Date()
+        }
+      })
+    } catch (error) {
+      // If external API call fails, mark video as failed
+      console.error('[Single Video Generation] External API error:', error)
+
+      await AIVideo.findByIdAndUpdate(video._id, {
+        $set: {
+          status: 'failed',
+          error: error instanceof Error ? error.message : 'Failed to start video generation'
+        }
+      })
+
+      throw error
+    }
 
     res.json({
       success: true,
-      message: 'Video will process, we\'ll let you know when it\'s ready!',
+      message: 'Video generation started. We\'ll notify you when it\'s ready!',
       data: {
         productId: product._id,
         productTitle: product.title,
         templateId,
-        templateName
+        templateName,
+        videoId: video._id.toString()
       }
     })
   } catch (error: any) {

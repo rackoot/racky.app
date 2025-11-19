@@ -33,6 +33,7 @@ import customersRoutes from "@/customers/routes/customers";
 import workspaceRoutes from "./modules/workspaces/routes/workspaces";
 import videoRoutes from "./modules/videos/routes/videos";
 import internalVideoRoutes from "./modules/videos/routes/internal";
+import webhookEventsRoutes from "./modules/videos/routes/webhookEvents";
 import { initializeNotificationScheduler } from "@/notifications/services/notificationScheduler";
 import { protect, requireWorkspace } from "@/common/middleware/auth";
 import { stripeWebhookHandler } from "@/subscriptions/routes/billing";
@@ -99,6 +100,7 @@ app.use("/internal", internalVideoRoutes);
 // Routes that don't require workspace context
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/webhook-events", webhookEventsRoutes);
 
 // Workspace management routes (protected but don't require workspace context)
 app.use("/api/workspaces", protect, workspaceRoutes);

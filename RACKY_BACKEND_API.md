@@ -1575,6 +1575,115 @@ Webhook endpoint for external video generation service to notify video generatio
 - Consider implementing IP whitelisting or API key validation in production
 - Always validate the videoId format and existence before processing
 
+**Webhook Event Logging:**
+- All webhook calls are automatically logged to the `WebhookEvent` collection
+- Logs include the endpoint path and complete payload received
+- Events can be queried via the Webhook Events endpoints (SUPERADMIN only)
+
+---
+
+## Webhook Events Endpoints
+
+### GET /api/webhook-events
+List all webhook events with pagination and filtering (SUPERADMIN only).
+
+**Authentication:** Required (SUPERADMIN role)
+
+**Query Parameters:**
+- `page` - Page number (default: 1)
+- `limit` - Results per page (default: 20, max: 100)
+- `endpoint` - Filter by specific endpoint (optional)
+
+**Example Request:**
+```
+GET /api/webhook-events?page=1&limit=20&endpoint=/videos/success
+Authorization: Bearer <superadmin_token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "events": [
+      {
+        "_id": "65def456abc789012345",
+        "endpoint": "/videos/success",
+        "payload": {
+          "videoId": "65abc123def456789012",
+          "youtubeVideoId": "dQw4w9WgXcQ",
+          "video_url": "https://cdn.example.com/video.mp4"
+        },
+        "createdAt": "2025-01-17T10:35:42.123Z"
+      },
+      {
+        "_id": "65def456abc789012346",
+        "endpoint": "/videos/failure",
+        "payload": {
+          "videoId": "65abc123def456789013",
+          "error": "Processing timeout"
+        },
+        "createdAt": "2025-01-17T10:33:15.456Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 2,
+      "totalPages": 1
+    }
+  }
+}
+```
+
+**Use Cases:**
+- Audit trail of all webhook calls
+- Debugging webhook integration issues
+- Analyzing success/failure rates
+- Historical webhook data retrieval
+
+### GET /api/webhook-events/:id
+Get a specific webhook event by ID (SUPERADMIN only).
+
+**Authentication:** Required (SUPERADMIN role)
+
+**Example Request:**
+```
+GET /api/webhook-events/65def456abc789012345
+Authorization: Bearer <superadmin_token>
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "65def456abc789012345",
+    "endpoint": "/videos/success",
+    "payload": {
+      "videoId": "65abc123def456789012",
+      "youtubeVideoId": "dQw4w9WgXcQ",
+      "video_url": "https://cdn.example.com/video.mp4",
+      "img_s3_url": "https://s3.amazonaws.com/thumbnail.jpg"
+    },
+    "createdAt": "2025-01-17T10:35:42.123Z"
+  }
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "success": false,
+  "message": "Webhook event not found"
+}
+```
+
+**Use Cases:**
+- Inspect detailed webhook payload
+- Verify what data was received for a specific event
+- Troubleshooting individual webhook calls
+
 ## Error Responses
 
 All error responses follow this format:
