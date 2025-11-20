@@ -180,6 +180,7 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
               status: video.status,
               videoUrl: video.metadata?.videoUrl,
               youtubeUrl: video.metadata?.youtubeVideoId ? `https://www.youtube.com/watch?v=${video.metadata.youtubeVideoId}` : undefined,
+              imgS3Url: video.metadata?.imgS3Url,
               error: video.error,
               createdAt: video.createdAt,
               completedAt: video.metadata?.completedAt || video.updatedAt
@@ -1212,6 +1213,7 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
             status: latestAIVideo.status,
             videoUrl: latestAIVideo.metadata?.videoUrl,
             youtubeUrl: latestAIVideo.metadata?.youtubeVideoId ? `https://www.youtube.com/watch?v=${latestAIVideo.metadata.youtubeVideoId}` : undefined,
+            imgS3Url: latestAIVideo.metadata?.imgS3Url,
             error: latestAIVideo.error,
             createdAt: latestAIVideo.createdAt,
             completedAt: latestAIVideo.metadata?.completedAt || latestAIVideo.updatedAt
